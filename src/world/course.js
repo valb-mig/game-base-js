@@ -1,5 +1,6 @@
 import { WORLD } from '../config.js';
 import { addBox, addLabel } from './props.js';
+import { createDummy } from './dummy.js';
 
 /**
  * Campo de treino: uma estação por combinação de comandos. É andaime de
@@ -11,6 +12,7 @@ import { addBox, addLabel } from './props.js';
  *   túnel        -> teto a 1,05 m: só passa agachado
  *   passagem alta-> plataforma a 1 m sob teto a 2,4 m: só pulando agachado
  *   rastejo      -> teto a 0,7 m: agachado não passa, só deitado
+ *   estande      -> bonecos de baioneta pra testar alcance e dano do golpe
  */
 export function addTrainingCourse(scene, colliders, { origin, ground }) {
   const [RED, AMBER, BLUE, PURPLE, BONE] =
@@ -52,4 +54,12 @@ export function addTrainingCourse(scene, colliders, { origin, ground }) {
   put({ x: ox + 2.5, z: at(42), w: 1, d: 5, h: 1.6, color: RED });
   put({ x: ox, z: at(42), y: 0.7, w: 6, d: 5, h: 0.9, color: RED, standable: false });
   addLabel(scene, 'rastejo · deitar (Z)', ox, ground + 3.2, at(38));
+
+  // 6. estande de baioneta — três bonecos lado a lado, virados pra quem chega
+  const dummies = [-2.6, 0, 2.6].map((offset, i) => createDummy(scene, colliders, {
+    x: ox + offset, z: at(50), ground, facing: Math.PI, name: `boneco ${i + 1}`
+  }));
+  addLabel(scene, 'estande · golpe com o botão esquerdo', ox, ground + 3.4, at(46), 5.2);
+
+  return dummies;
 }

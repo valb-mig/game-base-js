@@ -57,7 +57,7 @@ export function buildWorld(scene) {
   });
 
   const courseGround = terrain.heightAt(course.x, course.z);
-  addTrainingCourse(scene, colliders, { origin: course, ground: courseGround });
+  const targets = addTrainingCourse(scene, colliders, { origin: course, ground: courseGround });
 
   // nada de árvore dentro de base, do campo de treino, ou no caminho entre eles
   const occupied = [
@@ -79,11 +79,12 @@ export function buildWorld(scene) {
     colliders,
     terrain,
     water,
+    targets,
     bases: [
       { id: 'norte', short: 'Norte', name: 'Base Norte', position: new THREE.Vector3(north.x, northGround, north.z) },
       { id: 'sul', short: 'Sul', name: 'Base Sul', position: new THREE.Vector3(south.x, southGround, south.z) }
     ],
     spawn: new THREE.Vector3(north.x, northGround, north.z + 12),
-    stats: { ...counts, colliders: colliders.length }
+    stats: { ...counts, alvos: targets.length, colliders: colliders.length }
   };
 }

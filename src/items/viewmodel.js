@@ -26,6 +26,18 @@ const REST_ROTATION = new THREE.Euler(0.08, Math.PI / 2 + 0.26, 0.14);
 const SPRINT_POSITION = new THREE.Vector3(0.175, -0.165, -0.44);
 const SPRINT_ROTATION = new THREE.Euler(-0.24, Math.PI / 2 + 0.55, 0.34);
 
+// Golpe: recolhe pra trás e pra cima, depois cruza a tela de cima pra baixo.
+// A lâmina passa pelo centro perto de MELEE.DAMAGE_AT, que é quando o dano é
+// resolvido — o acerto tem que coincidir com o que se vê.
+const WIND_POSITION = new THREE.Vector3(0.235, -0.055, -0.33);
+const WIND_ROTATION = new THREE.Euler(0.62, Math.PI / 2 + 0.72, -0.34);
+
+const SLASH_POSITION = new THREE.Vector3(-0.075, -0.235, -0.4);
+const SLASH_ROTATION = new THREE.Euler(-0.5, Math.PI / 2 - 0.34, 0.86);
+
+const WIND_END = 0.3;    // fim do recolhimento
+const SLASH_END = 0.52;  // fim do corte; o resto é voltar à guarda
+
 const SWAY_STRENGTH = 0.05;    // quanto a mão fica pra trás ao girar
 const SWAY_LIMIT = 0.045;
 const SWAY_RECOVER = 9;
@@ -92,6 +104,48 @@ export class Viewmodel {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * Pose do golpe, misturada por cima da pose de andar. Devolve 0..1 de
+   * quanto o golpe domina — em repouso é 0 e nada muda.
+   */
+  #applySwing(swing, position, rotation) {
+    if (!swing.active) return 0;
+
+    const t = Math.min(1, swing.progress);
+    let from;
+    let to;
+    let k;
+
+    if (t < WIND_END) {
+      from = { p: REST_POSITION, r: REST_ROTATION };
+      to = { p: WIND_POSITION, r: WIND_ROTATION };
+      k = t / WIND_END;
+      k = k * k;                       // sai devagar, acelera: é o recuo
+    } else if (t < SLASH_END) {
+      from = { p: WIND_POSITION, r: WIND_ROTATION };
+      to = { p: SLASH_POSITION, r: SLASH_ROTATION };
+      k = (t - WIND_END) / (SLASH_END - WIND_END);
+      k = 1 - (1 - k) * (1 - k) * (1 - k);   // estala pra frente
+    } else {
+      from = { p: SLASH_POSITION, r: SLASH_ROTATION };
+      to = { p: REST_POSITION, r: REST_ROTATION };
+      k = (t - SLASH_END) / (1 - SLASH_END);
+      k = k * k * (3 - 2 * k);         // volta suave à guarda
+    }
+
+    position.set(
+      THREE.MathUtils.lerp(from.p.x, to.p.x, k),
+      THREE.MathUtils.lerp(from.p.y, to.p.y, k),
+      THREE.MathUtils.lerp(from.p.z, to.p.z, k)
+    );
+    rotation.set(
+      THREE.MathUtils.lerp(from.r.x, to.r.x, k),
+      THREE.MathUtils.lerp(from.r.y, to.r.y, k),
+      THREE.MathUtils.lerp(from.r.z, to.r.z, k)
+    );
+    return 1;
+  }
+
   update(delta, player) {
     if (delta <= 0) return;
 
@@ -119,6 +173,15 @@ export class Viewmodel {
     const bobY = Math.sin(this.bobPhase * 2) * BOB_AMOUNT * 0.5 * speedRatio;
 
     const { pose } = this;
+
+    // golpear cancela a pose de corrida: não dá pra atacar com a arma baixada
+    const swinging = this.#applySwing(player.swing, this.group.position, this.group.rotation);
+    if (swinging) {
+      this.group.position.x += this.sway.x;
+      this.group.position.y += this.sway.y;
+      return;
+    }
+
     this.group.position.set(
       THREE.MathUtils.lerp(REST_POSITION.x, SPRINT_POSITION.x, pose) + this.sway.x + bobX,
       THREE.MathUtils.lerp(REST_POSITION.y, SPRINT_POSITION.y, pose) + this.sway.y + bobY,

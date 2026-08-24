@@ -51,6 +51,9 @@ export class Player {
     this.viewOffset = 0;
     this.bobPhase = 0;
 
+    // golpe em andamento; quem mexe é items/attack.js, quem desenha é o viewmodel
+    this.swing = { active: false, progress: 0, cooldown: 0, buffered: 0 };
+
     // água — atualizado todo frame por updateWaterState
     this.swimming = false;
     this.waterDepth = 0;
@@ -108,6 +111,10 @@ export class Player {
     this.onGround = true;
     this.swimming = false;
     this.health = this.maxHealth;
+    this.swing.active = false;
+    this.swing.progress = 0;
+    this.swing.cooldown = 0;
+    this.swing.buffered = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.equipped = this.meleeOf(this.classDef);
     this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);

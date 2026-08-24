@@ -19,7 +19,15 @@ export const KNIFE = {
   id: 'kabar',
   slot: 'Corpo a corpo',
   name: 'Faca KA-BAR',
-  note: 'Padrão do Corpo de Fuzileiros, comum a todas as classes'
+  note: 'Padrão do Corpo de Fuzileiros, comum a todas as classes',
+  // Alcance e abertura do golpe. O arco existe porque exigir mira de
+  // precisão pra uma facada de perto é frustrante — mas 34° também não
+  // deixa acertar o que está claramente ao lado.
+  melee: {
+    damage: 55,
+    reach: 1.9,
+    arc: 34
+  }
 };
 
 export const CLASSES = [

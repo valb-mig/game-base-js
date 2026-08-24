@@ -6,12 +6,14 @@ import { applyUnderwater } from './world/water.js';
 import { Player } from './player/player.js';
 import { Viewmodel } from './items/viewmodel.js';
 import { initDrop } from './items/drop.js';
+import { initAttack } from './items/attack.js';
 import { initMenu } from './ui/menu.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
 import { initMission } from './ui/mission.js';
 import { initPrompt } from './ui/prompt.js';
+import { initHitmarker } from './ui/hitmarker.js';
 
 const { scene, camera, renderer } = createStage();
 const world = buildWorld(scene);
@@ -33,6 +35,8 @@ addEventListener('resize', () => viewmodel.setAspect(innerWidth / innerHeight));
 
 const drops = initDrop(scene, player, viewmodel, world);
 const updatePrompt = initPrompt(drops);
+const attack = initAttack(player, world);
+const updateHitmarker = initHitmarker(attack);
 
 initMenu(player.controls, (classDef) => {
   player.setClass(classDef);
@@ -52,6 +56,8 @@ renderer.setAnimationLoop(() => {
     viewmodel.update(delta, player);
   }
   drops.update(delta);
+  attack.update(delta);
+  for (const target of world.targets) target.update(delta);
 
   world.water.update(clock.elapsedTime);
   applyUnderwater(scene, player.headUnderwater);
@@ -61,6 +67,7 @@ renderer.setAnimationLoop(() => {
   updateCompass();
   updateMission();
   updatePrompt();
+  updateHitmarker(delta);
 
   renderer.render(scene, camera);
   viewmodel.render(renderer);

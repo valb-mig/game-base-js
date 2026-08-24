@@ -32,15 +32,16 @@ src/
   player/  player.js estado + ordem dos sistemas
            locomotion.js  stance.js  swim.js  collision.js  view.js  heading.js
   world/   heightfield.js  altura da ilha (matemática pura, sem three)
+           dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
            base.js  base militar · course.js  campo de treino
            props.js  helpers · world.js  monta tudo
-  items/   classes.js  knife.js  models.js  viewmodel.js  drop.js
+  items/   classes.js  knife.js  models.js  viewmodel.js  drop.js  attack.js
   ui/      menu.js  session.js  compass.js  mission.js  status.js
            prompt.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
-            drop, flow)
+            drop, melee, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
 ```
@@ -134,6 +135,21 @@ remedir quando o tamanho mudar, inclusive de zero pra alguma coisa: a bússola
 media na inicialização, quando o HUD ainda estava oculto, e ficava 0x0 pra
 sempre — existia e nunca desenhava.
 
+**O golpe é uma linha do tempo, não um evento.** O clique começa a animação e
+o dano só é resolvido no quadro que cruza `MELEE.DAMAGE_AT` — é o que faz o
+acerto coincidir com a lâmina passando na tela.
+
+**Mira de corpo a corpo é horizontal, com folga na vertical.** Testar o ângulo
+em 3D até o centro do alvo parece certo e não é: colado no boneco, o centro
+dele fica meio metro abaixo da linha dos olhos, o ângulo estoura e a facada à
+queima-roupa erra.
+
+**Alvo não pode bloquear a mira até si mesmo.** O teste de linha de visão do
+golpe ignora o colisor do próprio alvo, senão nada nunca é acertado.
+
+**Ação de clique também tem buffer**, como o pulo: sem ele, clicar no fim do
+respiro consumia o clique e não saía golpe nenhum.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -185,6 +201,9 @@ faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item
 Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
 apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
-Ainda não existe: dano (a vida é só leitura), tiro, golpe da faca, objetivo de
+Golpe de faca funciona (botão esquerdo), com dano, marca de acerto e três
+bonecos de treino no estande do campo de treino.
+
+Ainda não existe: dano ao jogador (a vida dele é só leitura), tiro, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.

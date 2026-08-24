@@ -112,6 +112,14 @@ export const DROP = {
   PICK_REACH: 2.4    // alcance pra apanhar do chão; tem que cobrir a largada
 };
 
+export const MELEE = {
+  SWING_TIME: 0.46,   // duração do golpe inteiro, em segundos
+  DAMAGE_AT: 0.38,    // fração do golpe em que o dano é resolvido
+  COOLDOWN: 0.1,      // respiro entre um golpe e o próximo
+  BUFFER: 0.14,       // clique um tiquinho cedo ainda vale quando o respiro acaba
+  HIT_FLASH: 0.12     // quanto tempo a marca de acerto fica na tela
+};
+
 export const CAMERA = {
   FOV: 70,
   NEAR: 0.1,

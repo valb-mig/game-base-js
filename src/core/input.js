@@ -28,6 +28,36 @@ export function initInput() {
     pressed.clear();
     fresh.clear();
   });
+
+  initMouse();
+}
+
+// Botões do mouse. Mesmo modelo do teclado: um conjunto de segurados e um
+// de recém-apertados, consumido por quem lê.
+const buttons = new Set();
+const freshButtons = new Set();
+
+export function initMouse(target = window) {
+  target.addEventListener('mousedown', (event) => {
+    if (!buttons.has(event.button)) freshButtons.add(event.button);
+    buttons.add(event.button);
+  });
+  target.addEventListener('mouseup', (event) => buttons.delete(event.button));
+  addEventListener('blur', () => {
+    buttons.clear();
+    freshButtons.clear();
+  });
+}
+
+export const MOUSE_LEFT = 0;
+export const MOUSE_RIGHT = 2;
+
+export function isMouseDown(button = MOUSE_LEFT) {
+  return buttons.has(button);
+}
+
+export function consumeClick(button = MOUSE_LEFT) {
+  return freshButtons.delete(button);
 }
 
 export function isDown(...codes) {
@@ -49,6 +79,7 @@ export function consumePress(...codes) {
 // chamada no fim do loop: o que ninguém leu vira passado
 export function endFrame() {
   fresh.clear();
+  freshButtons.clear();
 }
 
 // 1, -1 ou 0 — útil pra montar vetor de direção
