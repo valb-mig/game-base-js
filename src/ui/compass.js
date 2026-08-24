@@ -24,7 +24,7 @@ export function initCompass(camera) {
   let width = 0;
   let height = 0;
 
-  function resize() {
+  function measure() {
     const ratio = Math.min(devicePixelRatio, 2);
     width = canvas.clientWidth;
     height = canvas.clientHeight;
@@ -65,10 +65,16 @@ export function initCompass(camera) {
     }
   }
 
-  resize();
-  addEventListener('resize', resize);
+  addEventListener('resize', measure);
 
   return function updateCompass() {
+    // Remede sempre que o tamanho mudar, inclusive de zero pra alguma coisa.
+    // Na inicialização o HUD ainda está com display:none esperando o deploy,
+    // então medir só uma vez deixava o canvas com 0x0 pra sempre — a fita
+    // existia e nunca desenhava nada.
+    if (canvas.clientWidth !== width || canvas.clientHeight !== height) measure();
+    if (width === 0 || height === 0) return;
+
     const heading = headingDegrees(camera.quaternion, scratch);
     if (lastHeading !== null && Math.abs(heading - lastHeading) < 0.15) return;
     lastHeading = heading;

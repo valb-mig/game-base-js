@@ -8,7 +8,7 @@ const fresh = new Set(); // teclas que baixaram neste frame, ainda não consumid
 // só o Keyboard Lock em tela cheia os segura (ver ui.js).
 const SWALLOW = new Set([
   'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'KeyZ', 'KeyG',
+  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'KeyZ', 'KeyG', 'KeyE',
   'ShiftLeft', 'ShiftRight',
   'Backquote', 'F2', 'Tab'
 ]);

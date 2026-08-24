@@ -101,14 +101,15 @@ export const WORLD = {
 };
 
 export const DROP = {
-  FORWARD: 2.4,      // impulso pra frente ao soltar, em m/s
+  FORWARD: 1.5,      // impulso pra frente ao soltar, em m/s
   LIFT: 1.5,
   SPIN: 7,           // giro no ar, em rad/s
   GRAVITY: 18,
   WATER_DRAG: 3.2,   // dentro d'água o item desce devagar
   WATER_SINK: 1.1,   // velocidade terminal afundando
   SETTLE_TIME: 0.2,  // tempo pra assentar deitado depois de tocar o chão
-  REACH: 0.55        // distância à frente do rosto onde o item nasce
+  REACH: 0.55,       // distância à frente do rosto onde o item nasce
+  PICK_REACH: 2.4    // alcance pra apanhar do chão; tem que cobrir a largada
 };
 
 export const CAMERA = {

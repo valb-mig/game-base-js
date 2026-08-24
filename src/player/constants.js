@@ -10,6 +10,7 @@ export const RUN_KEYS = ['ShiftLeft', 'ShiftRight'];
 export const CROUCH_KEYS = ['KeyC'];
 export const PRONE_KEYS = ['KeyZ'];
 export const DROP_KEYS = ['KeyG'];
+export const PICK_KEYS = ['KeyE'];
 
 export const STAND = 'de pé';
 export const CROUCH = 'agachado';

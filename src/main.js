@@ -11,6 +11,7 @@ import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
 import { initMission } from './ui/mission.js';
+import { initPrompt } from './ui/prompt.js';
 
 const { scene, camera, renderer } = createStage();
 const world = buildWorld(scene);
@@ -31,6 +32,7 @@ viewmodel.visible = false;
 addEventListener('resize', () => viewmodel.setAspect(innerWidth / innerHeight));
 
 const drops = initDrop(scene, player, viewmodel, world);
+const updatePrompt = initPrompt(drops);
 
 initMenu(player.controls, (classDef) => {
   player.setClass(classDef);
@@ -58,6 +60,7 @@ renderer.setAnimationLoop(() => {
   updateStatus();
   updateCompass();
   updateMission();
+  updatePrompt();
 
   renderer.render(scene, camera);
   viewmodel.render(renderer);

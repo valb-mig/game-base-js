@@ -248,6 +248,40 @@ body:not(.playing) #debug {
   color: var(--ink-dim);
 }
 
+/* ----------------------------------------------------------- aviso de ação */
+
+#prompt {
+  position: absolute;
+  top: calc(50% + 34px);
+  left: 50%;
+  display: none;
+  align-items: center;
+  gap: 9px;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#prompt.visible {
+  display: flex;
+}
+
+#prompt kbd {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--ink);
+  background: rgba(20, 24, 18, 0.72);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
 /* ------------------------------------------------------------------ debug */
 
 #debug {

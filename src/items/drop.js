@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { DROP, WORLD } from '../config.js';
 import { consumePress } from '../core/input.js';
-import { DROP_KEYS } from '../player/constants.js';
+import { DROP_KEYS, PICK_KEYS } from '../player/constants.js';
 import { restHeightAt } from '../player/collision.js';
-import { createItemModel, restingRotation } from './models.js';
+import { createItemModel, restingRotation, disposeModel } from './models.js';
 
 /**
  * Itens largados no mundo.
@@ -99,6 +99,45 @@ export function initDrop(scene, player, viewmodel, world) {
     }
   }
 
+  /**
+   * Item alcançável agora, ou null.
+   *
+   * Só conta o que já parou de cair: sem isso, largar e apanhar no mesmo
+   * instante viraria um piscar. E só com a mão vazia — trocar item ainda não
+   * existe, então apanhar de mão cheia não faria nada de útil.
+   */
+  function reachable() {
+    if (player.equipped) return null;
+
+    const position = player.object.position;
+    let best = null;
+    let bestDistance = DROP.PICK_REACH;
+
+    for (const entity of items) {
+      if (!entity.resting) continue;
+      const distance = entity.mesh.position.distanceTo(position);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = entity;
+      }
+    }
+    return best;
+  }
+
+  /** Põe na mão o item alcançável mais perto. Devolve o item, ou null. */
+  function pickUp() {
+    const entity = reachable();
+    if (!entity) return null;
+
+    items.splice(items.indexOf(entity), 1);
+    scene.remove(entity.mesh);
+    disposeModel(entity.mesh);
+
+    player.equipped = entity.item;
+    viewmodel.setItem(entity.item);
+    return entity.item;
+  }
+
   /** Tira o item da mão e devolve a entidade que caiu, ou null. */
   function dropEquipped() {
     const item = player.equipped;
@@ -115,9 +154,14 @@ export function initDrop(scene, player, viewmodel, world) {
   return {
     items,
     dropEquipped,
+    pickUp,
+    reachable,
 
     update(delta) {
-      if (player.isLocked && consumePress(...DROP_KEYS)) dropEquipped();
+      if (player.isLocked) {
+        if (consumePress(...DROP_KEYS)) dropEquipped();
+        if (consumePress(...PICK_KEYS)) pickUp();
+      }
       for (const entity of items) step(entity, delta);
     }
   };

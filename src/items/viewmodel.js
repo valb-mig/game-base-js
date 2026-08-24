@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createItemModel } from './models.js';
+import { createItemModel, disposeModel } from './models.js';
 
 /**
  * Item na mão, em primeira pessoa. Sem braços por enquanto: só o objeto.
@@ -69,6 +69,7 @@ export class Viewmodel {
   setItem(item) {
     if (this.item) {
       this.group.remove(this.item);
+      disposeModel(this.item);
       this.item = null;
     }
     const model = createItemModel(item);

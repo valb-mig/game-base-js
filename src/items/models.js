@@ -29,3 +29,20 @@ export function restingRotation(item) {
   if (item?.id === 'kabar') return { x: Math.PI / 2, z: 0 };
   return { x: 0, z: 0 };
 }
+
+/**
+ * Devolve ao GPU o que o modelo alocou.
+ *
+ * Cada item construído cria geometrias e materiais próprios, então largar e
+ * apanhar em sequência vazaria memória de vídeo sem isto. Só é seguro porque
+ * nenhuma fábrica de item usa as geometrias compartilhadas de world/props.js.
+ */
+export function disposeModel(model) {
+  if (!model) return;
+  model.traverse((object) => {
+    object.geometry?.dispose();
+    const material = object.material;
+    if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
+    else material?.dispose();
+  });
+}

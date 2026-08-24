@@ -36,9 +36,11 @@ src/
            base.js  base militar · course.js  campo de treino
            props.js  helpers · world.js  monta tudo
   items/   classes.js  knife.js  models.js  viewmodel.js  drop.js
-  ui/      menu.js  session.js  compass.js  mission.js  status.js  debug.js
+  ui/      menu.js  session.js  compass.js  mission.js  status.js
+           prompt.js  debug.js
 tests/     run.html + suites/
-           (aim, movement, jump, stance, terrain, swim, model, drop, flow)
+           (aim, compass, movement, jump, stance, terrain, swim, model,
+            drop, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
 ```
@@ -127,6 +129,11 @@ isso já fez o HUD ficar em branco.
 frames um item rápido passa inteiro por dentro de uma caixa; `restHeightAt`
 recebe o topo do trecho justamente por isso.
 
+**Nada de medir layout uma vez só.** Quem depende de `clientWidth` tem que
+remedir quando o tamanho mudar, inclusive de zero pra alguma coisa: a bússola
+media na inicialização, quando o HUD ainda estava oculto, e ficava 0x0 pra
+sempre — existia e nunca desenhava.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -145,6 +152,15 @@ cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 **Screenshot precisa de loop de render.** `preserveDrawingBuffer` é false, então
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
+
+**Página de verificação tem que inicializar como o jogo inicializa.** O HUD
+nasce com `display:none` esperando o deploy; capturas que ligavam `.playing`
+antes de criar os painéis testavam um caminho que o jogo não faz, e deixaram
+passar uma bússola de 0x0. Espelhe a ordem do `main.js`, incluindo o deploy.
+
+**E atualize os painéis todo frame, como o `main.js` faz.** Desenhar uma vez e
+deixar o loop só renderizando faz um resize tardio limpar o canvas sem
+redesenhar — sintoma que parece bug do jogo e não é.
 
 **Mas a simulação não pode viver dentro do loop.** Sob `--virtual-time-budget`
 o requestAnimationFrame quase não roda: contar frames lá dentro não funciona em
@@ -166,8 +182,8 @@ deitar em Z, pulo com coyote time e buffer), natação, mapa de ilha com praia,
 floresta e duas bases militares opostas, campo de treino, seleção de classe,
 faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item).
 
-Largar item com G funciona; **apanhar do chão ainda não existe** — o que cai
-fica lá, e `drops.items` já guarda item e posição pra quem for escrever isso.
+Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
+apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
 Ainda não existe: dano (a vida é só leitura), tiro, golpe da faca, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as
