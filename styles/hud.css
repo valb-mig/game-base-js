@@ -1,0 +1,110 @@
+/* Sobreposições em jogo: faixa de status e painel de debug. */
+
+#status {
+  --class-color: #9fe08a;
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  min-width: 190px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--class-color);
+  border-radius: 0 8px 8px 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font: 12px/1.6 system-ui, sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+body:not(.playing) #status,
+body:not(.playing) #debug {
+  display: none;
+}
+
+.status-class {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.status-bar {
+  position: relative;
+  height: 6px;
+  margin: 7px 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.status-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--class-color);
+  transition: width 0.2s;
+}
+
+.status-bar::after {
+  content: attr(data-value);
+  position: absolute;
+  top: -4px;
+  right: 0;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.status-equipped {
+  margin-bottom: 3px;
+  font-weight: 600;
+  color: var(--class-color);
+}
+
+.status-loadout {
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+#debug {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+  user-select: none;
+}
+
+#debug.hidden {
+  display: none;
+}
+
+#debug b {
+  color: #9fe08a;
+  font-weight: 600;
+}
+
+.debug-keys {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.debug-keys span {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.debug-keys span.on {
+  border-color: #9fe08a;
+  background: rgba(159, 224, 138, 0.25);
+  color: #fff;
+}
+
+.debug-ghost {
+  margin-top: 6px;
+  min-height: 1em;
+  color: #e0a02f;
+}

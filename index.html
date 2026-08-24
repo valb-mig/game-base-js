@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walker</title>
+<link rel="stylesheet" href="./styles/base.css">
+<link rel="stylesheet" href="./styles/screens.css">
+<link rel="stylesheet" href="./styles/hud.css">
+</head>
+<body>
+
+<div id="crosshair"></div>
+<div id="debug"></div>
+
+<div id="status"></div>
+
+<div id="class-select" class="screen">
+  <div class="screen-inner">
+    <h1>Escolha sua classe</h1>
+    <p class="screen-sub">Frente ocidental, 1945 &middot; dá pra trocar de classe pelo ESC</p>
+
+    <div id="class-grid"></div>
+    <div id="class-detail"></div>
+
+    <button type="button" id="deploy">Entrar no mapa</button>
+  </div>
+</div>
+
+<div id="hud" class="screen hidden">
+  <div class="screen-inner">
+    <h1>Clique para voltar</h1>
+    <p id="hud-class"></p>
+    <p>
+      WASD ou setas para andar &middot; Shift liga e desliga a corrida<br>
+      C agacha &middot; Z deita &middot; ambos alternam &middot; Espaço para pular<br>
+      Mouse para olhar &middot; ` ou F2 mostra o painel &middot; ESC para sair
+    </p>
+    <p class="hint">A pista de teste fica em frente ao spawn: escada, salto largo, túnel, passagem alta e rastejo.</p>
+
+    <div id="hud-options">
+      <label>
+        <input type="checkbox" id="fullscreen-toggle">
+        Tela cheia
+      </label>
+      <span>Opcional: segura atalhos do navegador e tira as bordas.</span>
+    </div>
+
+    <button type="button" id="change-class">Trocar classe</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module" src="./src/main.js"></script>
+
+</body>
+</html>

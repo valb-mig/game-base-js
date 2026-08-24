@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Testes</title>
+<style>
+  body { margin: 0; background: #12181a; color: #dfe6e2; font: 13px/1.6 ui-monospace, monospace; }
+  pre { padding: 20px; margin: 0; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<pre id="out">rodando…</pre>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/three.module.js",
+    "three/addons/": "../vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import { report } from './assert.js';
+
+// Ordem fixa pra saída ser comparável entre execuções.
+const SUITES = ['aim', 'movement', 'jump', 'stance', 'model', 'flow'];
+
+const problems = [];
+for (const name of SUITES) {
+  try {
+    const module = await import(`./suites/${name}.js`);
+    module.run();
+  } catch (error) {
+    problems.push(`FALHA  suite "${name}" estourou: ${error.message}`);
+    console.error(error);
+  }
+}
+
+const body = report();
+const tail = problems.length ? '\n' + problems.join('\n') + '\nHOUVE FALHA' : '';
+document.getElementById('out').textContent = body + tail;
+</script>
+</body>
+</html>

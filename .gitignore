@@ -1,0 +1,9 @@
+# capturas e saídas de verificação
+*.png
+!tools/**/*.png
+
+# lixo de editor e sistema
+.DS_Store
+*.swp
+.vscode/
+.idea/
