@@ -31,6 +31,8 @@ export async function run() {
     terrain: relevo,
     spawn: new THREE.Vector3(0, 0, 0)
   });
+  // a Assault nasce com a pistola; este suite exercita a faca
+  player.selectSlot(player.carried.indexOf(KNIFE));
   const viewmodel = new Viewmodel(camera, 1);
   viewmodel.setItem(player.equipped);
   const drops = initDrop(scene, player, viewmodel, { terrain: relevo });
@@ -52,8 +54,10 @@ export async function run() {
   press('KeyG');
   step(1);
 
-  eq('largou: mão vazia', player.equipped, null);
-  eq('viewmodel esvazia junto', viewmodel.item, null);
+  // com dois itens no cinto, largar um passa a mão pro outro
+  eq('largar troca pro item restante', player.equipped?.id, 'm1911');
+  ok('e o viewmodel acompanha', viewmodel.item !== null);
+  ok('a faca saiu do inventário', !player.carried.includes(KNIFE));
   eq('a faca virou objeto do mundo', drops.items.length, 1);
   ok('e entrou na cena', scene.children.includes(drops.items[0].mesh));
 
@@ -61,6 +65,15 @@ export async function run() {
   eq('o objeto sabe qual item é', faca.item.id, KNIFE.id);
   ok('nasce à frente do rosto, não dentro dele',
     faca.mesh.position.distanceTo(camera.position) > 0.3);
+
+  // largar o último item aí sim deixa a mão vazia
+  player.selectSlot(0);
+  press('KeyG'); step(1);
+  eq('largar o último deixa a mão vazia', player.equipped, null);
+  eq('e o inventário vazio', player.carried.length, 0);
+  player.carried = [KNIFE, drops.items[0].item];
+  player.selectSlot(0);
+  drops.items.length = 1;
 
   suite('queda e repouso');
 
@@ -129,6 +142,7 @@ export async function run() {
   const alvo = drops.items[0];
   player.object.position.set(alvo.mesh.position.x, 6.7, alvo.mesh.position.z + 1);
   player.eyeY = 6.7;
+  player.carried = [];
   player.equipped = null;
   viewmodel.setItem(null);
 
@@ -154,6 +168,7 @@ export async function run() {
 
   suite('alcance');
 
+  player.carried = [];
   player.equipped = null;
   viewmodel.setItem(null);
   const longe = drops.items[0];
@@ -181,6 +196,7 @@ export async function run() {
   holder.innerHTML = '<div id="vitals"></div><div id="equipped"></div>';
   document.body.appendChild(holder);
   const semItem = new Player(camera, document.body, { colliders: [], terrain: relevo });
+  semItem.carried = [];
   semItem.equipped = null;
   initStatus(semItem)();
   ok('HUD desenha mão vazia no primeiro quadro',
@@ -188,13 +204,15 @@ export async function run() {
     document.getElementById('equipped').textContent.trim());
   holder.remove();
 
+  player.carried = [];
   player.equipped = null;
   const antes = drops.items.length;
   press('KeyG'); step(1);
   eq('G de mão vazia não larga nada', drops.items.length, antes);
 
   player.respawn();
-  eq('renascer devolve o equipamento', player.equipped?.id, KNIFE.id);
+  eq('renascer devolve o equipamento da classe', player.equipped?.id, 'm1911');
+  ok('inclusive a faca', player.carried.includes(KNIFE));
   eq('mas o que caiu continua no chão', drops.items.length, antes);
 
   player.controls.isLocked = false;

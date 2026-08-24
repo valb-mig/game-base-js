@@ -36,12 +36,14 @@ src/
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
            base.js  base militar · course.js  campo de treino
            props.js  helpers · world.js  monta tudo
-  items/   classes.js  knife.js  models.js  viewmodel.js  drop.js  attack.js
+  items/   classes.js  models.js  viewmodel.js  drop.js
+           knife.js  pistol.js    modelos
+           attack.js  firearm.js  golpe e tiro
   ui/      menu.js  session.js  compass.js  mission.js  status.js
            prompt.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
-            drop, melee, flow)
+            drop, melee, firearm, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
 ```
@@ -150,6 +152,20 @@ golpe ignora o colisor do próprio alvo, senão nada nunca é acertado.
 **Ação de clique também tem buffer**, como o pulo: sem ele, clicar no fim do
 respiro consumia o clique e não saía golpe nenhum.
 
+**Arma de fogo nasce com o cano no -Z.** É o que faz mirar pelo ferro virar
+translação pura, sem rotação pra "acertar" o alinhamento — girar a arma pra
+encaixar a mira é o que deixa mira de ferro torta. `SIGHT_HEIGHT` é exportado
+pelo modelo justamente pra que o viewmodel não adivinhe a altura da linha.
+
+**A distância da arma na mira não é escolha estética.** Perto demais, o
+ferrolho fica mais largo na tela que o alvo e tapa exatamente o que se quer
+acertar. A 0,5 m ele ocupa ~6% da largura, contra ~5,4% de um boneco a 9 m.
+
+**Alvo não pode barrar a própria bala.** Igual ao corpo a corpo: o hitscan
+acha o alvo primeiro e só então pergunta se há parede mais perto, ignorando o
+colisor dele. Antes disso o acerto dependia de a abertura do tiro escapar pela
+lateral da caixa — era sorte, e o teste falhava de forma intermitente.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -201,8 +217,10 @@ faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item
 Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
 apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
-Golpe de faca funciona (botão esquerdo), com dano, marca de acerto e três
-bonecos de treino no estande do campo de treino.
+Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
+treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
+8 tiros (7 + 1 na câmara), recarga no R, mira de ferro no botão direito, e
+troca de item no 1 e 2.
 
 Ainda não existe: dano ao jogador (a vida dele é só leitura), tiro, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

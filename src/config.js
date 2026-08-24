@@ -122,6 +122,7 @@ export const MELEE = {
 
 export const CAMERA = {
   FOV: 70,
+  ADS_FOV: 56,   // mirar aproxima; sem isso a mira de ferro só atrapalha a visão
   NEAR: 0.1,
   FAR: 400
 };

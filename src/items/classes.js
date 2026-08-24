@@ -30,6 +30,29 @@ export const KNIFE = {
   }
 };
 
+/**
+ * Pistola de serviço. Exclusiva da Assault por decisão de jogo — as outras
+ * classes levam o revólver Victory, também de dotação americana na guerra.
+ */
+export const PISTOL = {
+  id: 'm1911',
+  slot: 'Secundária',
+  name: 'Colt M1911A1',
+  note: '.45 ACP · sete no carregador e uma na câmara',
+  firearm: {
+    damage: 34,
+    range: 55,
+    magazine: 7,       // o oitavo tiro é o da câmara
+    reloadTime: 1.9,
+    fireInterval: 0.17,
+    hipSpread: 2.1,    // graus de abertura atirando do quadril
+    adsSpread: 0.3,
+    adsTime: 0.16,
+    recoil: 1.5        // coice, em graus
+  },
+  ammo: { loaded: 8, reserve: 21 }
+};
+
 export const CLASSES = [
   {
     id: 'assault',
@@ -45,7 +68,7 @@ export const CLASSES = [
     movement: {},
     loadout: [
       { slot: 'Primária', name: 'Thompson M1A1', note: '.45 ACP, devastadora de perto' },
-      { slot: 'Secundária', name: 'Colt M1911', note: 'Pistola padrão do Exército' },
+      PISTOL,
       { slot: 'Gadget 1', name: 'Granada Mk 2', note: 'Fragmentação, 4 a 5 segundos' },
       { slot: 'Gadget 2', name: 'Bolsa de curativos', note: 'Estanca sangramento em campo' },
       KNIFE
@@ -63,7 +86,7 @@ export const CLASSES = [
     movement: {},
     loadout: [
       { slot: 'Primária', name: 'Carabina M1', note: 'Leve, boa em espaço fechado' },
-      { slot: 'Secundária', name: 'Colt M1911', note: '' },
+      { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Bazuca M1A1', note: 'Foguete anti-tanque de 60 mm' },
       { slot: 'Gadget 2', name: 'Mina anti-tanque', note: 'Enterrada na estrada' },
       KNIFE
@@ -81,7 +104,7 @@ export const CLASSES = [
     movement: {},
     loadout: [
       { slot: 'Primária', name: 'BAR M1918', note: 'Fuzil automático, melhor deitado' },
-      { slot: 'Secundária', name: 'Colt M1911', note: '' },
+      { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Caixa de munição', note: 'Reabastece quem estiver perto' },
       { slot: 'Gadget 2', name: 'Carga de demolição', note: 'Explosivo com estopim' },
       KNIFE
@@ -99,7 +122,7 @@ export const CLASSES = [
     movement: {},
     loadout: [
       { slot: 'Primária', name: 'Springfield M1903A4', note: 'Ferrolho, luneta Weaver 330' },
-      { slot: 'Secundária', name: 'Colt M1911', note: '' },
+      { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Binóculo M3', note: 'Marca posição inimiga' },
       { slot: 'Gadget 2', name: 'Sinalizador', note: 'Chama fogo de artilharia' },
       KNIFE

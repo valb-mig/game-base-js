@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { DROP, WORLD } from '../config.js';
 import { consumePress } from '../core/input.js';
-import { DROP_KEYS, PICK_KEYS } from '../player/constants.js';
+import { DROP_KEYS, PICK_KEYS, SLOT_KEYS } from '../player/constants.js';
 import { restHeightAt } from '../player/collision.js';
 import { createItemModel, restingRotation, disposeModel } from './models.js';
 
@@ -133,7 +133,7 @@ export function initDrop(scene, player, viewmodel, world) {
     scene.remove(entity.mesh);
     disposeModel(entity.mesh);
 
-    player.equipped = entity.item;
+    player.takeCarried(entity.item);
     viewmodel.setItem(entity.item);
     return entity.item;
   }
@@ -146,8 +146,8 @@ export function initDrop(scene, player, viewmodel, world) {
     const entity = spawn(item);
     if (!entity) return null;
 
-    player.equipped = null;
-    viewmodel.setItem(null);
+    player.dropCarried();
+    viewmodel.setItem(player.equipped);
     return entity;
   }
 
@@ -159,6 +159,11 @@ export function initDrop(scene, player, viewmodel, world) {
 
     update(delta) {
       if (player.isLocked) {
+        for (let i = 0; i < SLOT_KEYS.length; i++) {
+          if (consumePress(SLOT_KEYS[i]) && player.selectSlot(i)) {
+            viewmodel.setItem(player.equipped);
+          }
+        }
         if (consumePress(...DROP_KEYS)) dropEquipped();
         if (consumePress(...PICK_KEYS)) pickUp();
       }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createItemModel, disposeModel } from './models.js';
+import { SIGHT_HEIGHT } from './pistol.js';
 
 /**
  * Item na mão, em primeira pessoa. Sem braços por enquanto: só o objeto.
@@ -38,6 +39,17 @@ const SLASH_ROTATION = new THREE.Euler(-0.5, Math.PI / 2 - 0.34, 0.86);
 const WIND_END = 0.3;    // fim do recolhimento
 const SLASH_END = 0.52;  // fim do corte; o resto é voltar à guarda
 
+// Mira de ferro. A arma é construída com o cano no -Z e a linha de mira em
+// SIGHT_HEIGHT, então alinhar é translação pura: centralizar em X, descer a
+// altura da mira, e levar à distância do braço. Nenhuma rotação — girar pra
+// "acertar" a mira é o que faz mira de ferro ficar torta.
+//
+// A distância não é escolha estética: perto demais, o ferrolho fica mais
+// largo na tela que o alvo e tapa exatamente o que se quer acertar. A 0,5 m
+// o ferrolho ocupa ~6% da largura, e um boneco a 9 m, ~5,4%.
+const ADS_POSITION = new THREE.Vector3(0, -SIGHT_HEIGHT, -0.5);
+const ADS_ROTATION = new THREE.Euler(0, 0, 0);
+
 const SWAY_STRENGTH = 0.05;    // quanto a mão fica pra trás ao girar
 const SWAY_LIMIT = 0.045;
 const SWAY_RECOVER = 9;
@@ -65,6 +77,7 @@ export class Viewmodel {
     this.scene.add(this.group);
 
     this.item = null;
+    this.flash = null;
 
     this.sway = new THREE.Vector2();
     this.forward = new THREE.Vector3();
@@ -88,6 +101,7 @@ export class Viewmodel {
     if (!model) return;
 
     this.item = model;
+    this.flash = model.getObjectByName('clarao') ?? null;
     this.group.add(model);
   }
 
@@ -193,6 +207,42 @@ export class Viewmodel {
       THREE.MathUtils.lerp(REST_ROTATION.y, SPRINT_ROTATION.y, pose) + this.sway.x * 2,
       THREE.MathUtils.lerp(REST_ROTATION.z, SPRINT_ROTATION.z, pose)
     );
+
+    this.#applyAim(player);
+  }
+
+  /**
+   * Sobe a arma até o olho. Quanto mais mirado, menos o balanço e o atraso
+   * da mão valem: mirar tem que estabilizar a imagem, senão não adianta.
+   */
+  #applyAim(player) {
+    const aim = player.gun?.aim ?? 0;
+    const kick = player.gun?.kick ?? 0;
+
+    if (aim > 0.001) {
+      const steady = 1 - aim;   // mirando, o balanço quase some
+      this.group.position.set(
+        THREE.MathUtils.lerp(this.group.position.x, ADS_POSITION.x, aim) + this.sway.x * steady,
+        THREE.MathUtils.lerp(this.group.position.y, ADS_POSITION.y, aim) + this.sway.y * steady,
+        THREE.MathUtils.lerp(this.group.position.z, ADS_POSITION.z, aim)
+      );
+      this.group.rotation.set(
+        THREE.MathUtils.lerp(this.group.rotation.x, ADS_ROTATION.x, aim),
+        THREE.MathUtils.lerp(this.group.rotation.y, ADS_ROTATION.y, aim),
+        THREE.MathUtils.lerp(this.group.rotation.z, ADS_ROTATION.z, aim)
+      );
+    }
+
+    if (this.flash) {
+      this.flash.visible = (player.gun?.flash ?? 0) > 0;
+      if (this.flash.visible) this.flash.rotation.z = Math.random() * Math.PI;
+    }
+
+    // coice: a arma recua e levanta a boca por um instante
+    if (kick > 0) {
+      this.group.position.z += kick * 0.02;
+      this.group.rotation.x += kick * 0.09;
+    }
   }
 
   /** Desenha por cima do mundo, com a profundidade zerada. */

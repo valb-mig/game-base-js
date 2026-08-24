@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { PLAYER } from '../config.js';
+import { hasModel } from '../items/models.js';
 import { getClass, DEFAULT_CLASS_ID } from '../items/classes.js';
 import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
@@ -54,6 +55,10 @@ export class Player {
     // golpe em andamento; quem mexe é items/attack.js, quem desenha é o viewmodel
     this.swing = { active: false, progress: 0, cooldown: 0, buffered: 0 };
 
+    // arma de fogo; quem mexe é items/firearm.js. `aim` é 0..1, contínuo,
+    // porque a arma sobe e desce do olho em vez de teleportar pra mira
+    this.gun = { cooldown: 0, reloading: 0, aim: 0, flash: 0, kick: 0 };
+
     // água — atualizado todo frame por updateWaterState
     this.swimming = false;
     this.waterDepth = 0;
@@ -84,13 +89,48 @@ export class Player {
     this.stats = { ...PLAYER, ...classDef.movement };
     this.maxHealth = classDef.health;
     this.health = classDef.health;
-    // por ora a faca é a única coisa que existe de fato na mão
-    this.equipped = this.meleeOf(classDef);
+    this.carried = this.carriedOf(classDef);
+    this.slot = 0;
+    this.equipped = this.carried[0] ?? null;
   }
 
-  /** O item de mão da classe. Por ora só o corpo a corpo tem modelo. */
-  meleeOf(classDef) {
-    return classDef.loadout.find((item) => item.slot === 'Corpo a corpo') ?? null;
+  /**
+   * Itens da classe que existem de fato: os que têm modelo. O resto do
+   * loadout é texto de tela até alguém construir.
+   */
+  carriedOf(classDef) {
+    return classDef.loadout.filter((item) => hasModel(item));
+  }
+
+  /** Troca o item na mão pelo do índice pedido. */
+  selectSlot(index) {
+    if (index < 0 || index >= this.carried.length) return false;
+    if (this.slot === index) return false;
+
+    this.slot = index;
+    this.equipped = this.carried[index];
+    this.swing.active = false;
+    this.gun.reloading = 0;
+    this.gun.aim = 0;
+    return true;
+  }
+
+  /** Tira da mão o item atual e o remove do inventário. Devolve o item. */
+  dropCarried() {
+    const item = this.equipped;
+    if (!item) return null;
+
+    this.carried.splice(this.slot, 1);
+    this.slot = Math.min(this.slot, this.carried.length - 1);
+    this.equipped = this.carried[this.slot] ?? null;
+    return item;
+  }
+
+  /** Põe um item no inventário e na mão. */
+  takeCarried(item) {
+    this.carried.push(item);
+    this.slot = this.carried.length - 1;
+    this.equipped = item;
   }
 
   /** Volta pro ponto de nascimento, de pé e com a vida cheia. */
@@ -115,8 +155,12 @@ export class Player {
     this.swing.progress = 0;
     this.swing.cooldown = 0;
     this.swing.buffered = 0;
+    this.gun.reloading = 0;
+    this.gun.aim = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
-    this.equipped = this.meleeOf(this.classDef);
+    this.carried = this.carriedOf(this.classDef);
+    this.slot = 0;
+    this.equipped = this.carried[0] ?? null;
     this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);
   }
 

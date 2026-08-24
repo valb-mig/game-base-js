@@ -225,6 +225,24 @@ body:not(.playing) #debug {
   color: var(--ink-dim);
 }
 
+.item-reserve {
+  align-self: flex-end;
+  padding-bottom: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.item-count.empty {
+  color: var(--vital-low);
+}
+
+/* mirando, a mira central atrapalha: quem mira usa o ferro da arma */
+body.aiming #crosshair {
+  opacity: 0;
+}
+
 .item-icon svg {
   width: 34px;
   height: 17px;

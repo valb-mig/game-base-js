@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initMenu } from '../../src/ui/menu.js';
 import { initStatus } from '../../src/ui/status.js';
-import { CLASSES, KNIFE } from '../../src/items/classes.js';
+import { CLASSES, KNIFE, PISTOL } from '../../src/items/classes.js';
 import { PLAYER } from '../../src/config.js';
 import { suite, ok, eq, near, note } from '../assert.js';
 
@@ -64,6 +64,8 @@ export function run() {
   eq('entrar aplica a classe', player.classDef.id, 'assault');
   eq('entra com a vida cheia', player.health, player.maxHealth);
   ok('as duas telas somem ao entrar', !visible(screen) && !visible(hud));
+  eq('a Assault empunha a pistola ao nascer', player.equipped?.id, PISTOL.id);
+  ok('e leva a faca junto no inventário', player.carried.includes(KNIFE));
 
   suite('pausa e troca de classe');
 
@@ -98,8 +100,9 @@ export function run() {
   const knives = CLASSES.map((entry) => entry.loadout.find((item) => item.id === 'kabar'));
   eq('todas as classes carregam a faca', knives.filter(Boolean).length, CLASSES.length);
   eq('é o mesmo objeto, não cópias', new Set(knives).size, 1);
-  eq('é o item empunhado', player.equipped?.id, KNIFE.id);
+  eq('é o item empunhado', player.equipped?.id, player.carried[0]?.id);
 
+  player.selectSlot(player.carried.indexOf(KNIFE));
   updateStatus();
   const equipped = document.getElementById('equipped');
   const vitals = document.getElementById('vitals');

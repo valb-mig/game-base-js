@@ -1,4 +1,5 @@
 import { createKnife } from './knife.js';
+import { createPistol } from './pistol.js';
 
 /**
  * Item (dado) -> modelo 3D (malha).
@@ -7,8 +8,9 @@ import { createKnife } from './knife.js';
  * que produzir exatamente o que estava sendo empunhado. Item sem modelo aqui
  * simplesmente não aparece — o jogo não inventa uma caixa genérica.
  */
-const FACTORIES = {
-  kabar: createKnife
+export const FACTORIES = {
+  kabar: createKnife,
+  m1911: createPistol
 };
 
 export function hasModel(item) {
@@ -27,6 +29,7 @@ export function createItemModel(item) {
  */
 export function restingRotation(item) {
   if (item?.id === 'kabar') return { x: Math.PI / 2, z: 0 };
+  if (item?.id === 'm1911') return { x: 0, z: Math.PI / 2 };   // deita de lado
   return { x: 0, z: 0 };
 }
 

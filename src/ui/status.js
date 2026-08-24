@@ -33,10 +33,13 @@ export function initStatus(player) {
   itemRow.className = 'item-row';
   const itemCount = document.createElement('div');
   itemCount.className = 'item-count';
+  const reserve = document.createElement('div');
+  reserve.className = 'item-reserve';
+
   const itemIcon = document.createElement('div');
   itemIcon.className = 'item-icon';
   itemIcon.innerHTML = BLADE;
-  itemRow.append(itemCount, itemIcon);
+  itemRow.append(itemCount, reserve, itemIcon);
 
   const itemName = document.createElement('div');
   itemName.className = 'item-name';
@@ -48,6 +51,7 @@ export function initStatus(player) {
   let shownClass;
   let shownItem;
   let shownHealth = -1;
+  let shownAmmo = -1;
 
   return function updateStatus() {
     const classDef = player.classDef;
@@ -68,7 +72,19 @@ export function initStatus(player) {
       // sem munição, o lugar do contador mostra o tipo do slot
       itemCount.textContent = item ? (item.ammo ? `${item.ammo.loaded}` : item.slot) : '—';
       itemCount.classList.toggle('is-label', Boolean(item) && !item.ammo);
+      reserve.textContent = item?.ammo ? `/ ${item.ammo.reserve}` : '';
       itemIcon.classList.toggle('hidden', !item);
+    }
+
+    // munição muda a cada tiro, então tem entrada própria e não espera troca de item
+    const loaded = item?.ammo?.loaded ?? -1;
+    if (loaded !== shownAmmo) {
+      shownAmmo = loaded;
+      if (loaded >= 0) {
+        itemCount.textContent = `${loaded}`;
+        reserve.textContent = `/ ${item.ammo.reserve}`;
+        itemCount.classList.toggle('empty', loaded === 0);
+      }
     }
 
     const health = Math.round(player.health);

@@ -1,6 +1,17 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>faca</title>
-<style>body{margin:0;background:#3a4a52}canvas{display:block}#out{position:fixed;top:0;left:0;color:#fff;font:11px monospace;padding:6px;background:#000a}</style>
-</head><body><pre id="out"></pre>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Modelos</title>
+<style>
+  body { margin: 0; background: #3a4a52; font: 12px/1.5 ui-monospace, monospace; color: #fff; }
+  #out { position: fixed; top: 0; left: 0; padding: 8px 10px; background: #000a; white-space: pre; }
+  a { color: #9fe08a; }
+</style>
+</head>
+<body>
+<pre id="out">carregando…</pre>
+
 <script type="importmap">
 {
   "imports": {
@@ -9,72 +20,82 @@
   }
 }
 </script>
+
 <script type="module">
 import * as THREE from 'three';
-import { createKnife } from '../src/items/knife.js';
+import { FACTORIES } from '../src/items/models.js';
 
-const W=1200, H=760;
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(W,H); document.body.appendChild(renderer.domElement);
+// ?item=m1911 escolhe o modelo; sem parâmetro, mostra o primeiro
+const nomes = Object.keys(FACTORIES);
+const escolhido = new URLSearchParams(location.search).get('item') || nomes[0];
+const criar = FACTORIES[escolhido];
+
+const W = 1200, H = 800;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(W / 2, H / 2);
+document.body.appendChild(renderer.domElement);
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x3a4a52);
-scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x30302c, 1.5));
-const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(0.4,0.8,0.6); scene.add(key);
-const rim = new THREE.DirectionalLight(0x9fc4ff, 0.9); rim.position.set(-0.6,0.2,-0.5); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x30302c, 1.4));
+const key = new THREE.DirectionalLight(0xffffff, 2.0);
+key.position.set(0.5, 0.9, 0.7);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fc4ff, 0.9);
+rim.position.set(-0.7, 0.2, -0.6);
+scene.add(rim);
 
-const cam = new THREE.PerspectiveCamera(35, W/H, 0.01, 10);
+const model = criar();
+scene.add(model);
 
-// quatro vistas do mesmo objeto
-const views = [
-  { name:'lateral',  pos:[0.06,0.05,0.34], look:[0.06,0,0] },
-  { name:'ponta',    pos:[0.17,0.05,0.13], look:[0.15,0,0] },
-  { name:'cabo',     pos:[-0.09,0.05,0.13], look:[-0.07,0,0] },
-  { name:'de cima',  pos:[0.06,0.30,0.02], look:[0.06,0,0] }
-];
+const box = new THREE.Box3().setFromObject(model);
+const size = box.getSize(new THREE.Vector3());
+const center = box.getCenter(new THREE.Vector3());
+const span = Math.max(size.x, size.y, size.z);
 
-const knife = createKnife();
-scene.add(knife);
-
-// checagem de normais: cada triangulo deve apontar pra fora do plano medio
-const blade = knife.children[0];
-const pos = blade.geometry.attributes.position;
-const nor = blade.geometry.attributes.normal;
-// cada segmento gera 6 triangulos, na ordem: frente, frente, tras, tras, quilha, quilha
-const TIPOS = ['+z','+z','-z','-z','+y','+y'];
-let ruim=0, degenerados=0; const contagem={'+z':0,'-z':0,'+y':0,'tampa':0};
-const a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3(), n=new THREE.Vector3();
-const total = pos.count/3;
-for (let t=0;t<total;t++){
-  const i=t*3;
-  a.fromBufferAttribute(pos,i); b.fromBufferAttribute(pos,i+1); c.fromBufferAttribute(pos,i+2);
-  n.copy(b).sub(a).cross(c.clone().sub(a)).normalize(); // normal geometrica, do winding
-  const tipo = t === total-1 ? 'tampa' : (t >= total-4 ? ['+z','-z','+y'][t-(total-4)] : TIPOS[t % 6]);
-  const area = b.clone().sub(a).cross(c.clone().sub(a)).length() / 2;
-  if (area < 1e-9) { degenerados++; continue; }
-  const ok = tipo==='+z' ? n.z>0 : tipo==='-z' ? n.z<0 : tipo==='+y' ? n.y>0 : n.x<0;
-  if (ok) contagem[tipo]++; else ruim++;
-}
-const lines = [
-  `triangulos da lamina: ${pos.count/3}`,
-  `winding correto -> frente ${contagem['+z']}  tras ${contagem['-z']}  quilha ${contagem['+y']}  tampa ${contagem.tampa}`,
-  `INVERTIDAS: ${ruim}  DEGENERADOS: ${degenerados}`,
-];
-const box = new THREE.Box3().setFromObject(knife); const size = box.getSize(new THREE.Vector3());
-lines.push(`tamanho total: ${(size.x*100).toFixed(1)} x ${(size.y*100).toFixed(1)} x ${(size.z*100).toFixed(1)} cm`);
-let tris=0; knife.traverse(o=>{ if(o.geometry) tris += o.geometry.index ? o.geometry.index.count/3 : o.geometry.attributes.position.count/3; });
-lines.push(`triangulos no total: ${tris}`);
-document.getElementById('out').textContent = lines.join('\n');
-
-// grade de 2x2 com as quatro vistas
-const canvas = document.createElement('canvas');
-canvas.width=W; canvas.height=H;
-const ctx = canvas.getContext('2d');
-views.forEach((v,i)=>{
-  cam.position.set(...v.pos); cam.lookAt(...v.look); cam.updateProjectionMatrix();
-  renderer.render(scene,cam);
-  ctx.drawImage(renderer.domElement, (i%2)*(W/2), Math.floor(i/2)*(H/2), W/2, H/2);
-  ctx.fillStyle='#fff'; ctx.font='16px monospace';
-  ctx.fillText(v.name, (i%2)*(W/2)+10, Math.floor(i/2)*(H/2)+22);
+let tris = 0;
+model.traverse((o) => {
+  if (!o.geometry) return;
+  const p = o.geometry.attributes.position;
+  tris += o.geometry.index ? o.geometry.index.count / 3 : p.count / 3;
 });
-document.body.replaceChild(canvas, renderer.domElement);
-</script></body></html>
+
+const vistas = [
+  { nome: 'lateral', dir: [1, 0.25, 0.15] },
+  { nome: 'frente (mira)', dir: [0, 0.02, 1] },
+  { nome: 'de cima', dir: [0.05, 1, 0.05] },
+  { nome: 'traseira', dir: [-0.15, 0.2, -1] }
+];
+
+const out = document.createElement('canvas');
+out.width = W;
+out.height = H;
+const ctx = out.getContext('2d');
+const camera = new THREE.PerspectiveCamera(28, (W / 2) / (H / 2), 0.001, 20);
+
+vistas.forEach((vista, i) => {
+  const dir = new THREE.Vector3(...vista.dir).normalize();
+  camera.position.copy(center).addScaledVector(dir, span * 2.6);
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+
+  const x = (i % 2) * (W / 2);
+  const y = Math.floor(i / 2) * (H / 2);
+  ctx.drawImage(renderer.domElement, x, y);
+  ctx.fillStyle = '#000b';
+  ctx.fillRect(x, y, 170, 24);
+  ctx.fillStyle = '#fff';
+  ctx.font = '15px ui-monospace, monospace';
+  ctx.fillText(vista.nome, x + 8, y + 17);
+});
+
+document.body.replaceChild(out, renderer.domElement);
+document.getElementById('out').textContent = [
+  `item: ${escolhido}   (${nomes.join(' · ')})`,
+  `triângulos: ${tris}`,
+  `tamanho: ${(size.x * 1000).toFixed(0)} x ${(size.y * 1000).toFixed(0)} x ${(size.z * 1000).toFixed(0)} mm`
+].join('\n');
+</script>
+</body>
+</html>

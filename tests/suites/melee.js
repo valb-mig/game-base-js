@@ -20,6 +20,8 @@ export function run() {
     colliders, terrain: chao, spawn: new THREE.Vector3(0, 0, 0)
   });
   player.controls.isLocked = true;
+  // a Assault nasce com a pistola na mão; este suite é sobre a faca
+  player.selectSlot(player.carried.indexOf(KNIFE));
 
   // boneco 1,4 m à frente (o -Z é a frente com yaw zero)
   const alvo = createDummy(scene, colliders, { x: 0, z: -1.4, ground: 0, name: 'alvo' });
@@ -160,6 +162,7 @@ export function run() {
 
   suite('sem item na mão');
 
+  player.carried = [];
   player.equipped = null;
   const marca = acertos.length;
   clique(); soltar(); passo(4);
