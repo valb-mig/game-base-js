@@ -6,12 +6,10 @@
  * número que o jogo não sabe.
  */
 
-const CROSS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.4 1h3.2v5.4H15v3.2H9.6V15H6.4V9.6H1V6.4h5.4z"/></svg>';
-const BLADE = '<svg viewBox="0 0 32 16" aria-hidden="true"><path d="M2 9.4 19 3.2l6.6 2.1-1.1 3.3-6.6 2.1L2 10.6z"/><rect x="24.6" y="4.4" width="1.6" height="5.6"/><rect x="26.6" y="5.6" width="4.4" height="3.2" rx="1.2"/></svg>';
-const HANDGUN = '<svg viewBox="0 0 32 16" aria-hidden="true"><rect x="2" y="3.4" width="24" height="4"/><rect x="2" y="7.4" width="14" height="2.4"/><path d="M9.4 9.8h5.2l-2 5.4H7.6z"/><rect x="16.4" y="8" width="4.6" height="1.4"/></svg>';
+import { iconSvg } from '../../vendor/icons/icons.js';
 
-/** Cada item mostra o seu; sem ícone próprio, cai no genérico da lâmina. */
-const ICONS = { m1911: HANDGUN, kabar: BLADE };
+/** Item -> ícone. Sem entrada própria o bloco fica sem ícone, e não inventa. */
+const ITEM_ICONS = { m1911: 'pistol-gun', kabar: 'bowie-knife' };
 
 export function initStatus(player) {
   const vitals = document.getElementById('vitals');
@@ -22,7 +20,7 @@ export function initStatus(player) {
 
   const healthRow = document.createElement('div');
   healthRow.className = 'health-row';
-  healthRow.innerHTML = CROSS;
+  healthRow.innerHTML = iconSvg('first-aid-kit');
   const healthValue = document.createElement('b');
   healthRow.appendChild(healthValue);
 
@@ -39,6 +37,11 @@ export function initStatus(player) {
   itemCount.className = 'item-count';
   const reserve = document.createElement('div');
   reserve.className = 'item-reserve';
+
+  // ícone das balas guardadas, remontado a cada troca junto com o número
+  const reserveIcon = document.createElement('span');
+  reserveIcon.className = 'reserve-icon';
+  reserveIcon.innerHTML = iconSvg('bullets');
 
   const itemIcon = document.createElement('div');
   itemIcon.className = 'item-icon';
@@ -75,9 +78,12 @@ export function initStatus(player) {
       // sem munição, o lugar do contador mostra o tipo do slot
       itemCount.textContent = item ? (item.ammo ? `${item.ammo.loaded}` : item.slot) : '—';
       itemCount.classList.toggle('is-label', Boolean(item) && !item.ammo);
-      reserve.textContent = item?.ammo ? `/ ${item.ammo.reserve}` : '';
-      itemIcon.innerHTML = item ? (ICONS[item.id] ?? BLADE) : '';
-      itemIcon.classList.toggle('hidden', !item);
+      reserve.replaceChildren();
+      if (item?.ammo) reserve.append(reserveIcon.cloneNode(true), `${item.ammo.reserve}`);
+
+      const iconName = item ? ITEM_ICONS[item.id] : null;
+      itemIcon.innerHTML = iconName ? iconSvg(iconName) : '';
+      itemIcon.classList.toggle('hidden', !iconName);
     }
 
     // munição muda a cada tiro, então tem entrada própria e não espera troca de item
@@ -86,7 +92,7 @@ export function initStatus(player) {
       shownAmmo = loaded;
       if (loaded >= 0) {
         itemCount.textContent = `${loaded}`;
-        reserve.textContent = `/ ${item.ammo.reserve}`;
+        reserve.replaceChildren(reserveIcon.cloneNode(true), `${item.ammo.reserve}`);
         itemCount.classList.toggle('empty', loaded === 0);
       }
     }

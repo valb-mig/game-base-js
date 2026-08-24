@@ -1,0 +1,69 @@
+# game.bf
+
+FPS de classes ambientado em 1945, escrito em Three.js puro. Sem build, sem
+npm: abre no navegador e roda.
+
+![Ilha Corvo](docs/screenshot.png)
+
+## Rodar
+
+O projeto é estático, mas precisa de um servidor HTTP — módulos ES não
+carregam por `file://`, e o pointer lock exige `localhost` ou HTTPS.
+
+```bash
+tools/dev.sh serve      # sobe o servidor e imprime a URL
+```
+
+Ou qualquer servidor estático apontado pra raiz do repositório.
+
+## Controles
+
+| tecla | ação |
+|---|---|
+| WASD / setas | andar |
+| Shift | liga e desliga a corrida |
+| C | agachar (alterna) |
+| Z | deitar (alterna) |
+| Espaço | pular · na água sobe · deitado, levanta |
+| Botão esquerdo | golpear ou atirar |
+| Botão direito | mirar pela mira de ferro |
+| R | recarregar |
+| 1 e 2 | trocar de item |
+| G / E | largar item · apanhar do chão |
+| ` ou F2 | painel de depuração |
+
+## O que existe
+
+Ilha com praia, floresta e natação, duas bases militares opostas e um campo
+de treino com estande de baioneta. Seleção de classe (só a Assault é
+jogável), faca KA-BAR e Colt M1911A1 com balística de projétil: a bala viaja,
+cai por gravidade e um traçante a cada quatro tiros marca o caminho.
+
+Não existe ainda: dano ao jogador, objetivo de partida e captura de base.
+
+## Desenvolvimento
+
+```bash
+tools/dev.sh check              # sintaxe + suíte de testes
+tools/dev.sh errors index.html  # erro de console na página
+tools/dev.sh shot index.html /tmp/a.png
+```
+
+A suíte roda em Chrome headless e cobre movimento, natação, terreno,
+balística, combate e as telas. `CLAUDE.md` documenta a arquitetura e as
+armadilhas que já custaram caro.
+
+## Créditos
+
+Ícones do HUD por [game-icons.net](https://game-icons.net), sob
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/):
+
+- **pistol-gun** — John Colburn ([ninmunanmu.com](http://ninmunanmu.com))
+- **bowie-knife** — Skoll
+- **first-aid-kit** — Delapouite ([delapouite.com](https://delapouite.com))
+- **bullets** — Lorc ([lorcblog.blogspot.com](https://lorcblog.blogspot.com))
+
+Os arquivos originais e a licença completa estão em `vendor/icons/`.
+
+[Three.js](https://threejs.org) r169 (MIT) fica vendorizado em
+`vendor/three/`.

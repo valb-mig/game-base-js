@@ -22,12 +22,23 @@ const VIEW_FOV = 42;
 const WIND_END = 0.3;    // fim do recolhimento
 const SLASH_END = 0.52;  // fim do corte; o resto é voltar à guarda
 
+// Recarga, em frações do tempo total: baixa a arma, solta o carregador,
+// enfia o novo, e volta à guarda.
+const RELOAD_DOWN = 0.22;
+const RELOAD_DROP = 0.34;   // aqui o carregador vazio cai
+const RELOAD_SEAT = 0.62;   // aqui o novo entra, com um solavanco
+const RELOAD_UP = 0.82;
+
+const MAG_FALL_GRAVITY = 9;
+
 const SWAY_STRENGTH = 0.05;    // quanto a mão fica pra trás ao girar
 const SWAY_LIMIT = 0.045;
 const SWAY_RECOVER = 9;
 const POSE_SPEED = 7;          // troca entre pose normal e de corrida
 const BOB_AMOUNT = 0.011;
 const BOB_SPEED = 9;
+
+const smooth = (k) => k * k * (3 - 2 * k);
 
 /** Converte a pose crua do item em vetores, uma vez por troca. */
 function toVectors(pose) {
@@ -62,6 +73,10 @@ export class Viewmodel {
     this.item = null;
     this.flash = null;
     this.pose = null;
+
+    // carregador caindo durante a recarga; vive na cena do viewmodel
+    this.mag = null;
+    this.magVelocity = new THREE.Vector3();
 
     this.sway = new THREE.Vector2();
     this.forward = new THREE.Vector3();
@@ -197,7 +212,93 @@ export class Viewmodel {
       THREE.MathUtils.lerp(rest.r.z, sprint.r.z, blend)
     );
 
+    this.#applyReload(player, delta);
     this.#applyAim(player);
+  }
+
+  /** Solta um carregador que cai e some. Só enfeite, sem colisão. */
+  #dropMagazine() {
+    if (this.mag) this.scene.remove(this.mag);
+
+    this.mag = new THREE.Mesh(
+      new THREE.BoxGeometry(0.022, 0.062, 0.032),
+      new THREE.MeshLambertMaterial({ color: 0x32352f, emissive: 0x0a0b0a, flatShading: true })
+    );
+    this.mag.position.copy(this.group.position);
+    this.mag.position.y -= 0.05;
+    this.magVelocity.set(-0.12, -0.2, 0.05);
+    this.scene.add(this.mag);
+  }
+
+  /**
+   * Anima a recarga. A arma sai do centro de propósito: recarregar tem que
+   * custar a visão do que está à frente, senão não é decisão nenhuma.
+   */
+  #applyReload(player, delta) {
+    const poses = this.pose;
+    const t = player.gun?.reloadProgress ?? 0;
+
+    if (this.mag) {
+      this.magVelocity.y -= MAG_FALL_GRAVITY * delta;
+      this.mag.position.addScaledVector(this.magVelocity, delta);
+      this.mag.rotation.x += delta * 6;
+      this.mag.rotation.z += delta * 3;
+
+      if (this.mag.position.y < -0.7) {
+        this.scene.remove(this.mag);
+        this.mag.geometry.dispose();
+        this.mag.material.dispose();
+        this.mag = null;
+      }
+    }
+
+    if (!poses?.reloadOut || t <= 0 || t >= 1) {
+      this.magDropped = false;
+      return;
+    }
+
+    if (!this.magDropped && t >= RELOAD_DROP) {
+      this.magDropped = true;
+      this.#dropMagazine();
+    }
+
+    let from;
+    let to;
+    let k;
+
+    if (t < RELOAD_DOWN) {
+      from = poses.rest;
+      to = poses.reloadOut;
+      k = smooth(t / RELOAD_DOWN);
+    } else if (t < RELOAD_SEAT) {
+      from = poses.reloadOut;
+      to = poses.reloadOut;
+      k = 0;
+    } else if (t < RELOAD_UP) {
+      from = poses.reloadOut;
+      to = poses.reloadIn;
+      k = smooth((t - RELOAD_SEAT) / (RELOAD_UP - RELOAD_SEAT));
+    } else {
+      from = poses.reloadIn;
+      to = poses.rest;
+      k = smooth((t - RELOAD_UP) / (1 - RELOAD_UP));
+    }
+
+    this.group.position.set(
+      THREE.MathUtils.lerp(from.p.x, to.p.x, k),
+      THREE.MathUtils.lerp(from.p.y, to.p.y, k),
+      THREE.MathUtils.lerp(from.p.z, to.p.z, k)
+    );
+    this.group.rotation.set(
+      THREE.MathUtils.lerp(from.r.x, to.r.x, k),
+      THREE.MathUtils.lerp(from.r.y, to.r.y, k),
+      THREE.MathUtils.lerp(from.r.z, to.r.z, k)
+    );
+
+    // solavanco de encaixe do carregador novo
+    if (t >= RELOAD_SEAT && t < RELOAD_SEAT + 0.06) {
+      this.group.position.y -= 0.018;
+    }
   }
 
   /**

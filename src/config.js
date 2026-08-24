@@ -112,6 +112,23 @@ export const DROP = {
   PICK_REACH: 2.4    // alcance pra apanhar do chão; tem que cobrir a largada
 };
 
+export const BULLET = {
+  // Velocidade de boca real da .45 ACP. Com ela, 55 m levam 0,22 s — pouco,
+  // mas o bastante pra queda aparecer e pra alvo em movimento exigir avanço.
+  SPEED: 253,
+  GRAVITY: 14,        // acima do real de propósito: queda precisa ser legível
+  LIFE: 2.5,          // segundos até a bala desistir
+  STEP: 0.6,          // subdivisão máxima do trecho por quadro, em metros
+
+  TRACER_EVERY: 4,    // um traçante a cada tantos tiros, como nas fitas da guerra
+  // Comprido de propósito: atirando na direção do olhar o risco é visto de
+  // ponta, e a 2,4 m virava um ponto. Assim ele lê como risco mesmo de frente.
+  TRACER_LENGTH: 7,
+  TRACER_WIDTH: 0.045,
+  TRACER_COLOR: 0xffb347,
+  TRACER_FADE: 0.09   // segundos de rastro depois que a bala some
+};
+
 export const MELEE = {
   SWING_TIME: 0.46,   // duração do golpe inteiro, em segundos
   DAMAGE_AT: 0.38,    // fração do golpe em que o dano é resolvido

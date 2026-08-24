@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initFirearm } from '../../src/items/firearm.js';
+import { createBallistics } from '../../src/items/ballistics.js';
 import { createDummy } from '../../src/world/dummy.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { CLASSES, PISTOL, KNIFE, getClass } from '../../src/items/classes.js';
@@ -22,10 +23,13 @@ export function run() {
 
   const alvo = createDummy(scene, colliders, { x: 0, z: -14, ground: 0, name: 'alvo' });
   const world = { targets: [alvo] };
-  const gun = initFirearm(player, world);
+  const ballistics = createBallistics(scene, colliders);
+  const gun = initFirearm(player, world, ballistics);
 
   const tiros = [];
+  const acertos = [];
   gun.onShot((r) => tiros.push(r));
+  ballistics.onHit((r) => acertos.push(r));
 
   const clicar = () => {
     dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
@@ -40,6 +44,7 @@ export function run() {
   const passo = (n = 1) => {
     for (let i = 0; i < n; i++) {
       gun.update(DT);
+      ballistics.update(DT, world.targets, null);
       for (const t of world.targets) t.update(DT);
       endFrame();
     }
@@ -82,7 +87,11 @@ export function run() {
   clicar(); passo(1);
   eq('um clique gasta uma bala', PISTOL.ammo.loaded, carga - 1);
   eq('e sai um tiro', tiros.length, 1);
-  ok('que acerta o alvo a 14 m', tiros[0].target === alvo, `${tiros[0].amount} de dano`);
+  // a bala viaja: 14 m a 253 m/s levam ~4 quadros
+  eq('sem tempo de voo, ainda não acertou', acertos.length, 0);
+  passo(8);
+  ok('e depois do voo acerta o alvo a 14 m',
+    acertos.at(-1)?.target === alvo, `${acertos.at(-1)?.amount} de dano`);
 
   clicar(); passo(1);
   eq('clicar antes do intervalo não dispara', PISTOL.ammo.loaded, carga - 1);
@@ -142,12 +151,12 @@ export function run() {
 
   const antes = alvo.health;
   passo(Math.ceil(PISTOL.firearm.fireInterval / DT) + 2);
-  clicar(); passo(1);
+  clicar(); passo(10);
   eq('parede no caminho segura o tiro', alvo.health, antes);
 
   colliders.pop();
   passo(Math.ceil(PISTOL.firearm.fireInterval / DT) + 2);
-  clicar(); passo(1);
+  clicar(); passo(10);
   ok('tirando a parede, acerta', alvo.health < antes);
 
   suite('faca na mão não atira');

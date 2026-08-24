@@ -57,7 +57,7 @@ export class Player {
 
     // arma de fogo; quem mexe é items/firearm.js. `aim` é 0..1, contínuo,
     // porque a arma sobe e desce do olho em vez de teleportar pra mira
-    this.gun = { cooldown: 0, reloading: 0, aim: 0, flash: 0, kick: 0 };
+    this.gun = { cooldown: 0, reloading: 0, reloadProgress: 0, aim: 0, flash: 0, kick: 0 };
 
     // água — atualizado todo frame por updateWaterState
     this.swimming = false;

@@ -28,7 +28,15 @@ export const HAND_POSES = {
     // Mira de ferro: translação pura. A altura vem da linha de mira do
     // modelo, e a distância é de braço — perto demais o ferrolho fica mais
     // largo na tela que o alvo e tapa o que se quer acertar.
-    ads: { position: [0, -0.0355, -0.5], rotation: [0, 0, 0] }
+    ads: { position: [0, -0.0355, -0.5], rotation: [0, 0, 0] },
+    // Recarga: a arma desce e gira o poço do carregador pra dentro, que é
+    // pra onde a outra mão iria. Fica fora do centro da tela de propósito —
+    // recarregar tem que custar a visão do que está à frente.
+    // Baixa e gira o poço do carregador pra dentro, que é pra onde a outra
+    // mão iria. Sai do centro, mas continua no enquadramento: a recarga tem
+    // que custar a visão do que está à frente e ainda assim ser vista.
+    reloadOut: { position: [0.125, -0.175, -0.34], rotation: [0.34, -0.46, 0.62] },
+    reloadIn: { position: [0.112, -0.14, -0.36], rotation: [0.2, -0.34, 0.44] }
   }
 };
 

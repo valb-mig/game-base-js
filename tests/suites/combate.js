@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initAttack } from '../../src/items/attack.js';
 import { initFirearm } from '../../src/items/firearm.js';
+import { createBallistics } from '../../src/items/ballistics.js';
 import { createDummy } from '../../src/world/dummy.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { PISTOL, KNIFE, getClass } from '../../src/items/classes.js';
@@ -33,13 +34,15 @@ export function run() {
   const world = { targets: [alvo] };
 
   const attack = initAttack(player, world);
-  const gun = initFirearm(player, world);
+  const ballistics = createBallistics(scene, colliders);
+  const gun = initFirearm(player, world, ballistics);
 
   // a ordem é a do main.js: golpe antes de tiro
   const passo = (n = 1) => {
     for (let i = 0; i < n; i++) {
       attack.update(DT);
       gun.update(DT);
+      ballistics.update(DT, world.targets, null);
       for (const t of world.targets) t.update(DT);
       endFrame();
     }

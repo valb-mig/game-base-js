@@ -1,19 +1,21 @@
 import * as THREE from 'three';
 import { isMouseDown, consumeClick, consumePress, MOUSE_RIGHT } from '../core/input.js';
 import { RELOAD_KEYS } from '../player/constants.js';
+import { BULLET } from '../config.js';
 
 /**
  * Arma de fogo: tiro, munição, recarga e mira de ferro.
  *
- * O tiro é hitscan — a bala chega no instante do disparo. Numa pistola a
- * .45 a 55 m isso é indistinguível de projétil viajando, e evita todo um
- * sistema de balas em voo pra ganhar nada.
+ * A arma não resolve acerto: ela dispara uma bala e acabou. Quem viaja,
+ * cai e atinge é items/ballistics.js. Isso mantém a arma tratando do que é
+ * dela — munição, cadência, recarga, mira — e deixa a balística num lugar só,
+ * igual pra qualquer arma que venha depois.
  *
  * A abertura do tiro é um cone em volta da mira: largo do quadril, quase
  * nulo com a arma no olho. É o que dá sentido mecânico a mirar, além do
  * visual.
  */
-export function initFirearm(player, world) {
+export function initFirearm(player, world, ballistics) {
   const origin = new THREE.Vector3();
   const direction = new THREE.Vector3();
   const toTarget = new THREE.Vector3();
@@ -21,60 +23,7 @@ export function initFirearm(player, world) {
 
   const listeners = [];
   const state = player.gun;
-
-  /**
-   * Distância até o colisor mais próximo na direção do tiro.
-   *
-   * `ignore` existe pelo mesmo motivo que no corpo a corpo: o colisor do
-   * alvo fica entre o atirador e o centro dele, e sem essa exceção a bala
-   * "bate na parede" que é o próprio boneco. Antes disso o acerto dependia
-   * de a abertura do tiro escapar pela lateral da caixa — era sorte.
-   */
-  function wallDistance(from, dir, limit, ignore) {
-    const ray = new THREE.Ray(from, dir);
-    let nearest = limit;
-
-    for (const collider of player.colliders) {
-      if (collider === ignore) continue;
-      const hit = ray.intersectBox(collider.box, scratch);
-      if (!hit) continue;
-      const distance = from.distanceTo(hit);
-      if (distance < nearest) nearest = distance;
-    }
-    return nearest;
-  }
-
-  /**
-   * Primeiro alvo atingido pelo raio, se nada estiver na frente dele.
-   *
-   * A ordem importa: acha o alvo primeiro, e só então pergunta se há parede
-   * mais perto que ele. O contrário obrigaria a saber qual colisor ignorar
-   * antes de saber em quem se está atirando.
-   */
-  function traceTarget(firearm) {
-    let best = null;
-    let bestDistance = firearm.range;
-
-    for (const target of world.targets ?? []) {
-      if (!target.alive) continue;
-
-      toTarget.copy(target.center()).sub(origin);
-      const along = toTarget.dot(direction);
-      if (along <= 0 || along > bestDistance) continue;
-
-      // distância do centro do alvo até a linha do tiro
-      const miss = Math.sqrt(Math.max(0, toTarget.lengthSq() - along * along));
-      if (miss > target.radius) continue;
-
-      best = target;
-      bestDistance = along;
-    }
-
-    if (!best) return null;
-    return wallDistance(origin, direction, firearm.range, best.collider) < bestDistance
-      ? null
-      : best;
-  }
+  let rounds = 0;
 
   function fire(firearm) {
     origin.copy(player.object.position);
@@ -97,12 +46,16 @@ export function initFirearm(player, world) {
     state.flash = 0.045;
     state.kick = 1;
 
-    const target = traceTarget(firearm);
-    const result = target
-      ? target.damage(firearm.damage)
-      : { target: null, amount: 0, killed: false };
+    // Traçante a cada tantos tiros, como nas fitas da guerra: o risco serve
+    // pra corrigir a pontaria, não pra desenhar toda bala.
+    rounds++;
+    ballistics.spawn(origin, direction, {
+      damage: firearm.damage,
+      range: firearm.range,
+      tracer: rounds % BULLET.TRACER_EVERY === 0
+    });
 
-    for (const listener of listeners) listener({ ...result, fired: true });
+    for (const listener of listeners) listener({ tracer: rounds % BULLET.TRACER_EVERY === 0 });
   }
 
   function startReload(firearm) {
@@ -111,6 +64,7 @@ export function initFirearm(player, world) {
     if (item.ammo.loaded >= firearm.magazine + 1) return;
 
     state.reloading = firearm.reloadTime;
+    state.reloadProgress = 0;
   }
 
   function finishReload(firearm) {
@@ -153,8 +107,10 @@ export function initFirearm(player, world) {
 
       if (state.reloading > 0) {
         state.reloading -= delta;
+        state.reloadProgress = 1 - state.reloading / firearm.reloadTime;
         if (state.reloading <= 0) {
           state.reloading = 0;
+          state.reloadProgress = 0;
           finishReload(firearm);
         }
         consumeClick();   // clique durante a recarga não fica guardado

@@ -38,14 +38,16 @@ src/
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
            knife.js  pistol.js    modelos
-           attack.js  firearm.js  golpe e tiro
+           attack.js  firearm.js  ballistics.js  golpe, tiro, balas
+           poses.js  como cada item é segurado
   ui/      menu.js  session.js  compass.js  mission.js  status.js
            prompt.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
-            drop, melee, firearm, flow)
+            drop, melee, firearm, ballistics, combate, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
+           icons/  game-icons.net, CC BY 3.0 (crédito no README)
 ```
 
 Nenhum arquivo passa de ~180 linhas. Se um crescer muito, separe por assunto
@@ -166,6 +168,23 @@ acha o alvo primeiro e só então pergunta se há parede mais perto, ignorando o
 colisor dele. Antes disso o acerto dependia de a abertura do tiro escapar pela
 lateral da caixa — era sorte, e o teste falhava de forma intermitente.
 
+**Pose de mão é do item, não do viewmodel.** A faca é modelada com a lâmina
+no +X e precisa de um giro de 90°; a pistola nasce com o cano no -Z e o mesmo
+giro a deixava de lado. `items/poses.js` guarda isso por item.
+
+**A bala é entidade, não hitscan.** Sai a 253 m/s e cai por gravidade, e o
+acerto é testado sobre o TRECHO percorrido no quadro — a 60 fps ela anda 4,2 m
+por quadro, então testar só onde parou a faria atravessar qualquer parede.
+
+**Alvo não pode barrar o que deveria atingi-lo.** Já aconteceu três vezes: no
+corpo a corpo, no hitscan e na balística. Quem testa parede tem que ignorar o
+colisor do alvo, senão a caixa dele vira muro alguns centímetros antes do
+centro e o tiro "acerta" sem causar dano.
+
+**Ícone de HUD vem de biblioteca**, não desenhado à mão: `vendor/icons/`.
+São do game-icons.net sob CC BY 3.0 — trocar um ícone exige atualizar o
+crédito no README.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -219,8 +238,9 @@ apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
 Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
-8 tiros (7 + 1 na câmara), recarga no R, mira de ferro no botão direito, e
-troca de item no 1 e 2.
+8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
+direito, e troca de item no 1 e 2. A bala viaja e cai; um traçante a cada
+quatro tiros.
 
 Ainda não existe: dano ao jogador (a vida dele é só leitura), tiro, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

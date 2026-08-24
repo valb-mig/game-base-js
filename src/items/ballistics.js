@@ -1,0 +1,201 @@
+import * as THREE from 'three';
+import { BULLET } from '../config.js';
+
+/**
+ * Balas em voo.
+ *
+ * Não é hitscan: a bala é uma entidade que sai a 253 m/s e cai por gravidade
+ * no caminho. É o que torna a queda uma mecânica de verdade em vez de um
+ * enfeite — a 50 m já é preciso mirar acima, e alvo em movimento exige avanço.
+ *
+ * O acerto é testado sobre o TRECHO percorrido no quadro, nunca sobre a
+ * posição final. A 253 m/s uma bala anda 4,2 m por quadro a 60 fps: testar só
+ * onde ela parou faria ela atravessar qualquer parede e qualquer alvo.
+ */
+export function createBallistics(scene, colliders) {
+  const bullets = [];
+  const listeners = [];
+
+  const from = new THREE.Vector3();
+  const to = new THREE.Vector3();
+  const segment = new THREE.Vector3();
+  const toCenter = new THREE.Vector3();
+  const ray = new THREE.Ray();
+  const hitPoint = new THREE.Vector3();
+
+  function makeTracer() {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(BULLET.TRACER_WIDTH, BULLET.TRACER_WIDTH, 1),
+      new THREE.MeshBasicMaterial({
+        color: BULLET.TRACER_COLOR, transparent: true, opacity: 0.85, depthWrite: false
+      })
+    );
+    mesh.renderOrder = 3;
+    return mesh;
+  }
+
+  /**
+   * Fração do trecho (0..1) em que ele encosta na esfera do alvo, ou null.
+   * Resolve a interseção segmento-esfera pelo ponto mais próximo do centro.
+   */
+  function sphereHit(start, delta, center, radius) {
+    toCenter.copy(center).sub(start);
+    const length2 = delta.lengthSq();
+    if (length2 < 1e-12) return null;
+
+    const t = THREE.MathUtils.clamp(toCenter.dot(delta) / length2, 0, 1);
+    hitPoint.copy(start).addScaledVector(delta, t);
+    return hitPoint.distanceTo(center) <= radius ? t : null;
+  }
+
+  /**
+   * Fração do trecho em que ele entra em algum colisor, ou null.
+   *
+   * Colisor de alvo é pulado: quem resolve alvo é a esfera dele, logo
+   * adiante. Sem isso a caixa do boneco vira parede e a bala morre alguns
+   * centímetros antes do centro — o tiro "acerta" e não causa dano nenhum.
+   */
+  function wallHit(start, delta, ignore) {
+    const length = delta.length();
+    if (length < 1e-9) return null;
+
+    ray.origin.copy(start);
+    ray.direction.copy(delta).divideScalar(length);
+
+    let nearest = null;
+    for (const collider of colliders) {
+      if (ignore.has(collider)) continue;
+      const point = ray.intersectBox(collider.box, hitPoint);
+      if (!point) continue;
+      const distance = start.distanceTo(point);
+      if (distance > length) continue;
+      const t = distance / length;
+      if (nearest === null || t < nearest) nearest = t;
+    }
+    return nearest;
+  }
+
+  function retire(bullet, atPosition) {
+    bullet.spent = true;
+    if (atPosition) bullet.position.copy(atPosition);
+    // o traçante ainda apaga por um instante depois que a bala morre
+    bullet.fade = bullet.tracer ? BULLET.TRACER_FADE : 0;
+  }
+
+  function step(bullet, delta, targets, terrain, ignore) {
+    from.copy(bullet.position);
+
+    const previousVelocity = bullet.velocity.y;
+    bullet.velocity.y -= BULLET.GRAVITY * delta;
+    to.copy(from)
+      .addScaledVector(bullet.velocity, delta)
+      .setY(from.y + (previousVelocity + bullet.velocity.y) * 0.5 * delta);
+
+    segment.copy(to).sub(from);
+
+    let closest = wallHit(from, segment, ignore);
+    let struck = null;
+
+    for (const target of targets) {
+      if (!target.alive) continue;
+      const t = sphereHit(from, segment, target.center(), target.radius);
+      if (t === null) continue;
+      if (closest !== null && t > closest) continue;
+      closest = t;
+      struck = target;
+    }
+
+    // terreno: amostra ao longo do trecho, porque ele é curvo e a bala é reta
+    if (terrain && closest === null) {
+      const steps = Math.max(1, Math.ceil(segment.length() / BULLET.STEP));
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        hitPoint.copy(from).addScaledVector(segment, t);
+        if (hitPoint.y <= terrain.heightAt(hitPoint.x, hitPoint.z)) {
+          closest = t;
+          break;
+        }
+      }
+    }
+
+    if (closest !== null) {
+      hitPoint.copy(from).addScaledVector(segment, closest);
+      retire(bullet, hitPoint);
+
+      const result = struck
+        ? struck.damage(bullet.damage)
+        : { target: null, amount: 0, killed: false };
+      for (const listener of listeners) listener({ ...result, point: hitPoint.clone() });
+      return;
+    }
+
+    bullet.position.copy(to);
+    bullet.travelled += segment.length();
+    bullet.life -= delta;
+    if (bullet.life <= 0 || bullet.travelled > bullet.range) retire(bullet, null);
+  }
+
+  return {
+    bullets,
+
+    onHit(listener) {
+      listeners.push(listener);
+    },
+
+    /** Dispara uma bala. `tracer` decide se ela deixa risco. */
+    spawn(origin, direction, { damage, range, tracer = false }) {
+      const bullet = {
+        position: origin.clone(),
+        velocity: direction.clone().multiplyScalar(BULLET.SPEED),
+        damage,
+        range,
+        travelled: 0,
+        life: BULLET.LIFE,
+        spent: false,
+        fade: 0,
+        tracer: tracer ? makeTracer() : null
+      };
+      if (bullet.tracer) scene.add(bullet.tracer);
+      bullets.push(bullet);
+      return bullet;
+    },
+
+    update(delta, targets = [], terrain = null) {
+      // colisores que pertencem a alvos saem da conta de parede, uma vez só
+      const ignore = new Set();
+      for (const target of targets) {
+        if (target.collider) ignore.add(target.collider);
+      }
+
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+
+        if (!bullet.spent) step(bullet, delta, targets, terrain, ignore);
+
+        if (bullet.tracer) {
+          const speed = bullet.velocity.length();
+          const length = Math.min(BULLET.TRACER_LENGTH, bullet.travelled);
+          bullet.tracer.scale.z = Math.max(0.001, length);
+          bullet.tracer.position.copy(bullet.position)
+            .addScaledVector(bullet.velocity, -length / (2 * speed));
+          bullet.tracer.lookAt(bullet.position);
+          bullet.tracer.material.opacity = bullet.spent
+            ? 0.85 * Math.max(0, bullet.fade / BULLET.TRACER_FADE)
+            : 0.85;
+        }
+
+        if (bullet.spent) {
+          bullet.fade -= delta;
+          if (bullet.fade > 0) continue;
+
+          if (bullet.tracer) {
+            scene.remove(bullet.tracer);
+            bullet.tracer.geometry.dispose();
+            bullet.tracer.material.dispose();
+          }
+          bullets.splice(i, 1);
+        }
+      }
+    }
+  };
+}

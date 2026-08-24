@@ -21,7 +21,7 @@ export function initHitmarker(...sources) {
 
   for (const source of sources) {
     source.onHit?.(marcar);
-    source.onShot?.(marcar);
+
   }
 
   return function updateHitmarker(delta) {

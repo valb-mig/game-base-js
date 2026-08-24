@@ -9,6 +9,7 @@ import { Viewmodel } from './items/viewmodel.js';
 import { initDrop } from './items/drop.js';
 import { initAttack } from './items/attack.js';
 import { initFirearm } from './items/firearm.js';
+import { createBallistics } from './items/ballistics.js';
 import { initMenu } from './ui/menu.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
@@ -38,8 +39,9 @@ addEventListener('resize', () => viewmodel.setAspect(innerWidth / innerHeight));
 const drops = initDrop(scene, player, viewmodel, world);
 const updatePrompt = initPrompt(drops);
 const attack = initAttack(player, world);
-const firearm = initFirearm(player, world);
-const updateHitmarker = initHitmarker(attack, firearm);
+const ballistics = createBallistics(scene, world.colliders);
+const firearm = initFirearm(player, world, ballistics);
+const updateHitmarker = initHitmarker(attack, ballistics);
 
 initMenu(player.controls, (classDef) => {
   player.setClass(classDef);
@@ -61,6 +63,7 @@ renderer.setAnimationLoop(() => {
   drops.update(delta);
   attack.update(delta);
   firearm.update(delta);
+  ballistics.update(delta, world.targets, world.terrain);
 
   // Mirar aproxima a vista. O viewmodel tem câmera própria, então a arma na
   // mão não estica junto — é só o mundo que chega mais perto.

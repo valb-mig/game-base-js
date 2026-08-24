@@ -25,6 +25,11 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
+/* os ícones do game-icons vêm com a cor herdada, não com fill próprio */
+#hud-layer svg path {
+  fill: currentColor;
+}
+
 body:not(.playing) #hud-layer,
 body:not(.playing) #debug {
   display: none;
@@ -160,9 +165,9 @@ body:not(.playing) #debug {
 }
 
 .health-row svg {
-  width: 17px;
-  height: 17px;
-  fill: var(--vital);
+  width: 20px;
+  height: 20px;
+  color: var(--vital);
   align-self: center;
 }
 
@@ -226,11 +231,21 @@ body:not(.playing) #debug {
 }
 
 .item-reserve {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   align-self: flex-end;
   padding-bottom: 3px;
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.reserve-icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
   color: var(--ink-dim);
 }
 
@@ -244,9 +259,9 @@ body.aiming #crosshair {
 }
 
 .item-icon svg {
-  width: 34px;
-  height: 17px;
-  fill: var(--ink);
+  width: 30px;
+  height: 30px;
+  color: var(--ink);
 }
 
 #equipped.empty {
