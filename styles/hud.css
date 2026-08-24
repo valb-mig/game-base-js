@@ -31,8 +31,29 @@
 }
 
 body:not(.playing) #hud-layer,
-body:not(.playing) #debug {
+body:not(.playing) #debug,
+body.screen-open #hud-layer,
+body.screen-open #debug,
+body.screen-open #crosshair {
   display: none;
+}
+
+/* aviso de que dá pra entrar em combate, só enquanto se observa */
+body.spectating #hud-layer::before {
+  content: "ESC · equipamento e desembarque";
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  width: auto;
+  height: auto;
+  margin: 0;
+  transform: translateX(-50%);
+  border: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
 }
 
 .panel {

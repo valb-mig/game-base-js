@@ -22,31 +22,50 @@
   <div id="prompt"></div>
 </div>
 
-<div id="class-select" class="screen">
+<div id="start-screen" class="screen">
   <div class="screen-inner">
-    <h1>Escolha sua classe</h1>
-    <p class="screen-sub">Frente ocidental, 1945 &middot; dá pra trocar de classe pelo ESC</p>
-
-    <div id="class-grid"></div>
-    <div id="class-detail"></div>
-
-    <button type="button" id="deploy">Entrar no mapa</button>
+    <h1>Ilha Corvo</h1>
+    <p class="screen-sub">Pacífico &middot; 1945</p>
+    <p>Você entra no mapa como observador. Escolha o equipamento e o ponto de<br>
+       desembarque quando quiser tomar parte.</p>
+    <button type="button" id="enter-map">Entrar no mapa</button>
   </div>
 </div>
 
-<div id="hud" class="screen hidden">
+<div id="deploy-screen" class="screen hidden">
+  <div class="screen-inner deploy-layout">
+    <div class="deploy-loadout">
+      <h1 id="deploy-title">Preparar</h1>
+      <p class="screen-sub">Equipamento</p>
+      <div id="class-grid"></div>
+      <div id="class-detail"></div>
+    </div>
+
+    <div class="deploy-map">
+      <p class="screen-sub">Ponto de desembarque</p>
+      <canvas id="tactical-map"></canvas>
+      <div id="zone-label" class="pending">Escolha um ponto no mapa</div>
+      <div class="deploy-actions">
+        <button type="button" id="deploy" disabled>Desembarcar</button>
+        <button type="button" id="keep-spectating">Continuar observando</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="pause-screen" class="screen hidden">
   <div class="screen-inner">
     <h1>Clique para voltar</h1>
-    <p id="hud-class"></p>
+    <p id="pause-hint"></p>
     <p>
       WASD ou setas para andar &middot; Shift liga e desliga a corrida<br>
       C agacha &middot; Z deita &middot; ambos alternam &middot; Espaço para pular<br>
       G larga o item na mão &middot; E apanha do chão<br>
       Botão esquerdo golpeia ou atira &middot; direito mira no ferro<br>
-      1 e 2 trocam de item &middot; R recarrega &middot;
+      1 e 2 trocam de item &middot; R recarrega<br>
       Mouse para olhar &middot; ` ou F2 mostra o painel &middot; ESC para sair
     </p>
-    <p class="hint">A pista de teste fica em frente ao spawn: escada, salto largo, túnel, passagem alta e rastejo.</p>
+    <p class="hint">Observando: Shift voa rápido &middot; Espaço sobe &middot; C desce</p>
 
     <div id="hud-options">
       <label>
@@ -56,7 +75,7 @@
       <span>Opcional: segura atalhos do navegador e tira as bordas.</span>
     </div>
 
-    <button type="button" id="change-class">Trocar classe</button>
+    <button type="button" id="open-deploy">Equipamento e desembarque</button>
   </div>
 </div>
 

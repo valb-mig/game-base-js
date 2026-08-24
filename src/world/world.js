@@ -80,6 +80,16 @@ export function buildWorld(scene) {
     terrain,
     water,
     targets,
+    // Zonas de nascimento. Ficam sobre terreno seco e afastadas entre si —
+    // é o que a tela de deploy oferece como escolha de onde entrar.
+    spawnZones: [
+      { id: 'norte', name: 'Base Norte', x: north.x, z: north.z + 12, radius: 16 },
+      { id: 'treino', name: 'Campo de treino', x: course.x, z: course.z, radius: 18 },
+      { id: 'sul', name: 'Base Sul', x: south.x, z: south.z - 12, radius: 16 },
+      { id: 'praia-leste', name: 'Praia leste', x: 128, z: 0, radius: 14 },
+      { id: 'praia-oeste', name: 'Praia oeste', x: -128, z: 0, radius: 14 },
+      { id: 'morro', name: 'Alto da ilha', x: 20, z: 26, radius: 14 }
+    ],
     bases: [
       { id: 'norte', short: 'Norte', name: 'Base Norte', position: new THREE.Vector3(north.x, northGround, north.z) },
       { id: 'sul', short: 'Sul', name: 'Base Sul', position: new THREE.Vector3(south.x, southGround, south.z) }

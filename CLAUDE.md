@@ -30,8 +30,10 @@ src/
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
   player/  player.js estado + ordem dos sistemas
-           locomotion.js  stance.js  swim.js  collision.js  view.js  heading.js
+           locomotion.js  stance.js  swim.js  spectator.js
+           collision.js  view.js  heading.js
   world/   heightfield.js  altura da ilha (matemática pura, sem three)
+           minimap.js  a ilha vista de cima, do mesmo campo de altura
            dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
            base.js  base militar · course.js  campo de treino
@@ -40,8 +42,9 @@ src/
            knife.js  pistol.js    modelos
            attack.js  firearm.js  ballistics.js  golpe, tiro, balas
            poses.js  como cada item é segurado
-  ui/      menu.js  session.js  compass.js  mission.js  status.js
-           prompt.js  debug.js
+  ui/      flow.js  máquina de estados e telas
+           classcards.js  tacticalmap.js  session.js
+           compass.js  mission.js  status.js  prompt.js  hitmarker.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
             drop, melee, firearm, ballistics, combate, flow)
@@ -185,6 +188,21 @@ centro e o tiro "acerta" sem causar dano.
 São do game-icons.net sob CC BY 3.0 — trocar um ícone exige atualizar o
 crédito no README.
 
+**O fluxo do jogo vive num lugar só.** `ui/flow.js` tem as quatro fases
+(início, espectando, deploy, jogando) e é o único que trava e destrava o
+mouse. Espalhar lock/unlock pelas telas foi o que tornou o fluxo antigo
+difícil de mexer.
+
+**Entrar no jogo é sempre pelo mesmo caminho**: observar primeiro, escolher
+equipamento e local depois. Morrer devolve pro deploy, nunca pro início.
+
+**O mapa tático sai do terreno**, não é uma imagem à parte: `world/minimap.js`
+amostra o mesmo campo de altura. Mexer no relevo muda o mapa junto.
+
+**O que a tela precisa oferecer por código, ofereça.** `flow.selectZone` existe
+porque escolher zona só pelo clique no canvas tornava o fluxo inteiro
+impossível de testar — canvas em headless não tem tamanho.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -236,12 +254,18 @@ faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item
 Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
 apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
+Fluxo: a abertura leva ao mapa como observador (fantasma que voa, não colide
+e não é atingido). ESC abre a pausa, e dela a tela de deploy — equipamento à
+esquerda, mapa tático da ilha à direita com seis pontos de desembarque. Morrer
+volta pra essa tela. `K` mata o jogador, tecla de teste enquanto nada causa
+dano de verdade.
+
 Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
 direito, e troca de item no 1 e 2. A bala viaja e cai; um traçante a cada
 quatro tiros.
 
-Ainda não existe: dano ao jogador (a vida dele é só leitura), tiro, objetivo de
+Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.

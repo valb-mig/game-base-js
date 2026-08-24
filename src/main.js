@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createStage } from './core/stage.js';
 import { CAMERA } from './config.js';
-import { initInput, endFrame } from './core/input.js';
+import { initInput, endFrame, consumePress } from './core/input.js';
 import { buildWorld } from './world/world.js';
 import { applyUnderwater } from './world/water.js';
 import { Player } from './player/player.js';
@@ -10,7 +10,7 @@ import { initDrop } from './items/drop.js';
 import { initAttack } from './items/attack.js';
 import { initFirearm } from './items/firearm.js';
 import { createBallistics } from './items/ballistics.js';
-import { initMenu } from './ui/menu.js';
+import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
@@ -43,11 +43,27 @@ const ballistics = createBallistics(scene, world.colliders);
 const firearm = initFirearm(player, world, ballistics);
 const updateHitmarker = initHitmarker(attack, ballistics);
 
-initMenu(player.controls, (classDef) => {
-  player.setClass(classDef);
-  player.respawn();
-  viewmodel.setItem(player.equipped);
-  viewmodel.visible = true;
+const flow = initFlow({
+  controls: player.controls,
+  player,
+  world,
+
+  // desembarcar: nasce na zona escolhida, com o equipamento da classe
+  onDeploy(classDef, zone) {
+    player.spawn.set(zone.x, 0, zone.z);
+    player.setClass(classDef);
+    player.respawn();
+    viewmodel.setItem(player.equipped);
+    viewmodel.visible = true;
+  },
+
+  // observar: fantasma acima do ponto onde a ação está, sem equipamento
+  onSpectate() {
+    const from = player.object.position;
+    const ground = world.terrain.heightAt(from.x, from.z);
+    player.spectateFrom(from.x, Math.max(ground + 28, from.y), from.z);
+    viewmodel.visible = false;
+  }
 });
 
 const clock = new THREE.Clock();
@@ -58,12 +74,21 @@ renderer.setAnimationLoop(() => {
 
   if (player.isLocked) {
     player.update(delta);
-    viewmodel.update(delta, player);
+    if (!player.spectating) viewmodel.update(delta, player);
   }
-  drops.update(delta);
-  attack.update(delta);
-  firearm.update(delta);
+
+  // Espectador não larga item, não golpeia e não atira: ele não está no jogo.
+  if (!player.spectating) {
+    drops.update(delta);
+    attack.update(delta);
+    firearm.update(delta);
+  }
   ballistics.update(delta, world.targets, world.terrain);
+
+  // tecla de teste enquanto nada causa dano de verdade ao jogador
+  if (player.isLocked && !player.spectating && consumePress('KeyK')) {
+    if (player.damage(player.maxHealth)) flow.playerDied();
+  }
 
   // Mirar aproxima a vista. O viewmodel tem câmera própria, então a arma na
   // mão não estica junto — é só o mundo que chega mais perto.

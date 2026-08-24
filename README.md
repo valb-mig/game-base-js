@@ -30,16 +30,24 @@ Ou qualquer servidor estático apontado pra raiz do repositório.
 | R | recarregar |
 | 1 e 2 | trocar de item |
 | G / E | largar item · apanhar do chão |
+| K | morrer (tecla de teste) |
 | ` ou F2 | painel de depuração |
+
+Observando: **Shift** voa rápido, **Espaço** sobe, **C** desce.
 
 ## O que existe
 
-Ilha com praia, floresta e natação, duas bases militares opostas e um campo
-de treino com estande de baioneta. Seleção de classe (só a Assault é
-jogável), faca KA-BAR e Colt M1911A1 com balística de projétil: a bala viaja,
-cai por gravidade e um traçante a cada quatro tiros marca o caminho.
+Entra-se no mapa como observador: um fantasma que voa e vê a partida. Pela
+tela de deploy escolhe-se o equipamento e um ponto de desembarque no mapa
+tático da ilha. Morrer devolve pra essa mesma tela.
 
-Não existe ainda: dano ao jogador, objetivo de partida e captura de base.
+Ilha com praia, floresta e natação, duas bases militares opostas e um campo
+de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
+de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
+tiros marca o caminho.
+
+Não existe ainda: dano ao jogador além da tecla de teste, objetivo de partida
+e captura de base.
 
 ## Desenvolvimento
 

@@ -9,6 +9,7 @@ import { moveHorizontal, moveVertical } from './locomotion.js';
 import { updateView, describeState } from './view.js';
 import { lookPitch } from './heading.js';
 import { updateWaterState, swim } from './swim.js';
+import { spectate } from './spectator.js';
 
 /**
  * Estado do jogador e a ordem em que os sistemas rodam.
@@ -60,6 +61,8 @@ export class Player {
     this.gun = { cooldown: 0, reloading: 0, reloadProgress: 0, aim: 0, flash: 0, kick: 0 };
 
     // água — atualizado todo frame por updateWaterState
+    this.spectating = false;   // fantasma: voa, não colide, não é atingido
+    this.alive = true;
     this.swimming = false;
     this.waterDepth = 0;
     this.submerged = 0;
@@ -133,6 +136,17 @@ export class Player {
     this.equipped = item;
   }
 
+  /** Entra em modo espectador: fantasma, sem colisão e sem gravidade. */
+  spectateFrom(x, y, z) {
+    this.spectating = true;
+    this.alive = false;
+    this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.eyeY = y;
+    this.object.position.set(x, y, z);
+    this.state = 'espectando';
+  }
+
   /** Volta pro ponto de nascimento, de pé e com a vida cheia. */
   respawn() {
     const ground = this.terrain
@@ -150,6 +164,8 @@ export class Player {
     this.verticalVelocity = 0;
     this.onGround = true;
     this.swimming = false;
+    this.spectating = false;
+    this.alive = true;
     this.health = this.maxHealth;
     this.swing.active = false;
     this.swing.progress = 0;
@@ -180,10 +196,31 @@ export class Player {
     return Math.hypot(this.velocity.x, this.velocity.z);
   }
 
+  /**
+   * Tira vida. Devolve true se este dano matou.
+   *
+   * Espectador não é atingido — ele não está no jogo, está olhando.
+   */
+  damage(amount) {
+    if (!this.alive || this.spectating) return false;
+
+    this.health = Math.max(0, this.health - amount);
+    if (this.health > 0) return false;
+
+    this.alive = false;
+    return true;
+  }
+
   // A ordem importa: a postura decide a altura do corpo, a locomoção
   // resolve colisão com essa altura, e a câmera só então é escrita.
   update(delta) {
     this.lookPitch = lookPitch(this.object.quaternion, this.right);
+
+    if (this.spectating) {
+      spectate(this, delta);
+      return;
+    }
+
     updateWaterState(this);
 
     if (this.swimming) {

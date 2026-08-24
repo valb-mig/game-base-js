@@ -1,30 +1,47 @@
 import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
-import { initMenu } from '../../src/ui/menu.js';
+import { initFlow, PHASE } from '../../src/ui/flow.js';
 import { initStatus } from '../../src/ui/status.js';
 import { CLASSES, KNIFE, PISTOL } from '../../src/items/classes.js';
 import { PLAYER } from '../../src/config.js';
 import { suite, ok, eq, near, note } from '../assert.js';
 
-/** Monta o DOM que menu.js e status.js esperam encontrar. */
+/** Monta o DOM que flow.js e status.js esperam encontrar. */
 function mountScreens() {
   const holder = document.createElement('div');
   holder.style.display = 'none';
   holder.innerHTML = `
     <div id="hud-layer"><canvas id="compass"></canvas>
-      <div id="mission"></div><div id="vitals"></div><div id="equipped"></div></div>
-    <div id="class-select"><div id="class-grid"></div><div id="class-detail"></div>
-      <button id="deploy"></button></div>
-    <div id="hud" class="hidden"><p id="hud-class"></p>
+      <div id="mission"></div><div id="vitals"></div>
+      <div id="equipped"></div><div id="prompt"></div></div>
+
+    <div id="start-screen" class="screen"><button id="enter-map"></button></div>
+
+    <div id="deploy-screen" class="screen hidden">
+      <h1 id="deploy-title"></h1>
+      <div id="class-grid"></div><div id="class-detail"></div>
+      <canvas id="tactical-map"></canvas>
+      <div id="zone-label"></div>
+      <button id="deploy"></button><button id="keep-spectating"></button>
+    </div>
+
+    <div id="pause-screen" class="screen hidden">
+      <p id="pause-hint"></p>
       <div id="hud-options"><input type="checkbox" id="fullscreen-toggle"></div>
-      <button id="change-class"></button></div>`;
+      <button id="open-deploy"></button>
+    </div>`;
   document.body.appendChild(holder);
+  return holder;
 }
 
-export function run() {
-  mountScreens();
+const terreno = { heightAt: () => 4, waterDepthAt: () => 0 };
 
-  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, { colliders: [] });
+export function run() {
+  const holder = mountScreens();
+
+  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, {
+    colliders: [], terrain: terreno, spawn: new THREE.Vector3(0, 0, 0)
+  });
 
   // pointer lock não existe em headless: controls falso, mesmos eventos
   const listeners = {};
@@ -35,92 +52,127 @@ export function run() {
     addEventListener(type, fn) { (listeners[type] ??= []).push(fn); }
   };
 
-  const updateStatus = initStatus(player);
-  let deploys = 0;
-  initMenu(controls, (classDef) => {
-    deploys++;
-    player.setClass(classDef);
-    player.respawn();
-  });
-  document.getElementById('fullscreen-toggle').checked = false; // sem tela cheia no teste
-
-  const screen = document.getElementById('class-select');
-  const hud = document.getElementById('hud');
-  const visible = (element) => !element.classList.contains('hidden');
-  const cards = [...document.querySelectorAll('.class-card')];
-
-  suite('seleção de classe');
-
-  eq('uma carta por classe', cards.length, CLASSES.length);
-  eq('só a Assault é jogável', cards.filter((card) => card.disabled).length, CLASSES.length - 1);
-  eq('começa na seleção de classe', visible(screen), true);
-  eq('tela de deploy começa escondida', visible(hud), false);
-
-  cards[1].click();
-  eq('clicar numa classe bloqueada não muda a seleção',
-    cards.findIndex((card) => card.classList.contains('selected')), 0);
-
-  document.getElementById('deploy').click();
-  eq('entrar aplica a classe', player.classDef.id, 'assault');
-  eq('entra com a vida cheia', player.health, player.maxHealth);
-  ok('as duas telas somem ao entrar', !visible(screen) && !visible(hud));
-  eq('a Assault empunha a pistola ao nascer', player.equipped?.id, PISTOL.id);
-  ok('e leva a faca junto no inventário', player.carried.includes(KNIFE));
-
-  suite('pausa e troca de classe');
-
-  player.health = 42;
-  controls.unlock();
-  ok('ESC mostra a tela de deploy, não a de classe', visible(hud) && !visible(screen));
-
-  hud.click();
-  eq('voltar pelo HUD não respawna', player.health, 42);
-  eq('voltar pelo HUD não redeploya', deploys, 1);
-
-  controls.unlock();
-  document.getElementById('change-class').click();
-  ok('trocar classe volta pra seleção', visible(screen) && !visible(hud));
-  document.getElementById('deploy').click();
-  eq('novo deploy respawna', player.health, player.maxHealth);
-  eq('novo deploy conta como deploy', deploys, 2);
-
-  suite('atributos vindos da classe');
-
-  const testClass = {
-    id: 'teste', name: 'Teste', role: 'x', color: '#fff', available: true,
-    health: 75, movement: { RUN_SPEED: 12, JUMP_SPEED: 11 }, loadout: [KNIFE]
+  const world = {
+    terrain: terreno,
+    spawnZones: [
+      { id: 'a', name: 'Base Norte', x: 0, z: -90, radius: 16 },
+      { id: 'b', name: 'Praia leste', x: 120, z: 0, radius: 14 }
+    ]
   };
-  player.setClass(testClass);
-  eq('classe sobrescreve o que declara', player.stats.RUN_SPEED, 12);
-  eq('e o que não declara herda do config', player.stats.WALK_SPEED, PLAYER.WALK_SPEED);
-  eq('vida vem da classe', player.maxHealth, 75);
 
-  suite('a faca é comum a todas as classes');
+  let deploys = 0;
+  let espectadas = 0;
+  const flow = initFlow({
+    controls,
+    player,
+    world,
+    onDeploy(classDef, zone) {
+      deploys++;
+      player.spawn.set(zone.x, 0, zone.z);
+      player.setClass(classDef);
+      player.respawn();
+    },
+    onSpectate() {
+      espectadas++;
+      const p = player.object.position;
+      player.spectateFrom(p.x, terreno.heightAt() + 28, p.z);
+    }
+  });
+  document.getElementById('fullscreen-toggle').checked = false;
 
-  const knives = CLASSES.map((entry) => entry.loadout.find((item) => item.id === 'kabar'));
-  eq('todas as classes carregam a faca', knives.filter(Boolean).length, CLASSES.length);
-  eq('é o mesmo objeto, não cópias', new Set(knives).size, 1);
-  eq('é o item empunhado', player.equipped?.id, player.carried[0]?.id);
+  const updateStatus = initStatus(player);
+  const visivel = (id) => !document.getElementById(id).classList.contains('hidden');
+  const clicar = (id) => document.getElementById(id).click();
 
-  player.selectSlot(player.carried.indexOf(KNIFE));
+  suite('entrar no mapa é entrar como observador');
+
+  eq('começa na tela de abertura', flow.phase, PHASE.START);
+  eq('e ela é a única visível', visivel('start-screen'), true);
+  eq('nada de deploy ainda', visivel('deploy-screen'), false);
+
+  clicar('enter-map');
+  eq('entrar leva pra observação, não pro jogo', flow.phase, PHASE.SPECTATING);
+  eq('o jogador vira fantasma', player.spectating, true);
+  eq('e não está vivo', player.alive, false);
+  eq('nenhuma tela na frente', visivel('start-screen') || visivel('deploy-screen'), false);
+  eq('e o HUD do jogo aparece', document.body.classList.contains('screen-open'), false);
+  eq('o mouse fica travado pra poder voar', controls.isLocked, true);
+  eq('onSpectate foi chamado uma vez', espectadas, 1);
+
+  suite('fantasma voa livre');
+
+  const antes = player.object.position.clone();
+  player.object.position.set(0, 60, 0);
+  player.eyeY = 60;
+  player.update(1 / 60);
+  eq('não é puxado pra baixo por gravidade', player.onGround, false);
+  ok('e continua no ar', player.eyeY > 50, `${player.eyeY.toFixed(1)} m`);
+  eq('o estado diz observando', player.state, 'espectando');
+  eq('não nada nem se molha', player.swimming, false);
+  note('altura inicial', `${antes.y.toFixed(0)} m acima do terreno`);
+
+  suite('escolher equipamento e onde desembarcar');
+
+  controls.unlock();
+  eq('ESC observando mostra a pausa', visivel('pause-screen'), true);
+  clicar('open-deploy');
+  eq('e dali chega no deploy', flow.phase, PHASE.DEPLOY);
+  eq('com a tela de deploy visível', visivel('deploy-screen'), true);
+  eq('e o HUD escondido atrás dela',
+    document.body.classList.contains('screen-open'), true);
+  eq('sem o mouse travado, pra poder clicar no mapa', controls.isLocked, false);
+
+  const botao = document.getElementById('deploy');
+  eq('desembarcar começa bloqueado sem local', botao.disabled, true);
+  clicar('deploy');
+  eq('e clicar nele não faz nada', deploys, 0);
+
+  suite('desembarcar');
+
+  const zona = world.spawnZones[1];
+  flow.selectZone(zona);
+  eq('escolher o ponto libera o botão', botao.disabled, false);
+  eq('e o rótulo mostra qual é',
+    document.getElementById('zone-label').textContent, zona.name);
+
+  clicar('deploy');
+  eq('desembarcar leva ao jogo', flow.phase, PHASE.PLAYING);
+  eq('e chama onDeploy uma vez', deploys, 1);
+  eq('nasce na zona escolhida', Math.round(player.object.position.x), zona.x);
+  eq('e sai do modo fantasma', player.spectating, false);
+  eq('vivo', player.alive, true);
+  eq('com a vida cheia', player.health, player.maxHealth);
+  eq('e com o equipamento da classe', player.equipped?.id, PISTOL.id);
+  ok('a faca vem junto', player.carried.includes(KNIFE));
+  near('assenta na altura do terreno', player.eyeY, 4 + PLAYER.HEIGHT, 0.01);
+
+  suite('morrer devolve pra escolha, não pro início');
+
+  // simula o que o laço faz quando a vida zera
+  const matou = player.damage(player.maxHealth);
+  eq('o dano mata', matou, true);
+  eq('e o jogador deixa de estar vivo', player.alive, false);
+
+  flow.playerDied();
+  eq('volta pro deploy', flow.phase, PHASE.DEPLOY);
+  eq('com a tela aberta', visivel('deploy-screen'), true);
+  eq('nunca pela tela de abertura', visivel('start-screen'), false);
+  eq('e observando enquanto decide', player.spectating, true);
+  eq('o título avisa que caiu', document.getElementById('deploy-title').textContent, 'Você caiu');
+
+  suite('observador não é atingido');
+
+  const vidaAntes = player.health;
+  eq('dano em fantasma não mata', player.damage(999), false);
+  eq('nem tira vida', player.health, vidaAntes);
+
+  suite('voltar a só observar');
+
+  clicar('keep-spectating');
+  eq('dá pra desistir e continuar observando', flow.phase, PHASE.SPECTATING);
+  eq('sem desembarcar de novo', deploys, 1);
+  eq('e sem tela na frente', visivel('deploy-screen'), false);
+
   updateStatus();
-  const equipped = document.getElementById('equipped');
-  const vitals = document.getElementById('vitals');
-  ok('HUD mostra o item empunhado',
-    equipped.textContent.includes(KNIFE.name), KNIFE.name);
-  ok('sem munição, o contador vira rótulo do slot',
-    equipped.querySelector('.item-count').classList.contains('is-label'));
-  ok('e o ícone é o da faca, não um genérico',
-    equipped.querySelector('.item-icon').innerHTML.includes('svg'));
-
-  // a classe de teste acima só tem a faca; volta pra Assault pra ter os dois
-  player.setClass(CLASSES.find((entry) => entry.id === 'assault'));
-  player.selectSlot(player.carried.indexOf(PISTOL));
-  updateStatus();
-  const iconePistola = equipped.querySelector('.item-icon').innerHTML;
-  player.selectSlot(player.carried.indexOf(KNIFE));
-  updateStatus();
-  ok('cada item tem o seu ícone',
-    iconePistola !== equipped.querySelector('.item-icon').innerHTML);
-  ok('vida aparece nos vitais', vitals.textContent.includes(`${player.health}`));
+  holder.remove();
 }

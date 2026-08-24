@@ -14,7 +14,7 @@
   text-align: center;
 }
 
-#hud {
+#pause-screen {
   cursor: pointer;
 }
 
@@ -43,7 +43,7 @@
   opacity: 0.5;
 }
 
-#hud-class {
+#pause-hint {
   margin-bottom: 1rem;
   font-weight: 600;
   opacity: 1;
@@ -214,4 +214,111 @@
 
 #hud-options b {
   color: #9fe08a;
+}
+
+/* ------------------------------------------------------------- deploy */
+
+.deploy-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 420px);
+  gap: 2rem;
+  align-items: start;
+  width: min(1080px, 100%);
+  text-align: left;
+}
+
+.deploy-layout h1,
+.deploy-layout .screen-sub {
+  text-align: left;
+}
+
+.deploy-layout .screen-sub {
+  margin-bottom: 0.75rem;
+}
+
+.deploy-loadout #class-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.deploy-map {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A ilha é gerada em baixa resolução e ampliada. Pixel cru fica melhor que
+   borrado, e deixa claro que é carta, não fotografia. */
+#tactical-map {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  image-rendering: pixelated;
+  background: #14323d;
+}
+
+#zone-label {
+  margin-top: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#zone-label.pending {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.5;
+}
+
+.deploy-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+#deploy:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+#keep-spectating,
+#open-deploy {
+  padding: 0.5rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#keep-spectating:hover,
+#open-deploy:hover {
+  border-color: #9fe08a;
+}
+
+#open-deploy {
+  margin-top: 1.25rem;
+}
+
+#enter-map {
+  margin-top: 1.5rem;
+  padding: 0.7rem 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: #9fe08a;
+  color: #10200c;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+/* Observando não há vida nem item: o HUD encolhe pro que ainda faz sentido. */
+body.spectating #vitals,
+body.spectating #equipped,
+body.spectating #prompt,
+body.spectating #hitmarker {
+  display: none;
 }
