@@ -82,7 +82,12 @@ export class Player {
     this.maxHealth = classDef.health;
     this.health = classDef.health;
     // por ora a faca é a única coisa que existe de fato na mão
-    this.equipped = classDef.loadout.find((item) => item.slot === 'Corpo a corpo') ?? null;
+    this.equipped = this.meleeOf(classDef);
+  }
+
+  /** O item de mão da classe. Por ora só o corpo a corpo tem modelo. */
+  meleeOf(classDef) {
+    return classDef.loadout.find((item) => item.slot === 'Corpo a corpo') ?? null;
   }
 
   /** Volta pro ponto de nascimento, de pé e com a vida cheia. */
@@ -103,6 +108,8 @@ export class Player {
     this.onGround = true;
     this.swimming = false;
     this.health = this.maxHealth;
+    // nascer de novo devolve o equipamento: o que ficou no chão fica lá
+    this.equipped = this.meleeOf(this.classDef);
     this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);
   }
 

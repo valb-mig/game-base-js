@@ -5,6 +5,7 @@ import { buildWorld } from './world/world.js';
 import { applyUnderwater } from './world/water.js';
 import { Player } from './player/player.js';
 import { Viewmodel } from './items/viewmodel.js';
+import { initDrop } from './items/drop.js';
 import { initMenu } from './ui/menu.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
@@ -29,9 +30,12 @@ const viewmodel = new Viewmodel(camera, innerWidth / innerHeight);
 viewmodel.visible = false;
 addEventListener('resize', () => viewmodel.setAspect(innerWidth / innerHeight));
 
+const drops = initDrop(scene, player, viewmodel, world);
+
 initMenu(player.controls, (classDef) => {
   player.setClass(classDef);
   player.respawn();
+  viewmodel.setItem(player.equipped);
   viewmodel.visible = true;
 });
 
@@ -45,6 +49,7 @@ renderer.setAnimationLoop(() => {
     player.update(delta);
     viewmodel.update(delta, player);
   }
+  drops.update(delta);
 
   world.water.update(clock.elapsedTime);
   applyUnderwater(scene, player.headUnderwater);

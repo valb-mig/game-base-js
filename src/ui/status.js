@@ -43,8 +43,10 @@ export function initStatus(player) {
 
   equipped.append(itemRow, itemName);
 
-  let shownClass = null;
-  let shownItem = null;
+  // `undefined` como sentinela porque `null` é valor legítimo: é mão vazia.
+  // Com null nos dois lados, o primeiro quadro de mão vazia não desenhava nada.
+  let shownClass;
+  let shownItem;
   let shownHealth = -1;
 
   return function updateStatus() {
@@ -58,12 +60,15 @@ export function initStatus(player) {
     }
 
     const item = player.equipped;
-    if (item && shownItem !== item.id) {
-      shownItem = item.id;
-      itemName.textContent = item.name;
+    const itemId = item ? item.id : null;
+    if (shownItem !== itemId) {
+      shownItem = itemId;
+      equipped.classList.toggle('empty', !item);
+      itemName.textContent = item ? item.name : 'Mãos vazias';
       // sem munição, o lugar do contador mostra o tipo do slot
-      itemCount.textContent = item.ammo ? `${item.ammo.loaded}` : item.slot;
-      itemCount.classList.toggle('is-label', !item.ammo);
+      itemCount.textContent = item ? (item.ammo ? `${item.ammo.loaded}` : item.slot) : '—';
+      itemCount.classList.toggle('is-label', Boolean(item) && !item.ammo);
+      itemIcon.classList.toggle('hidden', !item);
     }
 
     const health = Math.round(player.health);

@@ -6,11 +6,11 @@ import { PLAYER } from '../config.js';
 //
 // RADIUS e STEP_HEIGHT são globais de propósito: valem pro mundo inteiro, e
 // classe nenhuma deve sobrescrever (ver classes.js).
-function overlapsXZ(box, x, z) {
-  return x >= box.min.x - PLAYER.RADIUS
-      && x <= box.max.x + PLAYER.RADIUS
-      && z >= box.min.z - PLAYER.RADIUS
-      && z <= box.max.z + PLAYER.RADIUS;
+function overlapsXZ(box, x, z, radius = PLAYER.RADIUS) {
+  return x >= box.min.x - radius
+      && x <= box.max.x + radius
+      && z >= box.min.z - radius
+      && z <= box.max.z + radius;
 }
 
 /**
@@ -59,4 +59,24 @@ export function fits(player, height) {
   // No ar a cabeça é que fica parada e os pés é que descem.
   const feetY = player.onGround ? player.feetY : player.eyeY - height;
   return !collides(player.colliders, position.x, position.z, feetY, height);
+}
+
+/**
+ * Superfície de apoio para um objeto solto no mundo, vindo de cima.
+ *
+ * Diferente de groundHeightAt: não infla pelo raio do jogador (um objeto no
+ * chão é praticamente um ponto) e não tem STEP_HEIGHT — nada de subir degrau.
+ */
+export function restHeightAt(colliders, x, z, fromY, terrainY = 0) {
+  // `fromY` é o topo do trecho percorrido no frame, não a posição final:
+  // é o que impede o objeto de atravessar uma superfície entre dois frames.
+  let highest = terrainY;
+
+  for (const { box, standable } of colliders) {
+    if (!standable) continue;
+    if (box.max.y <= highest || box.max.y > fromY + 0.001) continue;
+    if (!overlapsXZ(box, x, z, 0)) continue;
+    highest = box.max.y;
+  }
+  return highest;
 }

@@ -100,6 +100,17 @@ export const WORLD = {
   COURSE_LENGTH: 52
 };
 
+export const DROP = {
+  FORWARD: 2.4,      // impulso pra frente ao soltar, em m/s
+  LIFT: 1.5,
+  SPIN: 7,           // giro no ar, em rad/s
+  GRAVITY: 18,
+  WATER_DRAG: 3.2,   // dentro d'água o item desce devagar
+  WATER_SINK: 1.1,   // velocidade terminal afundando
+  SETTLE_TIME: 0.2,  // tempo pra assentar deitado depois de tocar o chão
+  REACH: 0.55        // distância à frente do rosto onde o item nasce
+};
+
 export const CAMERA = {
   FOV: 70,
   NEAR: 0.1,

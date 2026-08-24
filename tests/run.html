@@ -24,13 +24,13 @@
 import { report } from './assert.js';
 
 // Ordem fixa pra saída ser comparável entre execuções.
-const SUITES = ['aim', 'movement', 'jump', 'stance', 'terrain', 'swim', 'model', 'flow'];
+const SUITES = ['aim', 'movement', 'jump', 'stance', 'terrain', 'swim', 'model', 'drop', 'flow'];
 
 const problems = [];
 for (const name of SUITES) {
   try {
     const module = await import(`./suites/${name}.js`);
-    module.run();
+    await module.run();
   } catch (error) {
     problems.push(`FALHA  suite "${name}" estourou: ${error.message}`);
     console.error(error);

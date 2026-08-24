@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createKnife } from './knife.js';
+import { createItemModel } from './models.js';
 
 /**
  * Item na mão, em primeira pessoa. Sem braços por enquanto: só o objeto.
@@ -52,14 +52,30 @@ export class Viewmodel {
     this.group.rotation.copy(REST_ROTATION);
     this.scene.add(this.group);
 
-    this.item = createKnife();
-    this.group.add(this.item);
+    this.item = null;
 
     this.sway = new THREE.Vector2();
     this.forward = new THREE.Vector3();
     this.lastForward = new THREE.Vector3(0, 0, -1);
     this.pose = 0;   // 0 = normal, 1 = correndo
     this.bobPhase = 0;
+  }
+
+  /**
+   * Troca o que está na mão. `null` deixa as mãos vazias — é o que acontece
+   * ao largar um item, e é diferente de esconder o viewmodel: escondido é
+   * enquanto um menu está aberto, vazio é estado de jogo.
+   */
+  setItem(item) {
+    if (this.item) {
+      this.group.remove(this.item);
+      this.item = null;
+    }
+    const model = createItemModel(item);
+    if (!model) return;
+
+    this.item = model;
+    this.group.add(model);
   }
 
   get visible() {

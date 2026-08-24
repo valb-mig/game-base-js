@@ -35,10 +35,10 @@ src/
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
            base.js  base militar · course.js  campo de treino
            props.js  helpers · world.js  monta tudo
-  items/   classes.js  knife.js  viewmodel.js
+  items/   classes.js  knife.js  models.js  viewmodel.js  drop.js
   ui/      menu.js  session.js  compass.js  mission.js  status.js  debug.js
 tests/     run.html + suites/
-           (aim, movement, jump, stance, terrain, swim, model, flow)
+           (aim, movement, jump, stance, terrain, swim, model, drop, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
 ```
@@ -113,6 +113,20 @@ permanentemente atrasada em qualquer ladeira. Hoje é `STEP_VIEW_MIN`.
 por isso não aparecem: o canto do item mostra o rótulo do slot quando o item
 não tem munição. Se aparecer contador, é porque o dado existe.
 
+**Item na mão e item no chão saem da mesma fábrica.** `items/models.js` mapeia
+o dado do item pro modelo 3D. Largar tem que produzir exatamente o que estava
+sendo empunhado, e item sem modelo simplesmente não aparece — nada de caixa
+genérica de reserva.
+
+**`player.equipped` pode ser `null`.** Mão vazia é estado de jogo válido, e é
+diferente do viewmodel escondido (que é enquanto um menu está aberto). Cuidado
+com sentinela: usar `null` como "ainda não desenhei" colide com "mão vazia", e
+isso já fez o HUD ficar em branco.
+
+**Objeto caindo testa o trecho percorrido, não só onde parou.** Entre dois
+frames um item rápido passa inteiro por dentro de uma caixa; `restHeightAt`
+recebe o topo do trecho justamente por isso.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -132,6 +146,10 @@ cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
 
+**Mas a simulação não pode viver dentro do loop.** Sob `--virtual-time-budget`
+o requestAnimationFrame quase não roda: contar frames lá dentro não funciona em
+headless. Simule num `for` síncrono e deixe o loop só desenhando.
+
 ## Convenções
 
 - Código e comentário em pt-br. Comentário explica **por quê**, não o quê.
@@ -147,6 +165,9 @@ Funciona: movimento (andar, correr como alternância no Shift, agachar em C,
 deitar em Z, pulo com coyote time e buffer), natação, mapa de ilha com praia,
 floresta e duas bases militares opostas, campo de treino, seleção de classe,
 faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item).
+
+Largar item com G funciona; **apanhar do chão ainda não existe** — o que cai
+fica lá, e `drops.items` já guarda item e posição pra quem for escrever isso.
 
 Ainda não existe: dano (a vida é só leitura), tiro, golpe da faca, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

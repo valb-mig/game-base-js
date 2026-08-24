@@ -231,6 +231,14 @@ body:not(.playing) #debug {
   fill: var(--ink);
 }
 
+#equipped.empty {
+  opacity: 0.55;
+}
+
+.item-icon.hidden {
+  display: none;
+}
+
 .item-name {
   margin-top: 6px;
   font-size: 12px;
