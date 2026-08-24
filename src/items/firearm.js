@@ -132,15 +132,18 @@ export function initFirearm(player, world) {
       const item = player.equipped;
       const firearm = item?.firearm;
 
+      // O tempo corre mesmo com a arma guardada. Descontando só enquanto ela
+      // está na mão, guardar e sacar de novo encontrava o intervalo do último
+      // tiro congelado, e o primeiro clique depois da troca não disparava.
+      state.cooldown = Math.max(0, state.cooldown - delta);
+      state.flash = Math.max(0, state.flash - delta);
+      state.kick = Math.max(0, state.kick - delta * 9);
+
       if (!firearm) {
         state.aim = 0;
         state.reloading = 0;
         return;
       }
-
-      state.cooldown = Math.max(0, state.cooldown - delta);
-      state.flash = Math.max(0, state.flash - delta);
-      state.kick = Math.max(0, state.kick - delta * 9);
 
       // mirar é um estado contínuo: a arma sobe e desce do olho
       const wantsAim = player.isLocked && isMouseDown(MOUSE_RIGHT)

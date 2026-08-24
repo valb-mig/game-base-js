@@ -8,6 +8,10 @@
 
 const CROSS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.4 1h3.2v5.4H15v3.2H9.6V15H6.4V9.6H1V6.4h5.4z"/></svg>';
 const BLADE = '<svg viewBox="0 0 32 16" aria-hidden="true"><path d="M2 9.4 19 3.2l6.6 2.1-1.1 3.3-6.6 2.1L2 10.6z"/><rect x="24.6" y="4.4" width="1.6" height="5.6"/><rect x="26.6" y="5.6" width="4.4" height="3.2" rx="1.2"/></svg>';
+const HANDGUN = '<svg viewBox="0 0 32 16" aria-hidden="true"><rect x="2" y="3.4" width="24" height="4"/><rect x="2" y="7.4" width="14" height="2.4"/><path d="M9.4 9.8h5.2l-2 5.4H7.6z"/><rect x="16.4" y="8" width="4.6" height="1.4"/></svg>';
+
+/** Cada item mostra o seu; sem ícone próprio, cai no genérico da lâmina. */
+const ICONS = { m1911: HANDGUN, kabar: BLADE };
 
 export function initStatus(player) {
   const vitals = document.getElementById('vitals');
@@ -38,7 +42,6 @@ export function initStatus(player) {
 
   const itemIcon = document.createElement('div');
   itemIcon.className = 'item-icon';
-  itemIcon.innerHTML = BLADE;
   itemRow.append(itemCount, reserve, itemIcon);
 
   const itemName = document.createElement('div');
@@ -73,6 +76,7 @@ export function initStatus(player) {
       itemCount.textContent = item ? (item.ammo ? `${item.ammo.loaded}` : item.slot) : '—';
       itemCount.classList.toggle('is-label', Boolean(item) && !item.ammo);
       reserve.textContent = item?.ammo ? `/ ${item.ammo.reserve}` : '';
+      itemIcon.innerHTML = item ? (ICONS[item.id] ?? BLADE) : '';
       itemIcon.classList.toggle('hidden', !item);
     }
 

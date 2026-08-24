@@ -110,5 +110,17 @@ export function run() {
     equipped.textContent.includes(KNIFE.name), KNIFE.name);
   ok('sem munição, o contador vira rótulo do slot',
     equipped.querySelector('.item-count').classList.contains('is-label'));
+  ok('e o ícone é o da faca, não um genérico',
+    equipped.querySelector('.item-icon').innerHTML.includes('svg'));
+
+  // a classe de teste acima só tem a faca; volta pra Assault pra ter os dois
+  player.setClass(CLASSES.find((entry) => entry.id === 'assault'));
+  player.selectSlot(player.carried.indexOf(PISTOL));
+  updateStatus();
+  const iconePistola = equipped.querySelector('.item-icon').innerHTML;
+  player.selectSlot(player.carried.indexOf(KNIFE));
+  updateStatus();
+  ok('cada item tem o seu ícone',
+    iconePistola !== equipped.querySelector('.item-icon').innerHTML);
   ok('vida aparece nos vitais', vitals.textContent.includes(`${player.health}`));
 }

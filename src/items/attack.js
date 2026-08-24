@@ -125,16 +125,24 @@ export function initAttack(player, world) {
 
       swing.cooldown = Math.max(0, swing.cooldown - delta);
 
+      // O clique é disputado: corpo a corpo e arma de fogo leem o mesmo
+      // botão. Quem não está com o seu tipo de item na mão não pode nem
+      // tocar nele — antes desta guarda, o corpo a corpo engolia o clique
+      // com a pistola empunhada e o tiro nunca acontecia.
+      if (!player.isLocked || !player.equipped?.melee) {
+        swing.buffered = 0;
+        return;
+      }
+
       // Clique guardado por um instante, como o pulo. Sem isso, clicar no
       // fim do respiro consumia o clique e não saía golpe nenhum: o jogador
       // apertava e não acontecia nada.
-      swing.buffered = player.isLocked && consumeClick()
+      swing.buffered = consumeClick()
         ? MELEE.BUFFER
         : Math.max(0, swing.buffered - delta);
 
       if (swing.buffered <= 0) return;
       if (swing.cooldown > 0) return;
-      if (!player.equipped?.melee) return;
 
       swing.active = true;
       swing.progress = 0;
