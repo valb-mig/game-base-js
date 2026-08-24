@@ -19,11 +19,28 @@ headless() {
     --enable-unsafe-swiftshader --use-gl=angle --use-angle=swiftshader "$@"
 }
 
-serving() { curl -sf -o /dev/null "$URL/" 2>/dev/null; }
+# Confere que quem atende a porta é o NOSSO servidor, não o de outro projeto.
+# Sem isso, um python http.server de outra pasta é reaproveitado em silêncio e
+# a suíte roda em cima de código alheio.
+serving() { [ "$(curl -sf "$URL/.serverroot" 2>/dev/null)" = "$ROOT" ]; }
+
+port_taken() { curl -sf -o /dev/null --max-time 1 "$URL/" 2>/dev/null; }
 
 ensure_server() {
   serving && return
-  echo "subindo servidor em $URL"
+
+  # porta ocupada por outra coisa? anda pra próxima livre em vez de brigar
+  local tries=0
+  while port_taken && [ $tries -lt 12 ]; do
+    echo "porta $PORT ocupada por outro servidor; tentando $((PORT + 1))" >&2
+    PORT=$((PORT + 1))
+    URL="http://localhost:$PORT"
+    serving && return
+    tries=$((tries + 1))
+  done
+
+  printf '%s\n' "$ROOT" > "$ROOT/.serverroot"
+  echo "subindo servidor em $URL" >&2
   (cd "$ROOT" && nohup python3 -m http.server "$PORT" >/dev/null 2>&1 &)
   for _ in $(seq 20); do serving && return; sleep 0.25; done
   echo "servidor não subiu na porta $PORT" >&2
@@ -38,7 +55,26 @@ case "${1:-check}" in
     echo "$URL"
     ;;
 
+  syntax)
+    # node --check num .js parseia como script e deixa passar erro que só
+    # aparece como módulo. Copiar pra .mjs força o parse certo.
+    fail=0
+    tmp="$(mktemp -d)"
+    while IFS= read -r file; do
+      cp "$file" "$tmp/probe.mjs"
+      if ! node --check "$tmp/probe.mjs" 2>"$tmp/err"; then
+        echo "FALHA $file"
+        sed -n '2,4p' "$tmp/err"
+        fail=1
+      fi
+    done < <(find "$ROOT/src" "$ROOT/tests" -name '*.js' | sort)
+    rm -rf "$tmp"
+    [ $fail -eq 0 ] && echo "sintaxe ok em $(find "$ROOT/src" "$ROOT/tests" -name '*.js' | wc -l) módulos"
+    exit $fail
+    ;;
+
   check)
+    "$0" syntax || exit 1
     ensure_server
     out="$(headless --virtual-time-budget=15000 --dump-dom "$URL/tests/run.html" 2>/dev/null | strip_html)"
     echo "$out"
@@ -77,7 +113,8 @@ case "${1:-check}" in
 uso: tools/dev.sh <comando>
 
   serve              sobe o servidor estático (idempotente)
-  check              roda a suíte de testes; sai != 0 se algo falhar
+  syntax             parseia todo módulo de src/ e tests/ como ES module
+  check              sintaxe + suíte de testes; sai != 0 se algo falhar
   errors [pagina]    abre a página e reporta erro de console
   shot [pagina] [saida] [LxA]   captura de tela headless
 

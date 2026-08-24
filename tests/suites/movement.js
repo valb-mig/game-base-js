@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initInput, endFrame } from '../../src/core/input.js';
-import { PLAYER } from '../../src/config.js';
+import { PLAYER, WORLD } from '../../src/config.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
 
 export function run() {
   initInput();
-  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, []);
+  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, { colliders: [] });
 
   const down = (code) => dispatchEvent(new KeyboardEvent('keydown', { code }));
   const up = (code) => dispatchEvent(new KeyboardEvent('keyup', { code }));
@@ -62,7 +62,7 @@ export function run() {
     player.speed, PLAYER.WALK_SPEED * PLAYER.BACK_PENALTY, 0.01);
   up('KeyS');
 
-  const limit = 99;
+  const limit = WORLD.SIZE / 2 - 1;   // derivado do mapa, não fixo no teste
   player.object.position.z = -limit + 0.5;
   down('KeyW'); step(60);
   between('não atravessa a borda do mundo', player.object.position.z, -limit, -limit + 0.51);

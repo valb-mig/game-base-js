@@ -8,7 +8,7 @@ const DT = 1 / 60;
 
 export function run() {
   initInput();
-  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, []);
+  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, { colliders: [] });
 
   const down = (code) => dispatchEvent(new KeyboardEvent('keydown', { code }));
   const up = (code) => dispatchEvent(new KeyboardEvent('keyup', { code }));

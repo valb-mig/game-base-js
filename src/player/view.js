@@ -23,6 +23,12 @@ export function updateView(player, delta) {
 export function describeState(player) {
   const still = player.speed < 0.15;
 
+  if (player.swimming) {
+    if (player.headUnderwater) return 'mergulhando';
+    return still ? 'boiando' : 'nadando';
+  }
+  if (player.submerged > 0.25) return still ? 'na água' : 'atravessando a água';
+
   if (!player.onGround) {
     return player.stance === STAND ? 'no ar' : `no ar ${player.stance}`;
   }

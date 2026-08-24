@@ -2,22 +2,27 @@ import * as THREE from 'three';
 import { createStage } from './core/stage.js';
 import { initInput, endFrame } from './core/input.js';
 import { buildWorld } from './world/world.js';
+import { applyUnderwater } from './world/water.js';
 import { Player } from './player/player.js';
 import { Viewmodel } from './items/viewmodel.js';
 import { initMenu } from './ui/menu.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
+import { initCompass } from './ui/compass.js';
+import { initMission } from './ui/mission.js';
 
 const { scene, camera, renderer } = createStage();
-const colliders = buildWorld(scene);
+const world = buildWorld(scene);
 
-const player = new Player(camera, renderer.domElement, colliders);
+const player = new Player(camera, renderer.domElement, world);
 scene.add(player.object);
 
 initInput();
 
 const updateDebug = initDebug(player);
 const updateStatus = initStatus(player);
+const updateCompass = initCompass(camera);
+const updateMission = initMission(player, world.bases);
 
 // item na mão: passe próprio, some enquanto alguma tela estiver aberta
 const viewmodel = new Viewmodel(camera, innerWidth / innerHeight);
@@ -41,8 +46,13 @@ renderer.setAnimationLoop(() => {
     viewmodel.update(delta, player);
   }
 
+  world.water.update(clock.elapsedTime);
+  applyUnderwater(scene, player.headUnderwater);
+
   updateDebug(delta);
   updateStatus();
+  updateCompass();
+  updateMission();
 
   renderer.render(scene, camera);
   viewmodel.render(renderer);

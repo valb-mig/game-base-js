@@ -24,3 +24,24 @@ export function forwardX(right) {
 export function forwardZ(right) {
   return -right.x;
 }
+
+/**
+ * Inclinação vertical do olhar, em radianos: positivo olhando pra cima.
+ * Quem nada precisa disso — olhar pra baixo mergulha.
+ */
+export function lookPitch(quaternion, scratch) {
+  scratch.set(0, 0, -1).applyQuaternion(quaternion);
+  return Math.asin(Math.max(-1, Math.min(1, scratch.y)));
+}
+
+/**
+ * Rumo da câmera em graus, 0 = norte, crescendo pro leste.
+ *
+ * Norte é o -Z do mundo: é onde fica a Base Norte, e é pra onde a câmera
+ * aponta com yaw zero.
+ */
+export function headingDegrees(quaternion, scratch) {
+  horizontalRight(quaternion, scratch);
+  const degrees = Math.atan2(forwardX(scratch), -forwardZ(scratch)) * 180 / Math.PI;
+  return (degrees + 360) % 360;
+}

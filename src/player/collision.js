@@ -30,12 +30,13 @@ export function collides(colliders, x, z, feetY, height) {
 }
 
 /**
- * Altura do piso sob o player: topo do colisor mais alto que ele ainda
- * alcança. 0 = terreno.
+ * Altura do piso sob o player: o terreno, ou o topo do colisor mais alto que
+ * ele ainda alcança. `terrainY` é o chão de verdade — sem ele o jogador
+ * afundaria na ilha, porque antes o terreno era um plano em y=0.
  */
-export function groundHeightAt(colliders, x, z, feetY) {
+export function groundHeightAt(colliders, x, z, feetY, terrainY = 0) {
   const reach = feetY + PLAYER.STEP_HEIGHT;
-  let highest = 0;
+  let highest = terrainY;
 
   for (const { box, standable } of colliders) {
     if (!standable) continue;
@@ -44,6 +45,11 @@ export function groundHeightAt(colliders, x, z, feetY) {
     highest = box.max.y;
   }
   return highest;
+}
+
+/** Altura do terreno sob o player, ou 0 se ele não tem terreno. */
+export function terrainUnder(player, x, z) {
+  return player.terrain ? player.terrain.heightAt(x, z) : 0;
 }
 
 /** O player cabe na altura pedida, aqui onde ele está? */

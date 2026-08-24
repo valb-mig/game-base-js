@@ -11,7 +11,8 @@ function mountScreens() {
   const holder = document.createElement('div');
   holder.style.display = 'none';
   holder.innerHTML = `
-    <div id="status"></div>
+    <div id="hud-layer"><canvas id="compass"></canvas>
+      <div id="mission"></div><div id="vitals"></div><div id="equipped"></div></div>
     <div id="class-select"><div id="class-grid"></div><div id="class-detail"></div>
       <button id="deploy"></button></div>
     <div id="hud" class="hidden"><p id="hud-class"></p>
@@ -23,7 +24,7 @@ function mountScreens() {
 export function run() {
   mountScreens();
 
-  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, []);
+  const player = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body, { colliders: [] });
 
   // pointer lock não existe em headless: controls falso, mesmos eventos
   const listeners = {};
@@ -100,8 +101,11 @@ export function run() {
   eq('é o item empunhado', player.equipped?.id, KNIFE.id);
 
   updateStatus();
-  const status = document.getElementById('status');
-  ok('painel de status mostra o item empunhado',
-    status.textContent.includes(KNIFE.name), KNIFE.name);
-  note('barra de vida', `${status.querySelector('.status-bar').dataset.value}`);
+  const equipped = document.getElementById('equipped');
+  const vitals = document.getElementById('vitals');
+  ok('HUD mostra o item empunhado',
+    equipped.textContent.includes(KNIFE.name), KNIFE.name);
+  ok('sem munição, o contador vira rótulo do slot',
+    equipped.querySelector('.item-count').classList.contains('is-label'));
+  ok('vida aparece nos vitais', vitals.textContent.includes(`${player.health}`));
 }

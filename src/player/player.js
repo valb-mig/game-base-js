@@ -6,6 +6,8 @@ import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
 import { moveHorizontal, moveVertical } from './locomotion.js';
 import { updateView, describeState } from './view.js';
+import { lookPitch } from './heading.js';
+import { updateWaterState, swim } from './swim.js';
 
 /**
  * Estado do jogador e a ordem em que os sistemas rodam.
@@ -16,9 +18,12 @@ import { updateView, describeState } from './view.js';
  * objetos escondendo dados uns dos outros.
  */
 export class Player {
-  constructor(camera, domElement, colliders) {
+  constructor(camera, domElement, world = {}) {
     this.controls = new PointerLockControls(camera, domElement);
-    this.colliders = colliders;
+
+    this.colliders = world.colliders ?? [];
+    this.terrain = world.terrain ?? null;   // campo de altura; sem ele o chão é y=0
+    this.spawn = world.spawn ?? new THREE.Vector3(0, 0, 0);
 
     // stats precisa existir antes de qualquer leitura de altura ou velocidade
     this.setClass(getClass(DEFAULT_CLASS_ID));
@@ -46,13 +51,20 @@ export class Player {
     this.viewOffset = 0;
     this.bobPhase = 0;
 
+    // água — atualizado todo frame por updateWaterState
+    this.swimming = false;
+    this.waterDepth = 0;
+    this.submerged = 0;
+    this.headUnderwater = false;
+    this.lookPitch = 0;
+
     // vetores reaproveitados a cada frame, pra não alocar no loop
     this.wish = new THREE.Vector3();
     this.right = new THREE.Vector3();
     this.target = new THREE.Vector3();
     this.state = 'parado';
 
-    this.object.position.set(0, this.stats.HEIGHT, 0);
+    this.respawn();
 
     // sem isso o jogador continua deslizando quando a aba volta do ESC
     this.controls.addEventListener('unlock', () => {
@@ -73,11 +85,15 @@ export class Player {
     this.equipped = classDef.loadout.find((item) => item.slot === 'Corpo a corpo') ?? null;
   }
 
-  /** Volta pro spawn de pé, com a vida cheia. */
+  /** Volta pro ponto de nascimento, de pé e com a vida cheia. */
   respawn() {
+    const ground = this.terrain
+      ? this.terrain.heightAt(this.spawn.x, this.spawn.z)
+      : this.spawn.y;
+
     this.height = this.stats.HEIGHT;
-    this.eyeY = this.stats.HEIGHT;
-    this.floorY = 0;
+    this.eyeY = ground + this.stats.HEIGHT;
+    this.floorY = ground;
     this.stance = STAND;
     this.prone = false;
     this.crouchLatched = false;
@@ -85,8 +101,9 @@ export class Player {
     this.velocity.set(0, 0, 0);
     this.verticalVelocity = 0;
     this.onGround = true;
+    this.swimming = false;
     this.health = this.maxHealth;
-    this.object.position.set(0, this.stats.HEIGHT, 0);
+    this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);
   }
 
   get object() {
@@ -108,9 +125,22 @@ export class Player {
   // A ordem importa: a postura decide a altura do corpo, a locomoção
   // resolve colisão com essa altura, e a câmera só então é escrita.
   update(delta) {
-    updateStance(this, delta);
-    moveHorizontal(this, delta);
-    moveVertical(this, delta);
+    this.lookPitch = lookPitch(this.object.quaternion, this.right);
+    updateWaterState(this);
+
+    if (this.swimming) {
+      // nadar é modo próprio: postura não se aplica, e o C vira mergulho
+      this.stance = STAND;
+      this.prone = false;
+      this.crouchLatched = false;
+      this.height = this.stats.HEIGHT;
+      swim(this, delta);
+    } else {
+      updateStance(this, delta);
+      moveHorizontal(this, delta);
+      moveVertical(this, delta);
+    }
+
     updateView(this, delta);
     this.state = describeState(this);
   }

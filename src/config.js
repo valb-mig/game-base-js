@@ -29,6 +29,18 @@ export const PLAYER = {
   AIR_ACCEL: 16,       // controle no ar: dá pra corrigir, não pra virar de esquina
   AIR_DRAG: 2,
 
+  // --- água ---
+  SWIM_DEPTH: 1.3,        // a partir dessa profundidade nada em vez de andar
+  SWIM_SPEED: 2.4,
+  SWIM_FAST_SPEED: 3.6,   // com Shift
+  SWIM_ACCEL: 12,
+  SWIM_DRAG: 5,
+  SWIM_RISE_SPEED: 2.2,   // espaço sobe, C desce
+  BUOYANCY: 5,            // empuxo que devolve o jogador pra superfície
+  FLOAT_EYE: 0.12,        // olhos acima da linha d'água boiando parado
+  WADE_PENALTY: 0.6,      // quanto a água rasa freia quem anda
+  WATER_EXIT_BOOST: 1.6,  // impulso pra sair da água pra praia
+
   GRAVITY: 24,
   JUMP_SPEED: 8,
   JUMP_CUT: 0.45,      // soltar espaço no meio da subida corta o pulo
@@ -37,6 +49,7 @@ export const PLAYER = {
   JUMP_BUFFER: 0.15,   // pulo apertado pouco antes de tocar o chão vale
 
   // acabamento de câmera — puro visual, não afeta colisão
+  STEP_VIEW_MIN: 0.12,  // subida mínima pra contar como degrau, não ladeira
   VIEW_RECOVER: 14,
   LAND_DIP: 0.03,
   LAND_DIP_MAX: 0.3,
@@ -45,19 +58,46 @@ export const PLAYER = {
 };
 
 export const WORLD = {
-  SIZE: 200,
-  PROP_COUNT: 120,
-  SPAWN_CLEARANCE: 8,
-  SKY_COLOR: 0x87ceeb,
-  GROUND_COLOR: 0x6a9a3f,
-  GRID_COLOR: 0x4c7a2a,
+  MAP_NAME: 'Ilha Corvo',
+  MAP_ERA: 'Pacífico · 1945',
+
+  SIZE: 460,              // lado do mapa; a ilha fica no meio, mar até a borda
+  TERRAIN_SEGMENTS: 180,  // resolução da malha do terreno
+
+  // A ilha é uma parábola suavizada: alta no centro, cruzando o nível da
+  // água exatamente em ISLAND_RADIUS. Passando disso, vira fundo de mar.
+  ISLAND_RADIUS: 150,
+  ISLAND_HEIGHT: 16,
+  SEA_DEPTH: 14,
+  RELIEF: 3.4,            // amplitude do ruído que ondula a floresta
+  RELIEF_SCALE: 0.012,    // frequência do ruído (menor = colina mais larga)
+
+  WATER_LEVEL: 0,
+  SAND_UNTIL: 1.7,        // até essa altura o terreno é areia, não capim
+
+  TREE_COUNT: 420,
+  ROCK_COUNT: 90,
+  TREE_LINE: 2.4,         // árvore não nasce abaixo disso: ali ainda é praia
+
+  BASE_DISTANCE: 104,     // bases em z = ±BASE_DISTANCE, pontas opostas
+
+  SKY_COLOR: 0x9ec6dd,
+  WATER_COLOR: 0x2e6d80,
+  DEEP_WATER_COLOR: 0x14323d,
+  SAND_COLOR: 0xd8c89a,
+  GRASS_COLOR: 0x5f8b3c,
+  HIGHLAND_COLOR: 0x6f7a53,
   TREE_COLOR: 0x2f6b3a,
-  PALETTE: [0xd94f4f, 0xe0a02f, 0x3f7ad9, 0xa050c0, 0xe8e0d0],
-  FOG_NEAR: 40,
-  FOG_FAR: 140,
-  // corredor reservado pra pista de teste (props aleatórios não entram)
-  COURSE_HALF_WIDTH: 9,
-  COURSE_END_Z: -58
+  TRUNK_COLOR: 0x4a3524,
+  ROCK_COLOR: 0x7b7f80,
+  FOG_NEAR: 70,
+  FOG_FAR: 320,
+
+  // Clareira do campo de treino: a oeste, no miolo da ilha. Longe das duas
+  // bases de propósito — platôs de alturas diferentes não podem se encostar.
+  COURSE_ORIGIN: { x: -58, z: -6 },
+  COURSE_HALF_WIDTH: 11,
+  COURSE_LENGTH: 52
 };
 
 export const CAMERA = {

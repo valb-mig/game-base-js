@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { axis, isDown, consumePress } from '../core/input.js';
-import { collides, groundHeightAt } from './collision.js';
+import { collides, groundHeightAt, terrainUnder } from './collision.js';
 import { horizontalRight, forwardX, forwardZ } from './heading.js';
 import {
   STAND, CROUCH, PRONE,
@@ -58,6 +58,12 @@ export function moveHorizontal(player, delta) {
   else if (player.stance === CROUCH) maxSpeed = stats.CROUCH_SPEED;
   else if (player.running) maxSpeed = stats.RUN_SPEED;
   if (forward < 0) maxSpeed *= stats.BACK_PENALTY;
+
+  // água pela canela já freia; na altura do peito o jogador passa a nadar
+  if (player.submerged > 0) {
+    const wade = Math.min(1, player.submerged / stats.SWIM_DEPTH);
+    maxSpeed *= 1 - stats.WADE_PENALTY * wade;
+  }
 
   if (player.onGround) {
     target.set(wish.x * maxSpeed, 0, wish.z * maxSpeed);
@@ -142,7 +148,10 @@ export function moveVertical(player, delta) {
   player.verticalVelocity -= stats.GRAVITY * delta;
   player.eyeY += (previousVertical + player.verticalVelocity) * 0.5 * delta;
 
-  const floorY = groundHeightAt(player.colliders, position.x, position.z, player.feetY);
+  const floorY = groundHeightAt(
+    player.colliders, position.x, position.z, player.feetY,
+    terrainUnder(player, position.x, position.z)
+  );
   const landingEyeY = floorY + player.height;
 
   // só aterrissa descendo — senão o jogador gruda em caixas ao subir raspando
@@ -166,7 +175,10 @@ export function moveVertical(player, delta) {
   // câmera deixa a subida contínua sem mentir pra física.
   if (player.onGround) {
     const climbed = floorY - player.floorY;
-    if (climbed > 0.01) {
+    // Só degrau de verdade desconta a câmera. Numa ladeira o jogador sobe um
+    // tiquinho todo frame, e o limiar antigo (1 cm) fazia a vista ficar
+    // permanentemente atrasada subindo qualquer morro.
+    if (climbed > stats.STEP_VIEW_MIN) {
       player.viewOffset = Math.max(player.viewOffset - climbed, -stats.STEP_HEIGHT);
     }
     player.floorY = floorY;

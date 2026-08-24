@@ -7,7 +7,8 @@ e sem dependência de npm — abre no navegador e roda.
 
 ```bash
 tools/dev.sh serve            # sobe o servidor estático (idempotente)
-tools/dev.sh check            # roda a suíte; sai != 0 se algo falhar
+tools/dev.sh syntax           # parseia todo módulo como ES module
+tools/dev.sh check            # sintaxe + suíte; sai != 0 se algo falhar
 tools/dev.sh errors index.html            # erro de console na página
 tools/dev.sh shot index.html /tmp/a.png   # captura headless
 ```
@@ -29,11 +30,15 @@ src/
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
   player/  player.js estado + ordem dos sistemas
-           locomotion.js  stance.js  collision.js  view.js  heading.js
-  world/   world.js  terreno e props · course.js  pista de teste
+           locomotion.js  stance.js  swim.js  collision.js  view.js  heading.js
+  world/   heightfield.js  altura da ilha (matemática pura, sem three)
+           terrain.js  malha · water.js  mar · forest.js  árvores e pedras
+           base.js  base militar · course.js  campo de treino
+           props.js  helpers · world.js  monta tudo
   items/   classes.js  knife.js  viewmodel.js
-  ui/      menu.js  session.js  debug.js  status.js
-tests/     run.html + suites/  (aim, movement, jump, stance, model, flow)
+  ui/      menu.js  session.js  compass.js  mission.js  status.js  debug.js
+tests/     run.html + suites/
+           (aim, movement, jump, stance, terrain, swim, model, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
 ```
@@ -84,9 +89,48 @@ cima do mundo com o depth limpo. É o que impede o item de atravessar parede e
 o que desacopla o tamanho dele na tela do FOV do jogo — com os 70° do mundo,
 a faca ocupava 74% da altura da tela.
 
+**O terreno é um campo de altura, não um plano.** `world/heightfield.js` é a
+fonte de verdade — a malha em `terrain.js` só desenha o que ele diz, e a
+colisão amostra a mesma função. É matemática pura, sem three, justamente pra
+poder ser inspecionada fora do navegador.
+
+**Zonas planas não podem se cruzar.** Base e campo de treino achatam o terreno
+em volta. Aplicá-las em sequência fazia cada uma puxar o resultado da anterior,
+e a base assentava numa altura que não era a dela — o jogador nascia enterrado.
+Hoje vence a de maior influência, e `assertFlatZones` estoura na montagem do
+mapa se duas se encostarem.
+
+**Nadar é modo de locomoção inteiro**, não redutor de velocidade: sem
+gravidade, sem pulo, direção pelo olhar, empuxo puxando pra superfície. Quem
+decide é a profundidade do fundo (`SWIM_DEPTH`), não a altura do jogador —
+assim entrar e sair da água acontece sozinho.
+
+**O atraso do degrau só vale pra degrau.** Com terreno inclinado o jogador sobe
+alguns centímetros todo frame; o limiar antigo de 1 cm deixava a câmera
+permanentemente atrasada em qualquer ladeira. Hoje é `STEP_VIEW_MIN`.
+
+**O HUD não inventa número.** Munição e objetivo não existem como sistema, e
+por isso não aparecem: o canto do item mostra o rótulo do slot quando o item
+não tem munição. Se aparecer contador, é porque o dado existe.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
+
+## Armadilhas do ferramental
+
+**`node --check` num `.js` não valida ES module.** Ele parseia como script e
+já deixou passar erro de sintaxe que só aparecia no navegador. `dev.sh syntax`
+copia cada arquivo pra `.mjs` antes de checar, que força o parse certo.
+
+**O servidor confere de quem é a porta.** `dev.sh` escreve `.serverroot` e só
+reaproveita a porta se o conteúdo bater com este projeto — um `http.server`
+esquecido de outra pasta já foi reaproveitado em silêncio, e a suíte rodou em
+cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
+
+**Screenshot precisa de loop de render.** `preserveDrawingBuffer` é false, então
+um `renderer.render()` solto some da captura. As páginas de captura usam
+`setAnimationLoop`.
 
 ## Convenções
 
@@ -100,9 +144,10 @@ Por isso `heading.js` existe como módulo.
 ## Estado atual
 
 Funciona: movimento (andar, correr como alternância no Shift, agachar em C,
-deitar em Z, pulo com coyote time e buffer), pista de teste em frente ao
-spawn, seleção de classe, e a faca KA-BAR como modelo e viewmodel.
+deitar em Z, pulo com coyote time e buffer), natação, mapa de ilha com praia,
+floresta e duas bases militares opostas, campo de treino, seleção de classe,
+faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item).
 
-Ainda não existe: dano (a vida é só leitura), tiro, e o golpe da faca — ela é
-modelo e animação de mão, sem ataque nem traço de acerto. Só a Assault é
-jogável; as outras três estão no catálogo, bloqueadas.
+Ainda não existe: dano (a vida é só leitura), tiro, golpe da faca, objetivo de
+partida, e captura de base — as bases são cenário. Só a Assault é jogável; as
+outras três estão no catálogo, bloqueadas.
