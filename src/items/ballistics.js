@@ -28,10 +28,20 @@ export function createBallistics(scene, colliders, {
   const folhagem = new THREE.Vector3();
   const NOTHING = new Set();
 
+  // Fração do trecho abaixo da qual dois acertos contam como simultâneos. A
+  // 253 m/s, 0,4% de um quadro é meio centímetro — a espessura de uma tampa
+  // de cápsula, que é exatamente onde as regiões se encostam.
+  const EMPATE = 0.004;
+
   // Reaproveitados: resolver acerto é coisa de todo quadro, e alocar uma
   // lista de regiões por bala por alvo seria lixo por quadro.
   const corpo = [];
-  const pedaco = new THREE.Vector3();
+  const pontaA = new THREE.Vector3();
+  const pontaB = new THREE.Vector3();
+  const eixo = new THREE.Vector3();
+  const entre = new THREE.Vector3();
+  const perto = new THREE.Vector3();
+  const noEixo = new THREE.Vector3();
 
   function makeTracer() {
     const mesh = new THREE.Mesh(
@@ -56,6 +66,44 @@ export function createBallistics(scene, colliders, {
     const t = THREE.MathUtils.clamp(toCenter.dot(delta) / length2, 0, 1);
     hitPoint.copy(start).addScaledVector(delta, t);
     return hitPoint.distanceTo(center) <= radius ? t : null;
+  }
+
+  /**
+   * Interseção do trecho da bala com uma CÁPSULA (segmento + raio).
+   *
+   * Membro é comprido, e esfera não cobre comprimento: a perna deixava 41 cm
+   * descobertos, e o tiro na canela atravessava. Aqui é a menor distância
+   * entre dois segmentos — o da bala e o eixo do membro.
+   */
+  function capsuleHit(start, delta, a, b, raio) {
+    eixo.copy(b).sub(a);
+    entre.copy(start).sub(a);
+
+    const dd = delta.lengthSq();
+    const ee = eixo.lengthSq();
+    if (dd < 1e-12) return null;
+
+    const de = delta.dot(eixo);
+    const dw = delta.dot(entre);
+    const ew = eixo.dot(entre);
+
+    // Paralelos: cai no caso degenerado, e aí basta projetar uma ponta.
+    const denominador = dd * ee - de * de;
+    let t = Math.abs(denominador) < 1e-9
+      ? 0
+      : (de * ew - ee * dw) / denominador;
+    t = Math.min(1, Math.max(0, t));
+
+    // ponto do eixo mais perto do ponto escolhido na trajetória
+    let u = ee < 1e-12 ? 0 : (de * t + ew) / ee;
+    u = Math.min(1, Math.max(0, u));
+
+    // e volta pra trajetória com o u corrigido, senão o clamp desalinha
+    t = Math.min(1, Math.max(0, (de * u - dw) / dd));
+
+    perto.copy(start).addScaledVector(delta, t);
+    noEixo.copy(a).addScaledVector(eixo, u);
+    return perto.distanceTo(noEixo) <= raio ? t : null;
   }
 
   /**
@@ -113,6 +161,7 @@ export function createBallistics(scene, colliders, {
     let struck = null;
 
     let regiaoAtingida = null;
+    let melhorOrdem = Infinity;
     for (const target of targets) {
       if (!target.alive) continue;
       // Ninguém atira em si mesmo. A bala nasce na altura do OLHO e a esfera
@@ -126,13 +175,24 @@ export function createBallistics(scene, colliders, {
       const partes = target.body?.(corpo);
       if (partes) {
         for (const parte of partes) {
-          pedaco.set(parte.x, parte.y, parte.z);
-          const t = sphereHit(from, segment, pedaco, parte.raio);
+          pontaA.set(parte.ax, parte.ay, parte.az);
+          pontaB.set(parte.bx, parte.by, parte.bz);
+          const t = capsuleHit(from, segment, pontaA, pontaB, parte.raio);
           if (t === null) continue;
-          if (closest !== null && t > closest) continue;
+
+          // Empate vai pra REGIÃO MAIS VALIOSA, não pra última testada.
+          // Onde cabeça e capacete se tocam o tiro é na cabeça: acertar o
+          // menor alvo não pode ser desperdiçado por um milímetro de
+          // sobreposição. Sem isto, mirar na cabeça acertava o capacete.
+          if (closest !== null) {
+            const perto = t < closest - EMPATE;
+            const empatou = Math.abs(t - closest) <= EMPATE;
+            if (!perto && !(empatou && parte.ordem < melhorOrdem)) continue;
+          }
           closest = t;
           struck = target;
           regiaoAtingida = parte.regiao;
+          melhorOrdem = parte.ordem;
         }
         continue;
       }

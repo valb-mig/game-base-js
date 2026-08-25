@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { REGIOES, ORDEM, corpoDe, tirosPraMatar } from '../../src/game/hitboxes.js';
+import { REGIOES, ORDEM, PECAS, corpoDe, tirosPraMatar } from '../../src/game/hitboxes.js';
 import { createSoldier, SOLDIER } from '../../src/bots/soldier.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { initAttack } from '../../src/items/attack.js';
@@ -20,11 +20,22 @@ function soldado(cena, colisores, x = 0, z = 0) {
   return s;
 }
 
-/** Dispara na altura de uma região e devolve o que o acerto informou. */
-function tiroNa(balistica, alvo, chave, dano) {
-  const partes = alvo.body([]);
-  const parte = partes.find((p) => p.regiao === REGIOES[chave]);
-  const de = new THREE.Vector3(parte.x, parte.y, parte.z + 12);
+/** Meio da cápsula de uma região. */
+function meioDe(alvo, chave) {
+  const parte = alvo.body([]).find((p) => p.regiao === REGIOES[chave]);
+  return new THREE.Vector3(
+    (parte.ax + parte.bx) / 2, (parte.ay + parte.by) / 2, (parte.az + parte.bz) / 2
+  );
+}
+
+/** Dispara numa ALTURA da região e devolve o que o acerto informou. */
+function tiroNa(balistica, alvo, chave, dano, fracao = 0.5) {
+  const parte = alvo.body([]).find((p) => p.regiao === REGIOES[chave]);
+  const de = new THREE.Vector3(
+    parte.ax + (parte.bx - parte.ax) * fracao,
+    parte.ay + (parte.by - parte.ay) * fracao,
+    parte.az + (parte.bz - parte.az) * fracao + 12
+  );
   const dir = new THREE.Vector3(0, 0, -1);
 
   let acerto = null;
@@ -47,8 +58,8 @@ export function run() {
   eq('capacete: dois', tirosPraMatar(fraca, SOLDIER.VIDA, 'capacete'), 2);
 
   const tronco = tirosPraMatar(fraca, SOLDIER.VIDA, 'tronco');
-  const braco = tirosPraMatar(fraca, SOLDIER.VIDA, 'bracos');
-  const perna = tirosPraMatar(fraca, SOLDIER.VIDA, 'pernas');
+  const braco = tirosPraMatar(fraca, SOLDIER.VIDA, 'braco');
+  const perna = tirosPraMatar(fraca, SOLDIER.VIDA, 'perna');
 
   ok('tronco é o normal, e custa mais que o capacete', tronco > 2, `${tronco} tiros`);
   ok('braço demora mais que o tronco', braco > tronco, `${braco} contra ${tronco}`);
@@ -61,13 +72,24 @@ export function run() {
     tirosPraMatar(forte, SOLDIER.VIDA, 'cabeca'), 1);
   eq('e capacete continua dois', tirosPraMatar(forte, SOLDIER.VIDA, 'capacete'), 2);
 
-  suite('as regiões não se sobrepõem no lugar errado');
+  suite('o corpo é segmentado como um corpo');
 
-  // O capacete cobre a parte de CIMA da cabeça: se ele descesse sobre ela, o
-  // tiro na cabeça viraria tiro no capacete e a promessa de um tiro sumiria.
-  ok('o capacete fica acima da cabeça', REGIOES.capacete.de >= REGIOES.cabeca.ate);
-  ok('e a cabeça acima do tronco', REGIOES.cabeca.de >= REGIOES.tronco.ate);
-  ok('as pernas ficam abaixo do tronco', REGIOES.pernas.ate <= REGIOES.tronco.de);
+  // Membro dobra. Uma cápsula do ombro até a mão passa longe do braço de quem
+  // está com a arma erguida e sobra caixa no vazio ao lado do corpo — foi o
+  // que aconteceu na primeira versão, e a bala atravessava a perna.
+  const pedacoDe = (grupo) => PECAS.filter((p) => p.grupo === grupo).map((p) => p.id);
+
+  ok('o braço vem em três pedaços', pedacoDe('braco').length >= 3,
+    pedacoDe('braco').join(', '));
+  ok('a perna também', pedacoDe('perna').length >= 3, pedacoDe('perna').join(', '));
+  ok('e o tronco em dois', pedacoDe('tronco').length >= 2, pedacoDe('tronco').join(', '));
+
+  // O capacete é o primeiro da ordem: onde ele encosta na cabeça, ganha quem
+  // vier antes, e o capacete cobre a parte de CIMA.
+  const ordemDe = (id) => PECAS.findIndex((p) => p.id === id);
+  ok('capacete e cabeça são peças distintas', ordemDe('capacete') !== ordemDe('cabeca'));
+  ok('e a mão é testada antes do braço',
+    ordemDe('mao') < ordemDe('braco'), 'mão primeiro');
 
   suite('o corpo acompanha quem o carrega');
 
@@ -78,19 +100,43 @@ export function run() {
   const partes = alvo.body([]);
   ok('todas as regiões existem no corpo',
     ORDEM.every((k) => partes.some((p) => p.regiao === REGIOES[k])));
-  eq('e o braço vem em dois', partes.filter((p) => p.regiao === REGIOES.bracos).length, 2);
+  ok('e cada membro aparece dos dois lados',
+    partes.filter((p) => p.peca.id === 'coxa').length === 2
+    && partes.filter((p) => p.peca.id === 'braco').length === 2);
 
   for (const parte of partes) {
     ok(`${parte.regiao.nome} acompanha o soldado`,
-      Math.abs(parte.x - alvo.x) < 0.4 && Math.abs(parte.z - alvo.z) < 0.01);
+      Math.abs(parte.ax - alvo.x) < 0.4 && Math.abs(parte.az - alvo.z) < 0.4);
   }
+
+  // Reportado com foto: a bala atravessava a perna. O corpo é 1,75 m e as
+  // cápsulas juntas têm que cobrir de baixo a cima, SEM buraco no meio —
+  // buraco é bala que atravessa.
+  const faixas = partes
+    .map((p) => [Math.min(p.ay, p.by) - p.raio - alvo.feetY,
+      Math.max(p.ay, p.by) + p.raio - alvo.feetY])
+    .sort((a, b) => a[0] - b[0]);
+
+  ok('a cobertura começa no chão', faixas[0][0] < 0.06, `${faixas[0][0].toFixed(2)} m`);
+  const topo = Math.max(...faixas.map((f) => f[1]));
+  ok('e vai até o alto da cabeça', topo > 1.7, `${topo.toFixed(2)} m`);
+
+  let buraco = 0;
+  let ate = faixas[0][1];
+  for (const [de, fim] of faixas) {
+    if (de > ate) buraco = Math.max(buraco, de - ate);
+    ate = Math.max(ate, fim);
+  }
+  ok('e não há altura nenhuma descoberta entre elas', buraco < 0.02,
+    `maior buraco ${(buraco * 100).toFixed(1)} cm`);
+  note('cobertura', `${partes.length} cápsulas · 0 a ${topo.toFixed(2)} m`);
 
   // Agachado o corpo encolhe, e as regiões junto: cabeça na altura de antes
   // seria tiro no vazio.
-  const cabecaEmPe = partes.find((p) => p.regiao === REGIOES.cabeca).y;
+  const cabecaEmPe = meioDe(alvo, 'cabeca').y;
   alvo.crouching = true;
   alvo.update(DT);
-  const cabecaAgachado = alvo.body([]).find((p) => p.regiao === REGIOES.cabeca).y;
+  const cabecaAgachado = meioDe(alvo, 'cabeca').y;
   ok('agachado, a cabeça desce junto', cabecaAgachado < cabecaEmPe - 0.2,
     `${cabecaAgachado.toFixed(2)} contra ${cabecaEmPe.toFixed(2)}`);
   alvo.crouching = false;
@@ -112,8 +158,18 @@ export function run() {
   const segundo = tiroNa(balistica, alvo, 'capacete', fraca);
   ok('mas o segundo mata', segundo.killed);
 
+  // Nas PONTAS da perna, não no meio: é ali que a esfera falhava, e é ali
+  // que o jogador atira quando mira em quem está correndo.
   alvo.respawn(alvo.x, alvo.z);
-  const naPerna = tiroNa(balistica, alvo, 'pernas', fraca);
+  const naCanela = tiroNa(balistica, alvo, 'perna', fraca, 0.08);
+  eq('tiro na canela pega a perna', naCanela?.regiao?.nome, 'perna');
+
+  alvo.respawn(alvo.x, alvo.z);
+  const naCoxa = tiroNa(balistica, alvo, 'perna', fraca, 0.92);
+  eq('e na coxa também', naCoxa?.regiao?.nome, 'perna');
+
+  alvo.respawn(alvo.x, alvo.z);
+  const naPerna = tiroNa(balistica, alvo, 'perna', fraca);
   eq('e na perna, a perna', naPerna?.regiao?.nome, 'perna');
   ok('que tira bem menos vida que o tronco',
     naPerna.amount < fraca, `${naPerna.amount.toFixed(1)} de dano`);

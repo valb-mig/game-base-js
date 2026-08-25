@@ -197,11 +197,35 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     caixas.geometry.setDrawRange(0, n / 3);
   }
 
-  /** Anéis nas esferas de acerto: é onde a BALA pega, não onde o corpo esbarra. */
-  const LADOS = 16;
+  /**
+   * As cápsulas de acerto: é onde a BALA pega, região por região.
+   *
+   * Antes isto desenhava a esfera única de `center()`/`radius`, que deixou de
+   * ser o que resolve acerto quando o corpo virou regiões. O desenho mostrava
+   * uma bola no peito enquanto o tiro na perna decidia em outro lugar — e
+   * depurar com um desenho que mente é pior que depurar sem desenho.
+   */
+  const LADOS = 12;
+  const corpoAux = [];
   function desenharEsferas() {
-    const alvos = world.targets.filter((alvo) => alvo.alive && alvo.center);
-    const precisa = alvos.length * 3 * LADOS * 2 * 3;
+    const alvos = world.targets.filter((alvo) => alvo.alive && (alvo.body || alvo.center));
+
+    // duas tampas de anel por cápsula, mais quatro montantes ligando elas
+    const capsulas = [];
+    for (const alvo of alvos) {
+      if (alvo.body) {
+        for (const parte of alvo.body(corpoAux)) capsulas.push({ ...parte });
+      } else {
+        const c = alvo.center();
+        const r = alvo.radius ?? 0.5;
+        capsulas.push({
+          raio: r, ax: c.x, ay: c.y - r * 0.5, az: c.z,
+          bx: c.x, by: c.y + r * 0.5, bz: c.z
+        });
+      }
+    }
+
+    const precisa = capsulas.length * (2 * LADOS + 4) * 2 * 3;
     if (precisa === 0) {
       esferas.geometry.setDrawRange(0, 0);
       return;
@@ -212,26 +236,39 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     }
 
     let n = 0;
-    for (const alvo of alvos) {
-      const centro = alvo.center();
-      const r = alvo.radius ?? 0.5;
+    const por = (x, y, z) => {
+      anelPosicoes[n] = x;
+      anelPosicoes[n + 1] = y;
+      anelPosicoes[n + 2] = z;
+      n += 3;
+    };
 
-      // Três anéis perpendiculares dão a leitura de esfera sem malha nenhuma:
-      // XY, XZ e YZ. Cada aresta repete o ponto seguinte porque LineSegments
-      // desenha par a par, não em cadeia.
-      for (let anel = 0; anel < 3; anel++) {
+    for (const c of capsulas) {
+      // Um anel em cada ponta e quatro montantes: é a leitura de cápsula com
+      // o mínimo de linha, e mostra a ALTURA que ela cobre — que era
+      // justamente o que faltava enxergar.
+      // Anéis nas pontas do SEGMENTO e nos extremos da COBERTURA: a cápsula
+      // tem tampa redonda, e desenhar só o segmento escondia justamente o
+      // que se quer conferir — até onde ela pega.
+      const pontas = [
+        [c.ax, c.ay, c.az], [c.bx, c.by, c.bz],
+        [c.ax, Math.min(c.ay, c.by) - c.raio, c.az],
+        [c.bx, Math.max(c.ay, c.by) + c.raio, c.bz]
+      ];
+      for (const [cx, cy, cz] of pontas) {
         for (let i = 0; i < LADOS; i++) {
           for (const passo of [i, i + 1]) {
             const a = (passo / LADOS) * Math.PI * 2;
-            const u = Math.cos(a) * r;
-            const v = Math.sin(a) * r;
-
-            anelPosicoes[n] = centro.x + (anel === 2 ? 0 : u);
-            anelPosicoes[n + 1] = centro.y + (anel === 0 ? v : anel === 2 ? u : 0);
-            anelPosicoes[n + 2] = centro.z + (anel === 0 ? 0 : v);
-            n += 3;
+            por(cx + Math.cos(a) * c.raio, cy, cz + Math.sin(a) * c.raio);
           }
         }
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        const dx = Math.cos(a) * c.raio;
+        const dz = Math.sin(a) * c.raio;
+        por(c.ax + dx, c.ay, c.az + dz);
+        por(c.bx + dx, c.by, c.bz + dz);
       }
     }
     esferas.geometry.attributes.position.needsUpdate = true;
