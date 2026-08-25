@@ -117,6 +117,28 @@ export const DROP = {
   PICK_REACH: 2.4    // alcance no plano pra apanhar do chão; cobre a largada
 };
 
+/**
+ * Dispersão pelo ESTADO DO CORPO, multiplicando a abertura da arma.
+ *
+ * Parado é zero: a bala vai exatamente onde a mira aponta, e acertar passa a
+ * ser mérito de quem parou pra atirar. Isso é o que dá peso à decisão de
+ * parar no meio de um tiroteio — a mais cara que existe, porque parado você
+ * é alvo fácil.
+ *
+ * As outras faixas existem pra que essa escolha tenha degraus legíveis, e não
+ * um interruptor de "certeiro" e "inútil".
+ */
+export const SPREAD = {
+  PARADO: 0,        // sem dispersão nenhuma
+  ANDANDO: 1,       // a abertura declarada na arma
+  CORRENDO: 4.4,    // e o cano ainda sai de posição, por items/muzzle.js
+  NO_AR: 6.5,       // pular é o pior lugar pra atirar, e tem que parecer
+
+  // Abaixo disto o corpo conta como parado. Não é zero porque a velocidade
+  // do quadro oscila em centésimos mesmo com a mão fora do teclado.
+  PARADO_ATE: 0.35   // m/s
+};
+
 export const BULLET = {
   // Velocidade de boca real da .45 ACP. Com ela, 55 m levam 0,22 s — pouco,
   // mas o bastante pra queda aparecer e pra alvo em movimento exigir avanço.

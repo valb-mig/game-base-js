@@ -55,7 +55,8 @@ src/
   ui/      flow.js  máquina de estados e telas
            watchdog.js  vigia de invariantes em jogo
            classcards.js  tacticalmap.js  session.js
-           compass.js  objective.js  status.js  prompt.js  hitmarker.js  debug.js
+           compass.js  objective.js  status.js  prompt.js  hitmarker.js
+           crosshair.js  a mira abre com a dispersão · debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
             drop, melee, firearm, ballistics, muzzle, slope, combate,
@@ -217,6 +218,24 @@ mesmo vale pro boneco de treino, que uma rajada derruba.
 **`setClass` põe a PRIMÁRIA na mão.** Enquanto a primária não existia, ela
 punha a pistola, e vários testes passaram a depender disso sem dizer. Teste
 que fala de uma arma específica escolhe o slot dela.
+
+**A dispersão é do CORPO, não só da arma.** `SPREAD` em `config.js` multiplica
+a abertura declarada na arma: parado é ZERO, andando é o valor da arma,
+correndo 4,4× e no ar 6,5×. Parado a bala vai exatamente onde a mira aponta, e
+acertar vira mérito de quem parou pra atirar — a decisão mais cara do
+tiroteio, porque parado você é alvo fácil. Medido a 25 m com a MP40: 0 cm
+parado, 22 andando, 118 correndo, 111 no ar.
+
+**No ar ganha de tudo na ordem dos estados**, porque quem pula correndo está
+no ar. E "parado" tem um piso de velocidade (`PARADO_ATE`): a velocidade do
+quadro oscila em centésimos com a mão fora do teclado, e sem esse piso o
+jogador nunca estaria parado.
+
+**Mira estática com dispersão variável mente.** A abertura vai de zero a
+quatro graus e um ponto fixo conta a mesma coisa nos dois casos — o jogador
+erra e não sabe por quê. O anel de `ui/crosshair.js` é a informação, e o raio
+sai do FOV da câmera do JOGO, não da do viewmodel: o que ele promete é onde a
+bala cai no mundo.
 
 **A distância da arma na mira não é escolha estética.** Perto demais, o
 ferrolho fica mais largo na tela que o alvo e tapa exatamente o que se quer
@@ -592,7 +611,8 @@ continuam sendo um tiro por clique.
 Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
 direito. Cinto em quatro teclas — 1 MP40, 2 Colt, 3 faca, 4 pá. A bala viaja e cai; um traçante a cada
-quatro tiros. Ela sai da boca do cano e segue o cano: andando a arma fica reta
+quatro tiros. A dispersão sai do estado do corpo: parado ela é zero, andando
+é pequena, correndo e pulando é grande — e a mira abre junto pra mostrar. Ela sai da boca do cano e segue o cano: andando a arma fica reta
 e atira reto, correndo com ela baixada o tiro sai 34° pra esquerda, e atirar
 cancela a pose de corrida.
 

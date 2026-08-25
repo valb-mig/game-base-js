@@ -15,6 +15,7 @@ import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
+import { initCrosshair } from './ui/crosshair.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
 import { initWatchdog } from './ui/watchdog.js';
@@ -101,6 +102,7 @@ function boot() {
     updateDebug: initDebug(player),
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
+    updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops),
     updateHitmarker: initHitmarker(attack, ballistics)
   };
@@ -199,6 +201,7 @@ function frame() {
   game.updateDebug(delta);
   game.updateStatus(delta);
   game.updateCompass();
+  game.updateCrosshair();
   game.updatePrompt();
   game.updateHitmarker(delta);
   game.updateObjective();

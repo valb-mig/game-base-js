@@ -3,7 +3,7 @@ import {
   isMouseDown, consumeClick, consumePress, MOUSE_LEFT, MOUSE_RIGHT
 } from '../core/input.js';
 import { RELOAD_KEYS } from '../player/constants.js';
-import { BULLET } from '../config.js';
+import { BULLET, SPREAD } from '../config.js';
 import { muzzleShot, createShot, createMuzzle } from './muzzle.js';
 
 /**
@@ -23,6 +23,18 @@ import { muzzleShot, createShot, createMuzzle } from './muzzle.js';
  * viewmodel (suítes que só exercitam munição e cadência) o tiro sai do olho,
  * reto, como antes.
  */
+/**
+ * Quanto o estado do corpo multiplica a abertura da arma.
+ *
+ * A ordem importa: no ar ganha de tudo, porque quem pula correndo está no ar.
+ */
+export function spreadFactor(player) {
+  if (!player.onGround) return SPREAD.NO_AR;
+  if (player.running && player.speed > SPREAD.PARADO_ATE) return SPREAD.CORRENDO;
+  if (player.speed > SPREAD.PARADO_ATE) return SPREAD.ANDANDO;
+  return SPREAD.PARADO;
+}
+
 export function initFirearm(player, world, ballistics, viewmodel = null) {
   const shot = createShot();
   const muzzle = createMuzzle();
@@ -45,9 +57,14 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
       shot.direction.set(0, 0, -1).applyQuaternion(player.object.quaternion);
     }
 
-    // abertura: mais fechada quanto mais a arma estiver no olho
-    const spread = THREE.MathUtils.lerp(
-      firearm.hipSpread, firearm.adsSpread, state.aim) * Math.PI / 180;
+    // Abertura: a arma diz quanto, o CORPO diz vezes quanto.
+    //
+    // Parado o fator é zero e a bala vai exatamente onde a mira aponta —
+    // acertar vira mérito de quem parou pra atirar, que é a decisão mais cara
+    // do tiroteio porque parado você é alvo fácil.
+    const daArma = THREE.MathUtils.lerp(
+      firearm.hipSpread, firearm.adsSpread, state.aim);
+    const spread = daArma * spreadFactor(player) * Math.PI / 180;
     if (spread > 0) {
       const angle = Math.random() * Math.PI * 2;
       const radius = Math.sqrt(Math.random()) * spread;

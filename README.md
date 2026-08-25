@@ -81,6 +81,26 @@ numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
 perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de
 lado sobrevive 7,5. Mexa-se.
 
+## Atirar
+
+Parado, a bala vai exatamente onde a mira aponta — sem dispersão nenhuma.
+Andando ela abre um pouco, correndo abre muito (e o cano ainda sai de
+posição), e pulando é o pior lugar pra atirar. O anel da mira abre junto, pra
+você ver o que está prometendo antes de puxar o gatilho.
+
+Medido a 25 metros com a MP40, onde um homem tem meio metro de largura:
+
+| estado | desvio médio |
+| --- | --- |
+| parado | 0 cm |
+| andando | 22 cm |
+| andando, na mira de ferro | 8 cm |
+| correndo | 118 cm |
+| no ar | 111 cm |
+
+Parar pra atirar é a decisão mais cara do tiroteio, porque parado você é alvo
+fácil. É essa troca que o jogo pede.
+
 MP40 no slot 1 da Assault: 9×19mm, automática de 500 tiros por minuto, 32 no
 carregador. Segurar o gatilho despeja rajada — é a primeira arma do jogo que
 faz isso. Aço estampado, baquelite marrom no punho e no guarda-mão, carregador

@@ -69,8 +69,10 @@ export const PISTOL = {
     magazine: 7,       // o oitavo tiro é o da câmara
     reloadTime: 1.9,
     fireInterval: 0.17,
-    hipSpread: 2.1,    // graus de abertura atirando do quadril
-    adsSpread: 0.3,
+    // Abertura ANDANDO, em graus. Parado é zero, e correr e pular multiplicam
+    // pela tabela de SPREAD em config.js.
+    hipSpread: 0.45,
+    adsSpread: 0.12,
     adsTime: 0.16,
     recoil: 1.5,       // coice, em graus
     dig: TERRAIN_BITE.SECONDARY
@@ -119,8 +121,8 @@ export const MP40 = {
     reloadTime: 2.4,
     auto: true,
     fireInterval: 0.12,   // 500 tiros por minuto
-    hipSpread: 3.0,
-    adsSpread: 0.62,
+    hipSpread: 0.62,   // andando, do quadril; ver SPREAD em config.js
+    adsSpread: 0.2,
     adsTime: 0.2,
     recoil: 1.05,         // recuo contido: é a fama da arma
     dig: TERRAIN_BITE.PRIMARY

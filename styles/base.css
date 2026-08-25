@@ -27,3 +27,24 @@ canvas {
   background: rgba(255, 255, 255, 0.7);
   pointer-events: none;
 }
+
+/* Anel de dispersão: o raio vem do ângulo de abertura da arma no estado
+   atual do corpo. Parado ele some, e ver o ponto sozinho é a promessa de que
+   a bala vai exatamente ali. */
+#crosshair::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--abertura, 0px);
+  height: var(--abertura, 0px);
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 50%;
+  opacity: 0;
+  transition: width 90ms linear, height 90ms linear, opacity 90ms linear;
+}
+
+#crosshair.aberta::after {
+  opacity: 1;
+}

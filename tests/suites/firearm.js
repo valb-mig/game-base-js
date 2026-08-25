@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
-import { initFirearm } from '../../src/items/firearm.js';
+import { initFirearm, spreadFactor } from '../../src/items/firearm.js';
+import { SPREAD } from '../../src/config.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { createDummy } from '../../src/world/dummy.js';
 import { initInput, endFrame } from '../../src/core/input.js';
@@ -206,6 +207,36 @@ export function run() {
   ok('mirar fecha a abertura do tiro',
     PISTOL.firearm.adsSpread < PISTOL.firearm.hipSpread,
     `${PISTOL.firearm.adsSpread}° contra ${PISTOL.firearm.hipSpread}° do quadril`);
+
+  suite('a dispersão é do corpo, não só da arma');
+
+  // A regra do jogo: parado a bala vai exatamente onde a mira aponta, e
+  // acertar vira mérito de quem parou pra atirar — a decisão mais cara do
+  // tiroteio, porque parado você é alvo fácil.
+  const corpo = { onGround: true, running: false, speed: 0 };
+  eq('parado não tem dispersão nenhuma', spreadFactor(corpo), 0);
+
+  corpo.speed = 5;
+  eq('andando, a abertura é a que a arma declara', spreadFactor(corpo), SPREAD.ANDANDO);
+
+  corpo.running = true;
+  corpo.speed = 8.4;
+  ok('correndo é muito pior que andando',
+    spreadFactor(corpo) > SPREAD.ANDANDO * 3, `${spreadFactor(corpo)}×`);
+
+  corpo.onGround = false;
+  ok('e no ar é o pior de todos',
+    spreadFactor(corpo) > spreadFactor({ onGround: true, running: true, speed: 8.4 }),
+    `${spreadFactor(corpo)}× contra ${SPREAD.CORRENDO}× correndo`);
+
+  // No ar ganha de tudo porque quem pula correndo está no ar.
+  eq('pular parado também conta como no ar',
+    spreadFactor({ onGround: false, running: false, speed: 0 }), SPREAD.NO_AR);
+
+  // Um tranco de centésimos com a mão fora do teclado não pode tirar o
+  // jogador do estado "parado": a velocidade do quadro oscila sozinha.
+  eq('velocidade de sobra não tira o jogador de parado',
+    spreadFactor({ onGround: true, running: false, speed: SPREAD.PARADO_ATE - 0.01 }), 0);
 
   suite('a bala respeita o que está na frente');
 
