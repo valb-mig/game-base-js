@@ -209,6 +209,11 @@ isso já fez o HUD ficar em branco.
 frames um item rápido passa inteiro por dentro de uma caixa; `restHeightAt`
 recebe o topo do trecho justamente por isso.
 
+**E laço por relógio sob virtual time pode nunca terminar.** Uma página de
+bancada com `while (performance.now() - t < 250)` travou sem erro nenhum e sem
+sair nada — nem uma exceção pra investigar. Medição em bancada usa contagem
+FIXA de voltas e divide no fim.
+
 **Asserção de TEMPO na suíte não testa nada.** Ela roda sob
 `--virtual-time-budget`, e ali `performance.now()` não anda: `custo < 1.5`
 passa com 0,000 ms e fica verde sem exercitar coisa alguma. Duas suítes
@@ -557,6 +562,24 @@ cada prop assentou; se o terreno sob ele descer, ele desaba e tomba pro lado
 que perdeu apoio. O colisor desce junto — sem isso o objeto cairia só de
 mentira e o jogador seguiria esbarrando no ar onde ele estava.
 
+**Uma caixa alinhada aos eixos não representa corpo diagonal.** Barra de 12 m
+girada pela ponta vira uma caixa de 6,2 vezes o volume do corpo, e o jogador
+esbarra em ar longe dela — parede invisível. Prop tombado que ergue o lado
+comprido é FATIADO ao longo dele: oito caixas curtas em escada, 2,0 vezes o
+corpo em vez de 6,2.
+
+**Mas só quem ergue o lado comprido.** Parede que deita de lado continua bem
+descrita por uma caixa: medido, fatiar ali dá exatamente o mesmo volume.
+Fatiar tudo que tomba somava 1707 colisores num mapa com 304 props derrubados,
+quase o triplo da lista — e a colisão varre ela inteira todo quadro. Com o
+filtro de inclinação, o pior caso medido custa 0,605 ms por quadro contra
+0,299 ms, ou 2% do orçamento a 60 fps.
+
+**`prop.collider` é a PRIMEIRA FATIA, não o corpo.** Comparar ela com o
+desenho compara um oitavo com o todo — três testes quebraram por isso quando
+o fatiamento entrou. Quem quer o volume que a colisão enxerga soma as caixas
+de `prop.fatias`.
+
 **O colisor do corpo tombado sai da matriz, não de fórmula.** São os oito
 cantos da caixa de pé passados pela MESMA matriz que move a malha. Duas
 tentativas de conta fechada falharam antes disso: mexer só no Y deixava a
@@ -704,7 +727,9 @@ cancela a pose de corrida.
 
 Pá M1943 no slot 4 cava e aterra o terreno de verdade; a colisão lê a mesma
 camada, então trincheira cavada é trincheira que se anda dentro. Cavar embaixo
-de árvore, pedra ou construção derruba o que ficou sem chão.
+de árvore, pedra ou construção derruba o que ficou sem chão. O que tomba de
+ponta tem o colisor fatiado ao longo do corpo, senão a caixa envolvente vira
+parede invisível.
 
 Tiro no chão também marca o terreno, na escala `TERRAIN_BITE`: a pá cava 90 cm
 por pazada, um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e a

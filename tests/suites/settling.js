@@ -9,11 +9,13 @@ const DT = 1 / 60;
 function bancada() {
   const deform = createDeform();
   const terrain = { heightAt: (x, z) => deform.deltaAt(x, z) };
-  const settling = createSettling(terrain);
+  const colliders = [];
+  const settling = createSettling(terrain, colliders);
 
   return {
     deform,
     terrain,
+    colliders,
     settling,
     cavar(x, z, quanto = -DEFORM.FUNDO * 3) {
       deform.apply(x, z, quanto);
@@ -23,6 +25,21 @@ function bancada() {
       for (let i = 0; i < Math.ceil(segundos / DT); i++) settling.update(DT);
     }
   };
+}
+
+/**
+ * O volume que a colisão enxerga de um prop: a união das caixas dele.
+ *
+ * Um prop tombado tem VÁRIAS, fatiadas ao longo do corpo — comparar só
+ * `prop.collider` com o desenho compara um oitavo dele com o todo.
+ */
+function caixaDe(prop) {
+  const uniao = new THREE.Box3();
+  const caixas = prop.fatias
+    ? prop.fatias.map((f) => f.colisor.box)
+    : [prop.collider.box];
+  for (const caixa of caixas) uniao.union(caixa);
+  return uniao;
 }
 
 /** Prop de uma malha só, como uma parede. */
@@ -65,8 +82,8 @@ export function run() {
   eq('e para de cair quando encosta', mundo.settling.falling, 0);
 
   const chaoNovo = mundo.terrain.heightAt(0, 0);
-  ok('o prop não ficou flutuando', arvore.collider.box.min.y <= chaoNovo + 0.02,
-    `pé em ${arvore.collider.box.min.y.toFixed(2)}, chão em ${chaoNovo.toFixed(2)}`);
+  ok('o prop não ficou flutuando', caixaDe(arvore.prop).min.y <= chaoNovo + 0.02,
+    `pé em ${caixaDe(arvore.prop).min.y.toFixed(2)}, chão em ${chaoNovo.toFixed(2)}`);
   ok('que está abaixo de onde ele estava', chaoNovo < -0.5, `${chaoNovo.toFixed(2)} m`);
   note('afundou', `${(-chaoNovo).toFixed(2)} m`);
 
@@ -74,8 +91,8 @@ export function run() {
 
   // Sem isso o objeto cai só de mentira: o jogador continua esbarrando no ar.
   ok('a caixa de colisão acompanhou',
-    arvore.collider.box.min.y < -0.5,
-    `topo em ${arvore.collider.box.max.y.toFixed(2)}`);
+    caixaDe(arvore.prop).min.y < -0.5,
+    `topo em ${caixaDe(arvore.prop).max.y.toFixed(2)}`);
 
   // Contra a malha, não contra a conta: comparar a caixa com o chão esperado
   // testava a fórmula que a produziu, e foi assim que um colisor 91 cm acima
@@ -83,9 +100,9 @@ export function run() {
   // ar em cima de obstáculo derrubado.
   arvore.mesh.updateMatrixWorld(true);
   const desenho = new THREE.Box3().setFromObject(arvore.mesh);
-  near('e o desenho e a colisão concordam no pé',
-    arvore.collider.box.min.y, desenho.min.y, 1e-6);
-  near('e no topo', arvore.collider.box.max.y, desenho.max.y, 1e-6);
+  const daArvore = caixaDe(arvore.prop);
+  near('e o desenho e a colisão concordam no pé', daArvore.min.y, desenho.min.y, 1e-6);
+  near('e no topo', daArvore.max.y, desenho.max.y, 1e-6);
 
   suite('tomba pro lado que perdeu apoio');
 
@@ -101,9 +118,10 @@ export function run() {
   ok('o prop tombou', angulo > 0.1, `${(angulo * 180 / Math.PI).toFixed(0)}°`);
   between('mas não virou de cabeça pra baixo', angulo, 0.1, 1.6);
 
+  const daTorre = caixaDe(torre.prop);
   ok('tombado, ele ocupa menos altura',
-    torre.collider.box.max.y - torre.collider.box.min.y < 5,
-    `${(torre.collider.box.max.y - torre.collider.box.min.y).toFixed(2)} m de 5`);
+    daTorre.max.y - daTorre.min.y < 5,
+    `${(daTorre.max.y - daTorre.min.y).toFixed(2)} m de 5`);
 
   suite('o colisor acompanha o corpo tombado');
 
@@ -118,7 +136,7 @@ export function run() {
 
   muro.mesh.updateMatrixWorld(true);
   const real = new THREE.Box3().setFromObject(muro.mesh);
-  const caixa = muro.collider.box;
+  const caixa = caixaDe(muro.prop);
 
   // O buraco foi cavado em x positivo, e é pra lá que ele tem que ir.
   // Invertido, cavar de um lado da parede jogava ela pro outro: lia como
@@ -146,11 +164,84 @@ export function run() {
   // ela cresceria em cima de si mesma a cada quadro.
   const larguraCaida = caixa.max.x - caixa.min.x;
   mundo5.rodar(8);
+  const depois = caixaDe(muro.prop);
   near('e ela não cresce sozinha depois de assentar',
-    muro.collider.box.max.x - muro.collider.box.min.x, larguraCaida, 1e-6);
+    depois.max.x - depois.min.x, larguraCaida, 1e-6);
 
   note('caixa tombada', `${larguraCaida.toFixed(2)} m de largura,` +
     ` ${(caixa.max.y - caixa.min.y).toFixed(2)} m de altura`);
+
+  suite('corpo comprido tombado vira várias caixas');
+
+  // Reportado com foto: uma barra na diagonal virava uma caixa gigante
+  // alinhada aos eixos, e o jogador esbarrava em ar longe dela. Uma caixa só
+  // não representa corpo diagonal.
+  const mundo6 = bancada();
+  const barra = new THREE.Mesh(new THREE.BoxGeometry(12, 1, 0.7));
+  barra.position.set(0, 0.5, 0);
+  barra.updateMatrix();
+  const colisorBarra = {
+    box: new THREE.Box3(new THREE.Vector3(-6, 0, -0.35), new THREE.Vector3(6, 1, 0.35)),
+    standable: false
+  };
+  mundo6.colliders.push(colisorBarra);
+  const propBarra = mundo6.settling.register({
+    x: 0, z: 0, baseY: 0, radius: 6, collider: colisorBarra, parts: [{ mesh: barra }]
+  });
+
+  eq('em pé, ela é uma caixa só', mundo6.colliders.length, 1);
+
+  mundo6.cavar(0, 0, -DEFORM.FUNDO * 4);
+  // giro PELA PONTA: é o caso da foto, e o que faz a caixa única inchar
+  mundo6.settling.update(DT);
+  propBarra.eixoX = 0;
+  propBarra.eixoZ = 1;
+  mundo6.rodar(8);
+
+  ok('tombada, ela vira várias', mundo6.colliders.length > 1,
+    `${mundo6.colliders.length} caixas`);
+  eq('e o prop guarda as fatias', propBarra.fatias.length, mundo6.colliders.length);
+
+  // O que não pode acontecer: buraco entre as fatias. Elas são pedaços
+  // contíguos da caixa de pé passados pela mesma matriz, então a união tem
+  // que conter o desenho inteiro — senão dá pra atravessar a barra.
+  barra.updateMatrixWorld(true);
+  const desenhoBarra = new THREE.Box3().setFromObject(barra);
+  const uniao = new THREE.Box3();
+  for (const fatia of propBarra.fatias) uniao.union(fatia.colisor.box);
+
+  const folga = 0.02;
+  ok('a união das fatias cobre o corpo inteiro',
+    uniao.min.x <= desenhoBarra.min.x + folga && uniao.max.x >= desenhoBarra.max.x - folga &&
+    uniao.min.y <= desenhoBarra.min.y + folga && uniao.max.y >= desenhoBarra.max.y - folga,
+    `união ${uniao.min.y.toFixed(2)}..${uniao.max.y.toFixed(2)}` +
+    ` · desenho ${desenhoBarra.min.y.toFixed(2)}..${desenhoBarra.max.y.toFixed(2)}`);
+
+  // E o ganho: somadas, as fatias ocupam muito menos ar que a caixa única.
+  const volume = (b) => {
+    const t = b.getSize(new THREE.Vector3());
+    return t.x * t.y * t.z;
+  };
+  const somaFatias = propBarra.fatias.reduce((n, f) => n + volume(f.colisor.box), 0);
+  ok('e elas ocupam bem menos ar que uma caixa só',
+    somaFatias < volume(uniao) * 0.55,
+    `${somaFatias.toFixed(1)} m³ contra ${volume(uniao).toFixed(1)} da caixa única`);
+  note('barra de 12 m tombada',
+    `${propBarra.fatias.length} fatias · ${somaFatias.toFixed(1)} m³` +
+    ` contra ${volume(uniao).toFixed(1)} m³`);
+
+  suite('prop curto não é fatiado');
+
+  // Fatiar tudo trocaria um problema visível por um invisível: oito colisores
+  // por árvore do mapa seriam milhares a mais pra colisão varrer.
+  const mundo7 = bancada();
+  const pedra = poste(mundo7, 0, 0, 1);
+  mundo7.colliders.push(pedra.collider);
+  mundo7.cavar(0, 0);
+  mundo7.rodar(6);
+  ok('um prop baixo continua com uma caixa só',
+    !pedra.prop.fatias || pedra.prop.fatias.length <= 1,
+    `${pedra.prop.fatias?.length ?? 1} caixa(s)`);
 
   suite('quem tem chão não se mexe');
 

@@ -75,7 +75,9 @@ export function buildWorld(scene) {
 
   // Quem perde o chão desaba. Registrado na construção do mapa pra que a
   // pazada só precise perguntar "o que tem por perto".
-  const settling = createSettling(terrain);
+  // A lista de colisores vai junto: prop que tomba na diagonal ganha caixas
+  // extras, e elas precisam entrar no mundo.
+  const settling = createSettling(terrain, colliders);
 
   const northGround = terrain.heightAt(north.x, north.z);
   const southGround = terrain.heightAt(south.x, south.z);
