@@ -135,9 +135,14 @@ export function colorAt(height) {
  *
  * Sem isto uma trincheira fica com cor de capim no fundo e some visualmente:
  * o relevo muda mas o olho não percebe. Cavar tem que expor terra.
+ *
+ * `marca` é a camada de revolvido, e ela manda quando é maior: uma bala afunda
+ * 2,6 cm e pela profundidade pintaria 5% de terra — o jogador atirava no chão
+ * e jurava que nada tinha acontecido. Mover pouca terra e revolver toda ela
+ * são coisas diferentes.
  */
-export function turnedSoil(delta) {
-  return Math.min(1, Math.abs(delta) / 0.55);
+export function turnedSoil(delta, marca = 0) {
+  return Math.min(1, Math.max(Math.abs(delta) / 0.55, marca));
 }
 
 /**

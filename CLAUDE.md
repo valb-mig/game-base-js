@@ -310,6 +310,18 @@ lugar só, e cada arma aponta pra ele. Espalhado por quatro arquivos, a ordem
 seria fácil de quebrar sem ninguém perceber — e a ordem é a regra; os valores
 são só o jeito de escrevê-la.
 
+**Cor de terra revolvida é camada própria, não é a profundidade.** Derivar
+uma da outra ligava duas coisas que não andam juntas: uma bala afunda 2,6 cm,
+`turnedSoil` pintava 5% de terra, e o jogador atirava no chão e jurava que
+nada tinha acontecido — o tiro cavava de verdade e ninguém enxergava. Mover
+pouca terra e revolver toda ela são coisas diferentes.
+
+**E a marca não afina pra beirada.** A primeira correção elevava o peso ao
+cubo pra concentrar a terra no impacto; com 2,55 m entre vértices, o tiro cai
+longe de todos eles, cada um pega peso baixo e a marca inteira diluía pra 49%
+— invisível de novo. Abaixo da célula da malha não existe formato pra
+modelar: ou a célula está revolvida ou não está.
+
 **A marca não pode ser menor que a célula da malha.** Com 2,55 m por vértice,
 uma craterinha de bala do tamanho real cai ENTRE dois vértices e não registra
 nada: dois tiros iguais fariam coisas diferentes conforme onde caíssem na

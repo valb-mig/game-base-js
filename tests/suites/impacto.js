@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { createDeform, DEFORM } from '../../src/world/deform.js';
+import { turnedSoil } from '../../src/world/heightfield.js';
 import { TERRAIN_BITE, PISTOL, THOMPSON, KNIFE, SHOVEL } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
@@ -101,6 +102,31 @@ export function run() {
   between('afundar o que a pá faz numa pazada custa muitos tiros', tiros, 8, 200);
   note('tiros de pistola por pazada', `${tiros}`);
 
+  suite('tiro raso ainda assim aparece');
+
+  // Regressão do que dava pra ver jogando: a bala afundava o chão de verdade,
+  // mas a cor saía da PROFUNDIDADE, e 2,6 cm pintavam 5% de terra. O tiro
+  // funcionava e ninguém enxergava. Mover pouca terra e revolver toda ela são
+  // coisas diferentes, e por isso o revolvido é camada à parte.
+  const g = bancada();
+  g.tiro(20, -20, PISTOL.firearm.dig);
+
+  const fundo = -g.terrain.heightAt(20, -20);
+  const revolvido = g.deform.revolvidoAt(20, -20);
+
+  ok('um tiro só afunda pouquíssimo', fundo < 0.05, `${(fundo * 100).toFixed(1)} cm`);
+  ok('pela profundidade sozinha a marca seria invisível',
+    turnedSoil(fundo) < 0.1, `${(turnedSoil(fundo) * 100).toFixed(0)}% de terra`);
+  ok('mas o chão fica revolvido do mesmo jeito',
+    turnedSoil(fundo, revolvido) > 0.6,
+    `${(turnedSoil(fundo, revolvido) * 100).toFixed(0)}% de terra`);
+
+  // A marca não afina pra beirada — na resolução desta malha não há formato
+  // abaixo da célula —, mas ela acaba: dois metros ao lado o capim está limpo.
+  ok('e o chão longe do tiro continua limpo',
+    turnedSoil(0, g.deform.revolvidoAt(26, -20)) < 0.1,
+    `${(g.deform.revolvidoAt(26, -20) * 100).toFixed(0)}% a 6 m`);
+
   suite('a marca tem largura mínima');
 
   // Regressão: abaixo do espaçamento da malha, a marca caía entre dois
@@ -115,4 +141,18 @@ export function run() {
     if (f.terrain.heightAt(x, 20) < alturaAntes - 1e-6) registrou++;
   }
   eq('todo tiro no chão deixa marca, caia onde cair', registrou, 12);
+
+  suite('a pazada também revolve');
+
+  const h = bancada();
+  h.deform.apply(0, 60, -DEFORM.FUNDO);
+  ok('cavar com a pá expõe terra', h.deform.revolvidoAt(0, 60) > 0.6,
+    `${h.deform.revolvidoAt(0, 60).toFixed(2)}`);
+
+  h.deform.apply(0, 90, DEFORM.MONTE);
+  ok('e aterrar também: monte de terra fresca é terra',
+    h.deform.revolvidoAt(0, 90) > 0.6, `${h.deform.revolvidoAt(0, 90).toFixed(2)}`);
+
+  const i = bancada();
+  eq('chão intocado não tem marca nenhuma', i.deform.revolvidoAt(0, 0), 0);
 }

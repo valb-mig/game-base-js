@@ -40,6 +40,13 @@ export function createDeform() {
   // Float32Array de 181x181: 131 KB, alocado uma vez e nunca mais.
   const grade = new Float32Array(LADO * LADO);
 
+  // Quanto o ponto está revolvido, de 0 a 1 — camada à parte de propósito.
+  // Derivar isto da profundidade ligava duas coisas que não andam juntas:
+  // uma bala mal move terra e revolve toda ela, enquanto um aterro fundo e
+  // antigo já devia estar coberto. Sem esta camada, o tiro afundava 2,6 cm,
+  // pintava 5% de terra e o jogador jurava que não tinha acontecido nada.
+  const revolvido = new Float32Array(LADO * LADO);
+
   const coluna = (x) => (x + WORLD.SIZE / 2) / PASSO;
   const linha = (z) => (z + WORLD.SIZE / 2) / PASSO;
 
@@ -74,7 +81,7 @@ export function createDeform() {
    * Devolve lista vazia quando nada mudou — bater no limite não deve custar
    * uma atualização de buffer.
    */
-  function apply(x, z, amount, radius = DEFORM.RAIO) {
+  function apply(x, z, amount, radius = DEFORM.RAIO, marca = 1) {
     const cx = coluna(x);
     const cz = linha(z);
     const alcance = Math.max(radius, DEFORM.RAIO_MIN) / PASSO;
@@ -95,11 +102,24 @@ export function createDeform() {
         const peso = 0.5 + 0.5 * Math.cos(dist * Math.PI);
         const indice = lin * LADO + col;
         const antes = grade[indice];
+        const sujoAntes = revolvido[indice];
 
         const alvo = Math.max(-DEFORM.LIMITE,
           Math.min(DEFORM.ALTURA_MAX, antes + amount * peso));
 
-        if (alvo === antes) continue;
+        // A marca quase não afina pra beirada, e isso é de propósito. Uma
+        // primeira versão elevava o peso ao cubo pra concentrar a terra no
+        // ponto do impacto; com 2,55 m entre vértices, o tiro cai longe de
+        // todos eles, cada um pegava peso baixo e a marca inteira diluía
+        // pra 49% — de novo invisível. Abaixo da célula da malha não existe
+        // formato pra modelar: ou a célula está revolvida ou não está.
+        if (marca > 0) {
+          revolvido[indice] = Math.min(1, sujoAntes + (0.55 + 0.45 * peso) * marca);
+        }
+
+        // Vale atualizar o vértice se a cor mudou, mesmo com a altura no
+        // limite: é a marca que o jogador enxerga.
+        if (alvo === antes && revolvido[indice] === sujoAntes) continue;
         grade[indice] = alvo;
         tocados.push(indice);
       }
@@ -112,12 +132,34 @@ export function createDeform() {
     return deltaAt(x, z);
   }
 
+  /** Quanto o ponto está revolvido, de 0 a 1. Interpolado como a altura. */
+  function revolvidoAt(x, z) {
+    const cx = coluna(x);
+    const cz = linha(z);
+    const col = Math.floor(cx);
+    const lin = Math.floor(cz);
+    const fx = cx - col;
+    const fz = cz - lin;
+
+    const dentroSujo = (c, l) =>
+      (c >= 0 && c < LADO && l >= 0 && l < LADO ? revolvido[l * LADO + c] : 0);
+
+    const a = dentroSujo(col, lin);
+    const b = dentroSujo(col + 1, lin);
+    const c = dentroSujo(col, lin + 1);
+    const d = dentroSujo(col + 1, lin + 1);
+
+    return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz;
+  }
+
   return {
     grade,
+    revolvido,
     lado: LADO,
     passo: PASSO,
     deltaAt,
     depthAt,
+    revolvidoAt,
     apply,
 
     /** Coordenada de mundo do vértice de índice `i`. */
@@ -133,6 +175,7 @@ export function createDeform() {
     /** Zera tudo. Usado só por teste e por recomeço de partida. */
     reset() {
       grade.fill(0);
+      revolvido.fill(0);
     }
   };
 }

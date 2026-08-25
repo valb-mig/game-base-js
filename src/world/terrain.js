@@ -16,7 +16,9 @@ export function createTerrain(flatZones = [], deform = null) {
   function paint(color, x, z, altura) {
     color.set(colorAt(altura));
     if (altura < WORLD.WATER_LEVEL) color.multiplyScalar(0.62);
-    if (deform) color.lerp(SOIL, turnedSoil(deform.deltaAt(x, z)));
+    if (deform) {
+      color.lerp(SOIL, turnedSoil(deform.deltaAt(x, z), deform.revolvidoAt(x, z)));
+    }
     return color;
   }
 
