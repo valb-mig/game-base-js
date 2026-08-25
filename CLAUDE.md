@@ -357,13 +357,20 @@ cada prop assentou; se o terreno sob ele descer, ele desaba e tomba pro lado
 que perdeu apoio. O colisor desce junto — sem isso o objeto cairia só de
 mentira e o jogador seguiria esbarrando no ar onde ele estava.
 
-**O colisor tem que ir junto com o corpo tombado, não só descer.** Mexendo só
-no Y, a parede caía pra um lado e a hitbox ficava em pé onde ela estava:
-sobravam quase dois metros de entulho atravessável e um muro invisível no
-lugar vazio. Girando em volta da base, um ponto na altura h anda h·sen(tombo)
-na horizontal, então a pegada de pé é esticada até o alcance do topo. A altura
-da caixa soma a largura (`altura·cos + raio·sen`), senão o topo do corpo caído
-fica de fora.
+**O colisor do corpo tombado sai da matriz, não de fórmula.** São os oito
+cantos da caixa de pé passados pela MESMA matriz que move a malha. Duas
+tentativas de conta fechada falharam antes disso: mexer só no Y deixava a
+hitbox em pé onde a parede estava, e a versão seguinte — pegada esticada pelo
+alcance do topo, altura por `altura·cos + raio·sen` — acertava em poste e
+errava em laje larga e baixa, deixando o colisor 91 cm acima do bloco caído,
+com o jogador de pé no ar em cima de obstáculo derrubado. Aproximar o que dá
+pra calcular exato só cria um segundo modelo pra manter de acordo com o
+primeiro.
+
+**E teste de colisor se compara com a MALHA.** Comparar a caixa com a altura
+esperada do chão testa a fórmula que produziu a caixa: foi assim que os 91 cm
+passaram batido por uma suíte verde. `Box3.setFromObject` é a única fonte que
+não pode concordar por engano.
 
 **E o lado da queda sai da rotação, não de dedução.** Errei o sinal duas
 vezes seguidas: primeiro a caixa esticou pro lado contrário ao do corpo,

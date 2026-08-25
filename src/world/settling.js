@@ -16,8 +16,6 @@ import * as THREE from 'three';
  * Só o que a pazada tocou é reavaliado. Prop parado não custa nada.
  */
 
-const CIMA = new THREE.Vector3(0, 1, 0);
-
 const GRAVIDADE = 17;
 const TOMBO_MAX = 1.15;        // radianos: cai deitado, não vira de cabeça
 const TOMBO_POR_METRO = 1.6;   // quanto tombar por metro de queda
@@ -31,7 +29,7 @@ export function createSettling(terrain) {
   const matriz = new THREE.Matrix4();
   const auxiliar = new THREE.Matrix4();
   const eixo = new THREE.Vector3();
-  const direcao = new THREE.Vector3();
+  const canto = new THREE.Vector3();
 
   /**
    * Registra um prop que pode desabar.
@@ -42,17 +40,11 @@ export function createSettling(terrain) {
   function register({ x, z, baseY, radius, collider, parts }) {
     const prop = {
       x, z, baseY, radius, collider, parts,
-      altura: collider ? collider.box.max.y - collider.box.min.y : 0,
-      // Pegada de pé, guardada porque a caixa vai ser reescrita a cada quadro
-      // da queda: sem o original, tombar duas vezes crescia em cima de si.
-      pegada: collider ? {
-        minX: collider.box.min.x, maxX: collider.box.max.x,
-        minZ: collider.box.min.z, maxZ: collider.box.max.z
-      } : null,
+      // Caixa de pé, guardada porque a de colisão é reescrita a cada quadro
+      // da queda: sem o original, tombar duas vezes cresceria em cima de si.
+      pegada: collider ? collider.box.clone() : null,
       eixoX: 1,
       eixoZ: 0,
-      quedaX: 0,       // pra onde o topo vai, unitário
-      quedaZ: 0,
       queda: 0,        // quanto já desceu
       tombo: 0,        // inclinação atual
       alvoTombo: 0,
@@ -131,35 +123,28 @@ export function createSettling(terrain) {
     });
 
     if (prop.collider) {
-      const caixa = prop.collider.box;
-      const pe = prop.baseY - prop.queda;
-      const seno = Math.sin(prop.tombo);
-      const cosseno = Math.cos(prop.tombo);
-
-      caixa.min.y = pe;
-      // Tombado, o volume que ele ocupa é baixo e largo: vira obstáculo de
-      // pular por cima, não parede. A largura entra na conta porque a caixa
-      // inclinada é mais alta que só a altura projetada.
-      caixa.max.y = pe + Math.max(0.4, prop.altura * cosseno + prop.radius * seno);
-
-      // A caixa acompanha o corpo tombado.
+      // A caixa sai dos oito cantos da caixa de pé passados pela MESMA matriz
+      // que move a malha. É o único jeito de ela não poder discordar do que
+      // se vê.
       //
-      // Antes, só o Y se mexia: a parede caía pra um lado e a hitbox ficava
-      // em pé onde ela estava. Sobravam quase dois metros de entulho que o
-      // jogador atravessava, e um muro invisível no lugar vazio.
-      //
-      // Girando em volta da base, um ponto na altura h anda h·sen(tombo) na
-      // horizontal. Esticar a pegada de pé até o alcance do topo cobre o
-      // corpo inteiro, porque todo ponto dele cai entre uma coisa e outra.
-      const alcance = prop.altura * seno;
-      const dx = prop.quedaX * alcance;
-      const dz = prop.quedaZ * alcance;
+      // Antes aqui tinha conta fechada — pegada esticada pelo alcance do topo
+      // e altura por `altura·cos + raio·sen`. Funcionava em poste e errava em
+      // laje larga e baixa: o topo do colisor de um obstáculo do campo de
+      // treino ficava 91 cm acima do bloco caído, e o jogador ficava de pé a
+      // um metro e meio no ar. Aproximar o que dá pra calcular exato só cria
+      // um segundo modelo pra manter de acordo com o primeiro.
       const { pegada } = prop;
+      const caixa = prop.collider.box;
+      caixa.makeEmpty();
 
-      caixa.min.x = pegada.minX + Math.min(0, dx);
-      caixa.max.x = pegada.maxX + Math.max(0, dx);
-      caixa.min.z = pegada.minZ + Math.min(0, dz);
-      caixa.max.z = pegada.maxZ + Math.max(0, dz);
+      for (let i = 0; i < 8; i++) {
+        canto.set(
+          i & 1 ? pegada.max.x : pegada.min.x,
+          i & 2 ? pegada.max.y : pegada.min.y,
+          i & 4 ? pegada.max.z : pegada.min.z
+        ).applyMatrix4(matriz);
+        caixa.expandByPoint(canto);
+      }
     }
   }
 
@@ -214,15 +199,6 @@ export function createSettling(terrain) {
         prop.eixoX = melhorZ;
         prop.eixoZ = -melhorX;
         if (prop.eixoX === 0 && prop.eixoZ === 0) prop.eixoX = 1;
-
-        // Pra onde o topo vai. O colisor precisa disto, e o sinal sai da
-        // PRÓPRIA rotação em vez de ser deduzido: quem gira em volta de um
-        // eixo anda na direção `eixo × cima`. Deduzindo o lado eu errei o
-        // sinal, e a caixa esticou pro lado contrário ao do corpo caído —
-        // o mesmo defeito de antes, espelhado.
-        direcao.set(prop.eixoX, 0, prop.eixoZ).normalize().cross(CIMA).normalize();
-        prop.quedaX = direcao.x;
-        prop.quedaZ = direcao.z;
 
         prop.ativo = true;
         prop.velocidade = 0;

@@ -65,7 +65,8 @@ export function run() {
   eq('e para de cair quando encosta', mundo.settling.falling, 0);
 
   const chaoNovo = mundo.terrain.heightAt(0, 0);
-  near('o pé assenta no chão novo', arvore.collider.box.min.y, chaoNovo, 0.02);
+  ok('o prop não ficou flutuando', arvore.collider.box.min.y <= chaoNovo + 0.02,
+    `pé em ${arvore.collider.box.min.y.toFixed(2)}, chão em ${chaoNovo.toFixed(2)}`);
   ok('que está abaixo de onde ele estava', chaoNovo < -0.5, `${chaoNovo.toFixed(2)} m`);
   note('afundou', `${(-chaoNovo).toFixed(2)} m`);
 
@@ -75,8 +76,16 @@ export function run() {
   ok('a caixa de colisão acompanhou',
     arvore.collider.box.min.y < -0.5,
     `topo em ${arvore.collider.box.max.y.toFixed(2)}`);
-  ok('e o desenho e a colisão concordam',
-    Math.abs(arvore.collider.box.min.y - chaoNovo) < 0.05);
+
+  // Contra a malha, não contra a conta: comparar a caixa com o chão esperado
+  // testava a fórmula que a produziu, e foi assim que um colisor 91 cm acima
+  // do bloco caído passou batido — no campo de treino dava pra ficar de pé no
+  // ar em cima de obstáculo derrubado.
+  arvore.mesh.updateMatrixWorld(true);
+  const desenho = new THREE.Box3().setFromObject(arvore.mesh);
+  near('e o desenho e a colisão concordam no pé',
+    arvore.collider.box.min.y, desenho.min.y, 1e-6);
+  near('e no topo', arvore.collider.box.max.y, desenho.max.y, 1e-6);
 
   suite('tomba pro lado que perdeu apoio');
 
