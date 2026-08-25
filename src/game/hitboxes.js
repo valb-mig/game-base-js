@@ -1,28 +1,27 @@
 /**
  * Onde a bala pegou, e quanto isso vale.
  *
- * Uma esfera só no peito fazia o tiro na cabeça valer o mesmo que o tiro na
- * canela — e aí mirar deixa de ser habilidade. Aqui o corpo é dividido como
- * um corpo é: cabeça, capacete, peito, abdome, e cada membro em DOIS pedaços,
- * como num boneco de verdade.
+ * O corpo é dividido como um corpo é: capacete, cabeça, peito, abdome, e cada
+ * membro em três — mão, antebraço, braço; pé, canela, coxa. Uma esfera só no
+ * peito fazia o tiro na cabeça valer o mesmo que o tiro na canela, e aí mirar
+ * deixa de ser habilidade.
  *
- * Segmentado porque membro dobra. Uma cápsula do ombro até a mão passa longe
- * do braço de quem está com a arma erguida, e sobra caixa no vazio ao lado do
- * corpo — foi o que aconteceu na primeira versão, e a bala atravessava a
- * perna.
+ * São CAIXAS, e não cápsulas, porque o soldado é feito de caixas. Cápsula não
+ * cobre peça chata: o capacete tem 27 cm de largura e 19 de altura, e a
+ * cápsula que cobria a largura sobrava 8 cm acima da cabeça — hitbox no ar.
  *
- * Cada região é uma CÁPSULA: dois pontos e um raio. Ela cobre exatamente o
- * segmento mais o raio em volta, e o segmento é encolhido pelo raio nas
- * pontas justamente pra que a superfície caia onde o osso acaba.
+ * As medidas saem das mesmas peças do modelo (`bots/soldier.js`), e a caixa é
+ * um pouco maior que a peça de propósito: hitbox menor que o desenho faz o
+ * jogador ver a bala passar por dentro do braço.
  *
  * A promessa é em TIROS, não em pontos — o jogador conta tiros. E os
  * multiplicadores são calibrados pela arma mais FRACA que existe: com ela a
  * promessa vale, com as outras vale com folga.
  *
- * Sem three: são pontos, raios e números, e dá pra provar cada promessa.
+ * Sem three: são caixas, números e um yaw, e dá pra provar cada promessa.
  */
 
-/** Grupos de dano. A região diz onde pegou; o grupo diz quanto vale. */
+/** Grupos de dano. A peça diz onde pegou; o grupo diz quanto vale. */
 export const GRUPOS = {
   cabeca: { nome: 'cabeça', multiplicador: 4.2 },
   capacete: { nome: 'capacete', multiplicador: 2.1 },
@@ -32,96 +31,61 @@ export const GRUPOS = {
 };
 
 /**
- * As peças do corpo, em metros e num soldado de 1,75 m de pé.
+ * As peças, num soldado de 1,75 m de pé, no sistema DELE: +x é a direita,
+ * +z é a frente, y sobe do pé.
  *
- * `a` e `b` são as pontas do osso em [x, y, z]; `espelhado` cria a peça dos
- * dois lados. A ordem é a de PRIORIDADE: onde duas se encostam, ganha a
- * primeira — acertar o menor alvo não pode ser desperdiçado por um milímetro
- * de sobreposição.
+ * `espelhado` cria a peça dos dois lados. A ordem é a de PRIORIDADE: onde
+ * duas se encostam ganha a primeira, porque acertar o menor alvo não pode ser
+ * desperdiçado por um milímetro de sobreposição.
  */
 export const PECAS = [
-  { id: 'capacete', grupo: 'capacete', raio: 0.135, a: [0, 1.58, 0], b: [0, 1.68, 0] },
-  { id: 'cabeca', grupo: 'cabeca', raio: 0.105, a: [0, 1.40, 0], b: [0, 1.56, 0] },
+  { id: 'capacete', grupo: 'capacete', centro: [0, 1.605, 0], tamanho: [0.28, 0.20, 0.30] },
+  { id: 'cabeca', grupo: 'cabeca', centro: [0, 1.44, 0], tamanho: [0.22, 0.26, 0.22] },
 
-  { id: 'mao', grupo: 'braco', raio: 0.065, espelhado: 0.21,
-    a: [0, 0.88, 0.20], b: [0, 0.93, 0.27] },
-  { id: 'antebraco', grupo: 'braco', raio: 0.075, espelhado: 0.25,
-    a: [0, 0.92, 0.20], b: [0, 1.08, 0.06] },
-  { id: 'braco', grupo: 'braco', raio: 0.08, espelhado: 0.275,
-    a: [0, 1.06, 0.03], b: [0, 1.28, 0] },
+  { id: 'mao', grupo: 'braco', espelhado: 0.21, centro: [0, 0.90, 0.24], tamanho: [0.12, 0.12, 0.14] },
+  { id: 'antebraco', grupo: 'braco', espelhado: 0.24, centro: [0, 0.99, 0.12], tamanho: [0.14, 0.28, 0.20] },
+  { id: 'braco', grupo: 'braco', espelhado: 0.28, centro: [0, 1.15, 0.02], tamanho: [0.15, 0.30, 0.17] },
 
-  { id: 'pe', grupo: 'perna', raio: 0.075, espelhado: 0.11,
-    a: [0, 0.05, -0.04], b: [0, 0.09, 0.09] },
-  { id: 'canela', grupo: 'perna', raio: 0.085, espelhado: 0.11,
-    a: [0, 0.10, 0], b: [0, 0.45, 0] },
-  { id: 'coxa', grupo: 'perna', raio: 0.105, espelhado: 0.11,
-    a: [0, 0.44, 0], b: [0, 0.82, 0] },
+  { id: 'pe', grupo: 'perna', espelhado: 0.11, centro: [0, 0.06, 0.02], tamanho: [0.19, 0.14, 0.31] },
+  { id: 'canela', grupo: 'perna', espelhado: 0.11, centro: [0, 0.27, 0], tamanho: [0.18, 0.36, 0.19] },
+  { id: 'coxa', grupo: 'perna', espelhado: 0.11, centro: [0, 0.62, 0], tamanho: [0.21, 0.38, 0.23] },
 
-  { id: 'abdome', grupo: 'tronco', raio: 0.155, a: [0, 0.82, 0], b: [0, 1.04, 0] },
-  { id: 'peito', grupo: 'tronco', raio: 0.175, a: [0, 1.02, 0], b: [0, 1.34, 0] }
+  { id: 'abdome', grupo: 'tronco', centro: [0, 0.90, 0], tamanho: [0.47, 0.26, 0.28] },
+  { id: 'peito', grupo: 'tronco', centro: [0, 1.14, 0], tamanho: [0.46, 0.32, 0.27] }
 ];
 
-/** Compatibilidade: o grupo de cada peça, indexado pelo nome do grupo. */
+/** Compatibilidade com quem lê grupo por nome. */
 export const REGIOES = GRUPOS;
 export const ORDEM = ['cabeca', 'capacete', 'braco', 'perna', 'tronco'];
 
+/** Altura de referência das medidas acima. */
+export const ALTURA_BASE = 1.75;
+
 /**
- * As cápsulas de um corpo, em coordenada de mundo.
+ * As caixas de um corpo, NO SISTEMA DELE.
  *
- * `saida` é reaproveitado: resolver acerto é coisa de todo quadro, e alocar
- * uma lista por bala por alvo seria lixo por quadro.
+ * Quem testa acerto leva a bala pro sistema do alvo — uma conta por alvo — em
+ * vez de rodar dezesseis caixas pro mundo. E agachar encolhe só o Y, porque é
+ * só o Y que o modelo encolhe: escalando os três eixos, braço e perna ficavam
+ * FORA da hitbox de quem estava agachado.
  */
-export function corpoDe(x, feetY, z, altura, saida = [], yaw = 0) {
+export function corpoDe(altura = ALTURA_BASE, saida = []) {
   saida.length = 0;
-  const escala = altura / 1.75;
-
-  // Os membros ficam nos lados DELE, não nos lados do mundo: de perfil, um
-  // braço fica na frente do outro, e é isso que o tiro tem que ver.
-  const cos = Math.cos(yaw);
-  const sen = Math.sin(yaw);
-
-  const poe = (peca, lado, ordem) => {
-    const [ax, ay, az] = peca.a;
-    const [bx, by, bz] = peca.b;
-    const desloca = (peca.espelhado ?? 0) * lado;
-
-    // roda o ponto local em volta do Y e leva pro mundo
-    const mundo = (lx, ly, lz) => {
-      const px = (lx + desloca) * escala;
-      const pz = lz * escala;
-      return [
-        x + px * cos + pz * sen,
-        feetY + ly * escala,
-        z - px * sen + pz * cos
-      ];
-    };
-
-    const [pax, pay, paz] = mundo(ax, ay, az);
-    const [pbx, pby, pbz] = mundo(bx, by, bz);
-    const raio = peca.raio * escala;
-
-    // Encolhe o segmento pelo raio: a cápsula tem tampa redonda, e sem isso
-    // ela cobria `raio` além do osso e invadia a peça vizinha.
-    const dx = pbx - pax;
-    const dy = pby - pay;
-    const dz = pbz - paz;
-    const comprimento = Math.hypot(dx, dy, dz);
-    const corte = Math.min(raio, comprimento / 2);
-    const k = comprimento > 1e-6 ? corte / comprimento : 0;
-
-    saida.push({
-      peca, regiao: GRUPOS[peca.grupo], raio, ordem,
-      ax: pax + dx * k, ay: pay + dy * k, az: paz + dz * k,
-      bx: pbx - dx * k, by: pby - dy * k, bz: pbz - dz * k
-    });
-  };
+  const escalaY = altura / ALTURA_BASE;
 
   PECAS.forEach((peca, ordem) => {
-    if (peca.espelhado) {
-      poe(peca, -1, ordem);
-      poe(peca, 1, ordem);
-    } else {
-      poe(peca, 0, ordem);
+    const lados = peca.espelhado ? [-1, 1] : [0];
+    for (const lado of lados) {
+      const [cx, cy, cz] = peca.centro;
+      const [w, h, d] = peca.tamanho;
+      const x = cx + (peca.espelhado ?? 0) * lado;
+
+      saida.push({
+        peca, regiao: GRUPOS[peca.grupo], ordem, lado,
+        minX: x - w / 2, maxX: x + w / 2,
+        minY: (cy - h / 2) * escalaY, maxY: (cy + h / 2) * escalaY,
+        minZ: cz - d / 2, maxZ: cz + d / 2
+      });
     }
   });
   return saida;

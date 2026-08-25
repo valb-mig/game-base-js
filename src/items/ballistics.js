@@ -36,12 +36,6 @@ export function createBallistics(scene, colliders, {
   // Reaproveitados: resolver acerto é coisa de todo quadro, e alocar uma
   // lista de regiões por bala por alvo seria lixo por quadro.
   const corpo = [];
-  const pontaA = new THREE.Vector3();
-  const pontaB = new THREE.Vector3();
-  const eixo = new THREE.Vector3();
-  const entre = new THREE.Vector3();
-  const perto = new THREE.Vector3();
-  const noEixo = new THREE.Vector3();
 
   function makeTracer() {
     const mesh = new THREE.Mesh(
@@ -69,41 +63,34 @@ export function createBallistics(scene, colliders, {
   }
 
   /**
-   * Interseção do trecho da bala com uma CÁPSULA (segmento + raio).
+   * Interseção do trecho da bala com uma CAIXA, no sistema do alvo.
    *
-   * Membro é comprido, e esfera não cobre comprimento: a perna deixava 41 cm
-   * descobertos, e o tiro na canela atravessava. Aqui é a menor distância
-   * entre dois segmentos — o da bala e o eixo do membro.
+   * Teste de fatias: para cada eixo, o pedaço do trecho que está dentro da
+   * faixa da caixa. Sobrando interseção nos três, houve acerto — e `tMin` é
+   * onde ele começou.
    */
-  function capsuleHit(start, delta, a, b, raio) {
-    eixo.copy(b).sub(a);
-    entre.copy(start).sub(a);
+  function caixaHit(ax, ay, az, dx, dy, dz, c) {
+    let entra = 0;
+    let sai = 1;
 
-    const dd = delta.lengthSq();
-    const ee = eixo.lengthSq();
-    if (dd < 1e-12) return null;
-
-    const de = delta.dot(eixo);
-    const dw = delta.dot(entre);
-    const ew = eixo.dot(entre);
-
-    // Paralelos: cai no caso degenerado, e aí basta projetar uma ponta.
-    const denominador = dd * ee - de * de;
-    let t = Math.abs(denominador) < 1e-9
-      ? 0
-      : (de * ew - ee * dw) / denominador;
-    t = Math.min(1, Math.max(0, t));
-
-    // ponto do eixo mais perto do ponto escolhido na trajetória
-    let u = ee < 1e-12 ? 0 : (de * t + ew) / ee;
-    u = Math.min(1, Math.max(0, u));
-
-    // e volta pra trajetória com o u corrigido, senão o clamp desalinha
-    t = Math.min(1, Math.max(0, (de * u - dw) / dd));
-
-    perto.copy(start).addScaledVector(delta, t);
-    noEixo.copy(a).addScaledVector(eixo, u);
-    return perto.distanceTo(noEixo) <= raio ? t : null;
+    for (const [origem, passo, menor, maior] of [
+      [ax, dx, c.minX, c.maxX],
+      [ay, dy, c.minY, c.maxY],
+      [az, dz, c.minZ, c.maxZ]
+    ]) {
+      if (Math.abs(passo) < 1e-9) {
+        // paralelo ao eixo: ou está dentro da faixa o tempo todo, ou nunca
+        if (origem < menor || origem > maior) return null;
+        continue;
+      }
+      let t1 = (menor - origem) / passo;
+      let t2 = (maior - origem) / passo;
+      if (t1 > t2) { const troca = t1; t1 = t2; t2 = troca; }
+      if (t1 > entra) entra = t1;
+      if (t2 < sai) sai = t2;
+      if (entra > sai) return null;
+    }
+    return entra;
   }
 
   /**
@@ -174,16 +161,29 @@ export function createBallistics(scene, colliders, {
       // o mesmo que o tiro na canela, e mirar deixaria de ser habilidade.
       const partes = target.body?.(corpo);
       if (partes) {
-        for (const parte of partes) {
-          pontaA.set(parte.ax, parte.ay, parte.az);
-          pontaB.set(parte.bx, parte.by, parte.bz);
-          const t = capsuleHit(from, segment, pontaA, pontaB, parte.raio);
-          if (t === null) continue;
+        // A bala vai pro sistema do ALVO: uma conta por alvo, em vez de levar
+        // dezesseis caixas pro mundo. E é o que permite a caixa acompanhar
+        // quem gira sem recalcular nada.
+        const giro = target.yaw ?? 0;
+        const cos = Math.cos(giro);
+        const sen = Math.sin(giro);
+        const ox = from.x - target.x;
+        const oz = from.z - target.z;
 
-          // Empate vai pra REGIÃO MAIS VALIOSA, não pra última testada.
-          // Onde cabeça e capacete se tocam o tiro é na cabeça: acertar o
-          // menor alvo não pode ser desperdiçado por um milímetro de
-          // sobreposição. Sem isto, mirar na cabeça acertava o capacete.
+        const lax = ox * cos - oz * sen;
+        const lay = from.y - (target.feetY ?? 0);
+        const laz = ox * sen + oz * cos;
+        const ldx = segment.x * cos - segment.z * sen;
+        const ldy = segment.y;
+        const ldz = segment.x * sen + segment.z * cos;
+
+        for (const parte of partes) {
+          const t = caixaHit(lax, lay, laz, ldx, ldy, ldz, parte);
+          if (t === null || t > 1) continue;
+
+          // Empate vai pra REGIÃO MAIS VALIOSA, não pra última testada. Onde
+          // cabeça e capacete se encostam o tiro é na cabeça: acertar o menor
+          // alvo não pode ser desperdiçado por um milímetro de sobreposição.
           if (closest !== null) {
             const perto = t < closest - EMPATE;
             const empatou = Math.abs(t - closest) <= EMPATE;

@@ -492,16 +492,25 @@ promessa vale, com as outras vale com folga. Calibrar pela mais forte deixaria
 a promessa falsa justamente na arma que a maioria carrega, e há teste que
 CONTA os tiros em vez de conferir o multiplicador.
 
-**Hitbox é uma CÁPSULA por osso, não uma esfera por região.** Esfera não cobre
+**Hitbox é CAIXA, porque o soldado é feito de caixas.** Cápsula não cobre
+peça chata: o capacete tem 27 cm de largura e 19 de altura, e a cápsula que
+cobria a largura sobrava 8 cm ACIMA da cabeça — hitbox no ar. Medido contra a
+malha, que é a única fonte que não concorda por engano.
+
+**Agachar encolhe SÓ o Y, porque é só o Y que o modelo encolhe.** Escalando os
+três eixos, a hitbox de quem agacha ia de ±0,36 pra ±0,23 enquanto a malha
+ficava em ±0,34: o tiro no ombro de alguém agachado passava reto.
+
+**A bala vai pro sistema do ALVO, não as caixas pro mundo.** Uma conta por
+alvo em vez de dezesseis caixas transformadas, e é o que faz a hitbox
+acompanhar quem gira sem recalcular nada.
+
+**A hitbox era uma CÁPSULA por osso antes disso, e antes ainda uma esfera.** Esfera não cobre
 membro comprido: a perna ia de 5 a 84 cm e a esfera cobria 26 a 64 — 41 cm por
 onde o tiro passava reto, e o jogador via a bala atravessar a perna. E membro
 DOBRA, então uma cápsula do ombro à mão passa longe do braço de quem está com
 a arma erguida. Hoje são dezesseis peças, cada uma entre duas juntas, e o
 teste prova que não sobra altura descoberta entre elas.
-
-**O segmento da cápsula é encolhido pelo raio nas pontas.** A tampa é redonda:
-sem o encolhimento ela cobria `raio` além do osso e invadia a peça vizinha —
-era por isso que o tiro na coxa registrava tronco.
 
 **Empate entre peças vai pra mais valiosa, não pra última testada.** Onde
 cabeça e capacete se encostam o tiro é na cabeça; acertar o menor alvo não

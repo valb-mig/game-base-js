@@ -205,27 +205,42 @@ export function initDebugView(scene, world, bots, tiro = {}) {
    * uma bola no peito enquanto o tiro na perna decidia em outro lugar — e
    * depurar com um desenho que mente é pior que depurar sem desenho.
    */
-  const LADOS = 12;
   const corpoAux = [];
+
+  /**
+   * As caixas de acerto, região por região.
+   *
+   * Elas vivem no sistema do ALVO, então o desenho tem que girar junto — e
+   * elas são CAIXAS, não anéis: desenhar anel numa caixa chata como o
+   * capacete escondia justamente o que se queria conferir.
+   */
   function desenharEsferas() {
     const alvos = world.targets.filter((alvo) => alvo.alive && (alvo.body || alvo.center));
 
-    // duas tampas de anel por cápsula, mais quatro montantes ligando elas
-    const capsulas = [];
+    const caixasDeAcerto = [];
     for (const alvo of alvos) {
       if (alvo.body) {
-        for (const parte of alvo.body(corpoAux)) capsulas.push({ ...parte });
+        const cos = Math.cos(alvo.yaw ?? 0);
+        const sen = Math.sin(alvo.yaw ?? 0);
+        const pes = alvo.feetY ?? 0;
+        for (const p of alvo.body(corpoAux)) {
+          caixasDeAcerto.push({
+            local: { ...p }, cos, sen, x: alvo.x, y: pes, z: alvo.z
+          });
+        }
       } else {
         const c = alvo.center();
         const r = alvo.radius ?? 0.5;
-        capsulas.push({
-          raio: r, ax: c.x, ay: c.y - r * 0.5, az: c.z,
-          bx: c.x, by: c.y + r * 0.5, bz: c.z
+        caixasDeAcerto.push({
+          local: {
+            minX: -r, maxX: r, minY: -r, maxY: r, minZ: -r, maxZ: r
+          },
+          cos: 1, sen: 0, x: c.x, y: c.y, z: c.z
         });
       }
     }
 
-    const precisa = capsulas.length * (2 * LADOS + 4) * 2 * 3;
+    const precisa = caixasDeAcerto.length * ARESTAS.length * 2 * 3;
     if (precisa === 0) {
       esferas.geometry.setDrawRange(0, 0);
       return;
@@ -236,39 +251,18 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     }
 
     let n = 0;
-    const por = (x, y, z) => {
-      anelPosicoes[n] = x;
-      anelPosicoes[n + 1] = y;
-      anelPosicoes[n + 2] = z;
-      n += 3;
-    };
-
-    for (const c of capsulas) {
-      // Um anel em cada ponta e quatro montantes: é a leitura de cápsula com
-      // o mínimo de linha, e mostra a ALTURA que ela cobre — que era
-      // justamente o que faltava enxergar.
-      // Anéis nas pontas do SEGMENTO e nos extremos da COBERTURA: a cápsula
-      // tem tampa redonda, e desenhar só o segmento escondia justamente o
-      // que se quer conferir — até onde ela pega.
-      const pontas = [
-        [c.ax, c.ay, c.az], [c.bx, c.by, c.bz],
-        [c.ax, Math.min(c.ay, c.by) - c.raio, c.az],
-        [c.bx, Math.max(c.ay, c.by) + c.raio, c.bz]
-      ];
-      for (const [cx, cy, cz] of pontas) {
-        for (let i = 0; i < LADOS; i++) {
-          for (const passo of [i, i + 1]) {
-            const a = (passo / LADOS) * Math.PI * 2;
-            por(cx + Math.cos(a) * c.raio, cy, cz + Math.sin(a) * c.raio);
-          }
+    for (const c of caixasDeAcerto) {
+      const l = c.local;
+      for (const [a, b] of ARESTAS) {
+        for (const indice of [a, b]) {
+          const lx = indice & 1 ? l.maxX : l.minX;
+          const ly = indice & 4 ? l.maxY : l.minY;
+          const lz = indice & 2 ? l.maxZ : l.minZ;
+          anelPosicoes[n] = c.x + lx * c.cos + lz * c.sen;
+          anelPosicoes[n + 1] = c.y + ly;
+          anelPosicoes[n + 2] = c.z - lx * c.sen + lz * c.cos;
+          n += 3;
         }
-      }
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2;
-        const dx = Math.cos(a) * c.raio;
-        const dz = Math.sin(a) * c.raio;
-        por(c.ax + dx, c.ay, c.az + dz);
-        por(c.bx + dx, c.by, c.bz + dz);
       }
     }
     esferas.geometry.attributes.position.needsUpdate = true;

@@ -197,7 +197,7 @@ export function createSoldier(scene, colliders, {
      * valer o mesmo.
      */
     body(saida) {
-      return corpoDe(soldier.x, soldier.feetY, soldier.z, soldier.height, saida);
+      return corpoDe(soldier.height, saida);
     },
 
     /** Centro do tronco: é onde a bala do outro tem que passar. */

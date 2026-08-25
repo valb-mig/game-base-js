@@ -20,22 +20,39 @@ function soldado(cena, colisores, x = 0, z = 0) {
   return s;
 }
 
-/** Meio da cápsula de uma região. */
-function meioDe(alvo, chave) {
-  const parte = alvo.body([]).find((p) => p.regiao === REGIOES[chave]);
+/**
+ * Leva um ponto do sistema DO ALVO pro mundo.
+ *
+ * As caixas são locais desde que a bala passou a ser levada pro sistema do
+ * alvo — uma conta por alvo em vez de dezesseis caixas pro mundo.
+ */
+function paraMundo(alvo, x, y, z) {
+  const cos = Math.cos(alvo.yaw ?? 0);
+  const sen = Math.sin(alvo.yaw ?? 0);
   return new THREE.Vector3(
-    (parte.ax + parte.bx) / 2, (parte.ay + parte.by) / 2, (parte.az + parte.bz) / 2
+    alvo.x + x * cos + z * sen,
+    (alvo.feetY ?? 0) + y,
+    alvo.z - x * sen + z * cos
   );
 }
 
-/** Dispara numa ALTURA da região e devolve o que o acerto informou. */
-function tiroNa(balistica, alvo, chave, dano, fracao = 0.5) {
-  const parte = alvo.body([]).find((p) => p.regiao === REGIOES[chave]);
-  const de = new THREE.Vector3(
-    parte.ax + (parte.bx - parte.ax) * fracao,
-    parte.ay + (parte.by - parte.ay) * fracao,
-    parte.az + (parte.bz - parte.az) * fracao + 12
-  );
+/** Um ponto dentro da caixa de uma peça, no mundo. */
+function pontoNa(alvo, chave, fracaoY = 0.5, id = null) {
+  const parte = alvo.body([]).find((p) => (id ? p.peca.id === id : p.regiao === REGIOES[chave]));
+  return paraMundo(alvo,
+    (parte.minX + parte.maxX) / 2,
+    parte.minY + (parte.maxY - parte.minY) * fracaoY,
+    (parte.minZ + parte.maxZ) / 2);
+}
+
+function meioDe(alvo, chave) {
+  return pontoNa(alvo, chave, 0.5);
+}
+
+/** Dispara numa ALTURA da peça e devolve o que o acerto informou. */
+function tiroNa(balistica, alvo, chave, dano, fracao = 0.5, id = null) {
+  const alvoPonto = pontoNa(alvo, chave, fracao, id);
+  const de = alvoPonto.clone().add(new THREE.Vector3(0, 0, 12));
   const dir = new THREE.Vector3(0, 0, -1);
 
   let acerto = null;
@@ -104,18 +121,20 @@ export function run() {
     partes.filter((p) => p.peca.id === 'coxa').length === 2
     && partes.filter((p) => p.peca.id === 'braco').length === 2);
 
+  // Levadas pro mundo, as caixas têm que cair EM CIMA do soldado.
   for (const parte of partes) {
-    ok(`${parte.regiao.nome} acompanha o soldado`,
-      Math.abs(parte.ax - alvo.x) < 0.4 && Math.abs(parte.az - alvo.z) < 0.4);
+    const meio = paraMundo(alvo,
+      (parte.minX + parte.maxX) / 2,
+      (parte.minY + parte.maxY) / 2,
+      (parte.minZ + parte.maxZ) / 2);
+    ok(`${parte.peca.id} acompanha o soldado`,
+      Math.abs(meio.x - alvo.x) < 0.45 && Math.abs(meio.z - alvo.z) < 0.45);
   }
 
   // Reportado com foto: a bala atravessava a perna. O corpo é 1,75 m e as
   // cápsulas juntas têm que cobrir de baixo a cima, SEM buraco no meio —
   // buraco é bala que atravessa.
-  const faixas = partes
-    .map((p) => [Math.min(p.ay, p.by) - p.raio - alvo.feetY,
-      Math.max(p.ay, p.by) + p.raio - alvo.feetY])
-    .sort((a, b) => a[0] - b[0]);
+  const faixas = partes.map((p) => [p.minY, p.maxY]).sort((a, b) => a[0] - b[0]);
 
   ok('a cobertura começa no chão', faixas[0][0] < 0.06, `${faixas[0][0].toFixed(2)} m`);
   const topo = Math.max(...faixas.map((f) => f[1]));
@@ -129,16 +148,29 @@ export function run() {
   }
   ok('e não há altura nenhuma descoberta entre elas', buraco < 0.02,
     `maior buraco ${(buraco * 100).toFixed(1)} cm`);
-  note('cobertura', `${partes.length} cápsulas · 0 a ${topo.toFixed(2)} m`);
+  note('cobertura', `${partes.length} caixas · 0 a ${topo.toFixed(2)} m`);
+
+  // Agachado o modelo encolhe SÓ em Y. Escalando os três eixos, braço e perna
+  // ficavam fora da hitbox de quem estava agachado — e o tiro no ombro de
+  // alguém agachado passava reto.
+  const larguraEmPe = Math.max(...partes.map((p) => p.maxX));
+  alvo.crouching = true;
+  alvo.update(DT);
+  const agachadas = alvo.body([]);
+  near('agachado, a largura não muda',
+    Math.max(...agachadas.map((p) => p.maxX)), larguraEmPe, 1e-9);
+  ok('mas a altura sim',
+    Math.max(...agachadas.map((p) => p.maxY)) < topo - 0.3);
+  alvo.crouching = false;
+  alvo.update(DT);
 
   // Agachado o corpo encolhe, e as regiões junto: cabeça na altura de antes
   // seria tiro no vazio.
   const cabecaEmPe = meioDe(alvo, 'cabeca').y;
   alvo.crouching = true;
   alvo.update(DT);
-  const cabecaAgachado = meioDe(alvo, 'cabeca').y;
-  ok('agachado, a cabeça desce junto', cabecaAgachado < cabecaEmPe - 0.2,
-    `${cabecaAgachado.toFixed(2)} contra ${cabecaEmPe.toFixed(2)}`);
+  ok('agachado, a cabeça desce junto', meioDe(alvo, 'cabeca').y < cabecaEmPe - 0.2,
+    `${meioDe(alvo, 'cabeca').y.toFixed(2)} contra ${cabecaEmPe.toFixed(2)}`);
   alvo.crouching = false;
   alvo.update(DT);
 
@@ -161,11 +193,11 @@ export function run() {
   // Nas PONTAS da perna, não no meio: é ali que a esfera falhava, e é ali
   // que o jogador atira quando mira em quem está correndo.
   alvo.respawn(alvo.x, alvo.z);
-  const naCanela = tiroNa(balistica, alvo, 'perna', fraca, 0.08);
+  const naCanela = tiroNa(balistica, alvo, 'perna', fraca, 0.5, 'canela');
   eq('tiro na canela pega a perna', naCanela?.regiao?.nome, 'perna');
 
   alvo.respawn(alvo.x, alvo.z);
-  const naCoxa = tiroNa(balistica, alvo, 'perna', fraca, 0.92);
+  const naCoxa = tiroNa(balistica, alvo, 'perna', fraca, 0.5, 'coxa');
   eq('e na coxa também', naCoxa?.regiao?.nome, 'perna');
 
   alvo.respawn(alvo.x, alvo.z);

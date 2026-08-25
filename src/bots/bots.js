@@ -74,8 +74,12 @@ export function playerAsTarget(player, onDeath) {
      * assimetria estaria escondida no código, que é o pior lugar pra ela.
      */
     body(saida) {
-      const p = player.object.position;
-      return corpoDe(p.x, player.feetY, p.z, player.height, saida);
+      return corpoDe(player.height, saida);
+    },
+
+    /** Onde os pés dele estão: a caixa é medida a partir daí. */
+    get feetY() {
+      return player.feetY;
     },
     // A lista de alvos do mundo chama update em todo mundo. O jogador se
     // atualiza sozinho no laço; aqui é só pra ele caber na lista.
