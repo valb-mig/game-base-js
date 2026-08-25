@@ -13,6 +13,11 @@ import { createDummy } from './dummy.js';
  *   passagem alta-> plataforma a 1 m sob teto a 2,4 m: só pulando agachado
  *   rastejo      -> teto a 0,7 m: agachado não passa, só deitado
  *   estande      -> bonecos de baioneta pra testar alcance e dano do golpe
+ *
+ * Nenhuma laje aqui é `standable: false`. Teto é objeto sólido: passa-se por
+ * baixo e pisa-se em cima. Marcá-los como não pisáveis fazia quem subia
+ * atravessar e cair. Quem de fato não é pisável é a copa de árvore, cujo
+ * colisor é uma caixa alta em volta de um tronco fino (ver world/forest.js).
  */
 export function addTrainingCourse(scene, colliders, { origin, ground }) {
   const [RED, AMBER, BLUE, PURPLE, BONE] =
@@ -38,13 +43,13 @@ export function addTrainingCourse(scene, colliders, { origin, ground }) {
   // 3. túnel agachado — vão livre de 1,05 m (de pé são 1,7)
   put({ x: ox - 2.5, z: at(26), w: 1, d: 4, h: 2.4, color: BLUE });
   put({ x: ox + 2.5, z: at(26), w: 1, d: 4, h: 2.4, color: BLUE });
-  put({ x: ox, z: at(26), y: 1.05, w: 6, d: 4, h: 1.35, color: BLUE, standable: false });
+  put({ x: ox, z: at(26), y: 1.05, w: 6, d: 4, h: 1.35, color: BLUE });
   addLabel(scene, 'túnel · agachar (C)', ox, ground + 3.6, at(22));
 
   // 4. passagem alta — degrau de 1 m sob teto de 2,4 m. De pé a cabeça bate
   // (1 + 1,7); agachado no ar cabe (1 + 0,95). É o crouch-jump.
   put({ x: ox, z: at(34), w: 5, d: 4, h: 1, color: PURPLE });
-  put({ x: ox, z: at(34), y: 2.4, w: 5, d: 4, h: 0.6, color: PURPLE, standable: false });
+  put({ x: ox, z: at(34), y: 2.4, w: 5, d: 4, h: 0.6, color: PURPLE });
   put({ x: ox - 3, z: at(34), w: 1, d: 4, h: 3, color: PURPLE });
   put({ x: ox + 3, z: at(34), w: 1, d: 4, h: 3, color: PURPLE });
   addLabel(scene, 'passagem alta · pular agachado', ox, ground + 4.5, at(30));
@@ -52,7 +57,7 @@ export function addTrainingCourse(scene, colliders, { origin, ground }) {
   // 5. rastejo — vão livre de 0,7 m: agachado (0,95) não passa, deitado (0,5) sim
   put({ x: ox - 2.5, z: at(42), w: 1, d: 5, h: 1.6, color: RED });
   put({ x: ox + 2.5, z: at(42), w: 1, d: 5, h: 1.6, color: RED });
-  put({ x: ox, z: at(42), y: 0.7, w: 6, d: 5, h: 0.9, color: RED, standable: false });
+  put({ x: ox, z: at(42), y: 0.7, w: 6, d: 5, h: 0.9, color: RED });
   addLabel(scene, 'rastejo · deitar (Z)', ox, ground + 3.2, at(38));
 
   // 6. estande de baioneta — três bonecos lado a lado, virados pra quem chega

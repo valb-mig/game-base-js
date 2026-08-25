@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { PLAYER } from '../../src/config.js';
-import { collides } from '../../src/player/collision.js';
+import { collides, groundHeightAt } from '../../src/player/collision.js';
+import { addTrainingCourse } from '../../src/world/course.js';
 import { suite, ok, near, eq } from '../assert.js';
 
 const DT = 1 / 60;
@@ -84,6 +85,39 @@ export function run() {
   ok('passagem alta: andar por baixo de pé cabe', !collides(pass, 0, -40.5, 0, PLAYER.HEIGHT));
   ok('passagem alta: pular de pé bate a cabeça', collides(pass, 0, -38, 1.0, PLAYER.HEIGHT));
   ok('passagem alta: crouch-jump entra', !collides(pass, 0, -38, 1.0, PLAYER.CROUCH_HEIGHT));
+
+  suite('teto de obstáculo também é chão');
+
+  // Regressão: as lajes de teto do campo de treino estavam marcadas como não
+  // pisáveis, e quem subia em cima atravessava e caía. Teto é objeto sólido:
+  // passa-se por baixo E pisa-se em cima.
+  //
+  // O teste monta o campo de treino de verdade em vez de recriar as lajes:
+  // a versão anterior copiava a geometria e por isso não guardava o dado.
+  const cenaTreino = new THREE.Scene();
+  const doTreino = [];
+  addTrainingCourse(cenaTreino, doTreino, { origin: { x: 0, z: 0 }, ground: 0 });
+
+  // Laje suspensa é teto de obstáculo. Boneco de treino também não é pisável,
+  // e com razão — por isso o teste olha só as lajes, não todo colisor.
+  const tetos = doTreino.filter((c) => c.box.min.y > 0.5);
+  ok('o campo tem tetos pra pisar em cima', tetos.length >= 3, `${tetos.length} lajes suspensas`);
+  eq('e nenhuma delas é piso fantasma',
+    tetos.filter((c) => c.standable === false).length, 0);
+
+  let atravessa = 0;
+  for (const teto of tetos) {
+    const x = (teto.box.min.x + teto.box.max.x) / 2;
+    const z = (teto.box.min.z + teto.box.max.z) / 2;
+    const topo = teto.box.max.y;
+    if (Math.abs(groundHeightAt(doTreino, x, z, topo) - topo) > 1e-9) atravessa++;
+  }
+  eq('e em nenhuma delas o jogador atravessa', atravessa, 0);
+
+  // continuar passando por baixo: o teto não vira degrau pra quem anda no chão
+  const tunel = tetos.find((t) => Math.abs(t.box.min.y - 1.05) < 0.01);
+  near('o teto do túnel não vira piso pra quem passa por baixo',
+    groundHeightAt(doTreino, tunel.box.min.x + 3, tunel.box.min.z + 2, 0), 0, 1e-9);
 
   // a escada precisa ser subível só andando, degrau a degrau
   suite('degrau automático');
