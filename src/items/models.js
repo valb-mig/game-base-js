@@ -1,5 +1,6 @@
 import { createKnife } from './knife.js';
 import { createPistol } from './pistol.js';
+import { createShovel } from './shovel.js';
 
 /**
  * Item (dado) -> modelo 3D (malha).
@@ -10,7 +11,8 @@ import { createPistol } from './pistol.js';
  */
 export const FACTORIES = {
   kabar: createKnife,
-  m1911: createPistol
+  m1911: createPistol,
+  m1943: createShovel
 };
 
 export function hasModel(item) {
@@ -30,6 +32,7 @@ export function createItemModel(item) {
 export function restingRotation(item) {
   if (item?.id === 'kabar') return { x: Math.PI / 2, z: 0 };
   if (item?.id === 'm1911') return { x: 0, z: Math.PI / 2 };   // deita de lado
+  if (item?.id === 'm1943') return { x: 0, z: 0 };             // já deita reta
   return { x: 0, z: 0 };
 }
 

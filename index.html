@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Walker</title>
+<title>BF45</title>
 <link rel="stylesheet" href="./styles/base.css">
 <link rel="stylesheet" href="./styles/screens.css">
 <link rel="stylesheet" href="./styles/hud.css">
@@ -17,39 +17,40 @@
 
 <div id="hud-layer">
   <canvas id="compass"></canvas>
-  <div id="mission" class="panel"></div>
   <div id="vitals"></div>
   <div id="equipped"></div>
   <div id="prompt"></div>
 </div>
 
+<!-- Abertura: só marca e botão. O mapa não é construído aqui de propósito —
+     a ilha, a floresta e as bases custam caro, e ninguém paga isso pra ver
+     uma tela de título. O mundo nasce no clique em Jogar. -->
 <div id="start-screen" class="screen">
-  <div class="screen-inner">
-    <h1>Ilha Corvo</h1>
-    <p class="screen-sub">Pacífico &middot; 1945</p>
-    <p>Você entra no mapa como observador. Escolha o equipamento e o ponto de<br>
-       desembarque quando quiser tomar parte.</p>
-    <button type="button" id="enter-map">Entrar no mapa</button>
+  <div class="screen-inner start-inner">
+    <div class="logo">BF<span>45</span></div>
+    <p class="screen-sub">Frente ocidental &middot; 1945</p>
+    <button type="button" id="play">Jogar</button>
   </div>
 </div>
 
 <div id="deploy-screen" class="screen hidden">
-  <div class="screen-inner deploy-layout">
-    <div class="deploy-loadout">
-      <h1 id="deploy-title">Preparar</h1>
-      <p class="screen-sub">Equipamento</p>
+  <div class="deploy-layout">
+    <header class="deploy-bar">
+      <div class="deploy-head">
+        <h1 id="deploy-title">Preparar</h1>
+        <span id="map-name"></span>
+        <div class="deploy-actions">
+          <span id="zone-label" class="pending">Escolha um ponto no mapa</span>
+          <button type="button" id="deploy" disabled>Desembarcar</button>
+          <button type="button" id="deploy-back" class="hidden">Voltar</button>
+        </div>
+      </div>
       <div id="class-grid"></div>
       <div id="class-detail"></div>
-    </div>
+    </header>
 
     <div class="deploy-map">
-      <p class="screen-sub">Ponto de desembarque</p>
       <canvas id="tactical-map"></canvas>
-      <div id="zone-label" class="pending">Escolha um ponto no mapa</div>
-      <div class="deploy-actions">
-        <button type="button" id="deploy" disabled>Desembarcar</button>
-        <button type="button" id="keep-spectating">Continuar observando</button>
-      </div>
     </div>
   </div>
 </div>
@@ -63,10 +64,10 @@
       C agacha &middot; Z deita &middot; ambos alternam &middot; Espaço para pular<br>
       G larga o item na mão &middot; E apanha do chão<br>
       Botão esquerdo golpeia ou atira &middot; direito mira no ferro<br>
-      1 e 2 trocam de item &middot; R recarrega<br>
+      1 primária &middot; 2 secundária &middot; 3 faca &middot; R recarrega<br>
       Mouse para olhar &middot; ` ou F2 mostra o painel &middot; ESC para sair
     </p>
-    <p class="hint">Observando: Shift voa rápido &middot; Espaço sobe &middot; C desce</p>
+    <p class="hint">Caído: Shift voa rápido &middot; Espaço sobe &middot; C desce</p>
 
     <div id="hud-options">
       <label>

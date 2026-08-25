@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { PLAYER } from '../config.js';
 import { hasModel } from '../items/models.js';
-import { getClass, DEFAULT_CLASS_ID } from '../items/classes.js';
+import { getClass, DEFAULT_CLASS_ID, SLOT_ORDER } from '../items/classes.js';
 import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
 import { moveHorizontal, moveVertical } from './locomotion.js';
@@ -59,6 +59,10 @@ export class Player {
     // arma de fogo; quem mexe é items/firearm.js. `aim` é 0..1, contínuo,
     // porque a arma sobe e desce do olho em vez de teleportar pra mira
     this.gun = { cooldown: 0, reloading: 0, reloadProgress: 0, aim: 0, flash: 0, kick: 0 };
+
+    // pazada em andamento; quem mexe é items/digging.js. `carga` é 0 ou 1:
+    // a pá leva uma pazada de cada vez, e é isso que faz cavar virar sequência
+    this.dig = { modo: null, progresso: 0, cooldown: 0, carga: 0, falhou: null };
 
     // água — atualizado todo frame por updateWaterState
     this.spectating = false;   // fantasma: voa, não colide, não é atingido
@@ -128,6 +132,8 @@ export class Player {
     this.swing.active = false;
     this.gun.reloading = 0;
     this.gun.aim = 0;
+    this.dig.modo = null;
+    this.dig.progresso = 0;
     return true;
   }
 
@@ -197,6 +203,9 @@ export class Player {
     this.swing.buffered = 0;
     this.gun.reloading = 0;
     this.gun.aim = 0;
+    this.dig.modo = null;
+    this.dig.progresso = 0;
+    this.dig.carga = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.carried = this.carriedOf(this.classDef);
     this.slot = this.firstSlot();

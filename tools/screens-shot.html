@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Captura de telas</title>
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/screens.css">
+<link rel="stylesheet" href="../styles/hud.css">
+</head>
+<body>
+
+<!--
+  Captura das telas fora do jogo e do HUD, na ordem em que o jogo as monta.
+
+  Espelha o main.js de propósito, incluindo a fase de deploy: o HUD nasce com
+  display:none esperando desembarque, e capturas que ligavam .playing antes de
+  criar os painéis já deixaram passar uma bússola de 0x0.
+
+  ?tela=inicio|deploy|jogo  decide o que fica na frente.
+-->
+
+<div id="crosshair"></div>
+<div id="hitmarker"></div>
+<div id="debug"></div>
+<pre id="watchdog"></pre>
+
+<div id="hud-layer">
+  <canvas id="compass"></canvas>
+  <div id="vitals"></div>
+  <div id="equipped"></div>
+  <div id="prompt"></div>
+</div>
+
+<div id="start-screen" class="screen">
+  <div class="screen-inner start-inner">
+    <div class="logo">BF<span>45</span></div>
+    <p class="screen-sub">Frente ocidental &middot; 1945</p>
+    <button type="button" id="play">Jogar</button>
+  </div>
+</div>
+
+<div id="deploy-screen" class="screen hidden">
+  <div class="deploy-layout">
+    <header class="deploy-bar">
+      <div class="deploy-head">
+        <h1 id="deploy-title">Preparar</h1>
+        <span id="map-name"></span>
+        <div class="deploy-actions">
+          <span id="zone-label" class="pending">Escolha um ponto no mapa</span>
+          <button type="button" id="deploy" disabled>Desembarcar</button>
+          <button type="button" id="deploy-back" class="hidden">Voltar</button>
+        </div>
+      </div>
+      <div id="class-grid"></div>
+      <div id="class-detail"></div>
+    </header>
+
+    <div class="deploy-map">
+      <canvas id="tactical-map"></canvas>
+    </div>
+  </div>
+</div>
+
+<div id="pause-screen" class="screen hidden">
+  <p id="pause-hint"></p>
+  <div id="hud-options"><input type="checkbox" id="fullscreen-toggle"></div>
+  <button type="button" id="open-deploy"></button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/three.module.js",
+    "three/addons/": "../vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { createStage } from '../src/core/stage.js';
+import { initInput, endFrame } from '../src/core/input.js';
+import { buildWorld } from '../src/world/world.js';
+import { Player } from '../src/player/player.js';
+import { Viewmodel } from '../src/items/viewmodel.js';
+import { initDrop } from '../src/items/drop.js';
+import { initStatus } from '../src/ui/status.js';
+import { initCompass } from '../src/ui/compass.js';
+import { initPrompt } from '../src/ui/prompt.js';
+import { initFlow } from '../src/ui/flow.js';
+
+const tela = new URLSearchParams(location.search).get('tela') ?? 'inicio';
+
+const { scene, camera, renderer } = createStage();
+initInput();
+
+let painel = null;
+
+const flow = initFlow({
+  boot() {
+    const world = buildWorld(scene);
+    const player = new Player(camera, renderer.domElement, world);
+    scene.add(player.object);
+
+    const viewmodel = new Viewmodel(camera, innerWidth / innerHeight);
+    viewmodel.visible = false;
+    const drops = initDrop(scene, player, viewmodel, world);
+
+    painel = {
+      player, viewmodel, world,
+      status: initStatus(player),
+      compass: initCompass(camera),
+      prompt: initPrompt(drops)
+    };
+    // pointer lock não existe em headless; o fluxo só precisa dos eventos
+    const controls = {
+      isLocked: false,
+      lock() { this.isLocked = true; },
+      unlock() { this.isLocked = false; },
+      addEventListener() {}
+    };
+    return { controls, player, world };
+  },
+  onDeploy(classDef, zone) {
+    const { player, viewmodel } = painel;
+    player.spawn.set(zone.x, 0, zone.z);
+    player.setClass(classDef);
+    player.respawn();
+    viewmodel.setItem(player.equipped);
+    viewmodel.visible = true;
+  },
+  onSpectate() {
+    const { player, world, viewmodel } = painel;
+    const from = player.object.position;
+    const ground = world.terrain.heightAt(from.x, from.z);
+    player.spectateFrom(from.x, Math.max(ground + 28, from.y), from.z);
+    viewmodel.visible = false;
+  }
+});
+
+const zona = Number(new URLSearchParams(location.search).get('zona') ?? 0);
+
+if (tela !== 'inicio') {
+  document.getElementById('play').click();
+  flow.selectZone(painel.world.spawnZones[zona]);
+}
+if (tela === 'jogo') {
+  document.getElementById('deploy').click();
+  const { player } = painel;
+  player.spectating = false;
+  player.alive = true;
+  player.health = 78;                       // barra pela metade, pra ver a cor
+  // ?slot= escolhe o que está na mão, pra conferir cada linha do cinto acesa
+  const slot = Number(new URLSearchParams(location.search).get('slot') ?? 2);
+  player.selectSlot(slot);
+  painel.viewmodel.setItem(player.equipped);
+  document.body.classList.remove('screen-open');
+  for (const nome of ['start-screen', 'deploy-screen', 'pause-screen']) {
+    document.getElementById(nome).classList.add('hidden');
+  }
+}
+
+// preserveDrawingBuffer é false: sem laço, a captura sai vazia. E os painéis
+// são atualizados todo quadro, como o main.js faz — desenhar uma vez deixa um
+// resize tardio limpar o canvas sem redesenhar.
+renderer.setAnimationLoop(() => {
+  if (painel) {
+    // A pose da arma na mão vem do update, não do construtor: sem chamar isso
+    // o modelo fica na origem da câmera do viewmodel e ocupa a tela inteira.
+    if (!painel.player.spectating) painel.viewmodel.update(1 / 60, painel.player);
+    painel.status();
+    painel.compass();
+    painel.prompt();
+    renderer.render(scene, camera);
+    painel.viewmodel.render(renderer);
+  }
+  endFrame();
+});
+</script>
+
+</body>
+</html>

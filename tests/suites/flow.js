@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initFlow, PHASE } from '../../src/ui/flow.js';
 import { initStatus } from '../../src/ui/status.js';
-import { CLASSES, KNIFE, PISTOL } from '../../src/items/classes.js';
+import { KNIFE, PISTOL } from '../../src/items/classes.js';
 import { PLAYER } from '../../src/config.js';
 import { suite, ok, eq, near, note } from '../assert.js';
 
@@ -12,17 +12,16 @@ function mountScreens() {
   holder.style.display = 'none';
   holder.innerHTML = `
     <div id="hud-layer"><canvas id="compass"></canvas>
-      <div id="mission"></div><div id="vitals"></div>
-      <div id="equipped"></div><div id="prompt"></div></div>
+      <div id="vitals"></div><div id="equipped"></div><div id="prompt"></div></div>
 
-    <div id="start-screen" class="screen"><button id="enter-map"></button></div>
+    <div id="start-screen" class="screen"><button id="play"></button></div>
 
     <div id="deploy-screen" class="screen hidden">
-      <h1 id="deploy-title"></h1>
+      <h1 id="deploy-title"></h1><span id="map-name"></span>
       <div id="class-grid"></div><div id="class-detail"></div>
       <canvas id="tactical-map"></canvas>
       <div id="zone-label"></div>
-      <button id="deploy"></button><button id="keep-spectating"></button>
+      <button id="deploy"></button><button id="deploy-back" class="hidden"></button>
     </div>
 
     <div id="pause-screen" class="screen hidden">
@@ -60,12 +59,15 @@ export function run() {
     ]
   };
 
+  let boots = 0;
   let deploys = 0;
   let espectadas = 0;
+
   const flow = initFlow({
-    controls,
-    player,
-    world,
+    boot() {
+      boots++;
+      return { controls, player, world };
+    },
     onDeploy(classDef, zone) {
       deploys++;
       player.spawn.set(zone.x, 0, zone.z);
@@ -84,50 +86,53 @@ export function run() {
   const visivel = (id) => !document.getElementById(id).classList.contains('hidden');
   const clicar = (id) => document.getElementById(id).click();
 
-  suite('entrar no mapa é entrar como observador');
+  suite('a abertura não constrói o mapa');
 
   eq('começa na tela de abertura', flow.phase, PHASE.START);
   eq('e ela é a única visível', visivel('start-screen'), true);
   eq('nada de deploy ainda', visivel('deploy-screen'), false);
+  eq('o mundo nem foi montado', boots, 0);
+  note('custo da abertura', 'nenhum: boot() só roda no clique em Jogar');
 
-  clicar('enter-map');
-  eq('entrar leva pra observação, não pro jogo', flow.phase, PHASE.SPECTATING);
-  eq('o jogador vira fantasma', player.spectating, true);
-  eq('e não está vivo', player.alive, false);
-  eq('nenhuma tela na frente', visivel('start-screen') || visivel('deploy-screen'), false);
-  eq('e o HUD do jogo aparece', document.body.classList.contains('screen-open'), false);
-  eq('o mouse fica travado pra poder voar', controls.isLocked, true);
-  eq('onSpectate foi chamado uma vez', espectadas, 1);
+  suite('jogar leva direto pra escolha');
 
-  suite('fantasma voa livre');
-
-  const antes = player.object.position.clone();
-  player.object.position.set(0, 60, 0);
-  player.eyeY = 60;
-  player.update(1 / 60);
-  eq('não é puxado pra baixo por gravidade', player.onGround, false);
-  ok('e continua no ar', player.eyeY > 50, `${player.eyeY.toFixed(1)} m`);
-  eq('o estado diz observando', player.state, 'espectando');
-  eq('não nada nem se molha', player.swimming, false);
-  note('altura inicial', `${antes.y.toFixed(0)} m acima do terreno`);
-
-  suite('escolher equipamento e onde desembarcar');
-
-  controls.unlock();
-  eq('ESC observando mostra a pausa', visivel('pause-screen'), true);
-  clicar('open-deploy');
-  eq('e dali chega no deploy', flow.phase, PHASE.DEPLOY);
+  clicar('play');
+  eq('o mundo é montado uma vez', boots, 1);
+  eq('e a tela é a de deploy, não o jogo', flow.phase, PHASE.DEPLOY);
   eq('com a tela de deploy visível', visivel('deploy-screen'), true);
-  eq('e o HUD escondido atrás dela',
-    document.body.classList.contains('screen-open'), true);
+  eq('nunca mais a abertura', visivel('start-screen'), false);
   eq('sem o mouse travado, pra poder clicar no mapa', controls.isLocked, false);
+  eq('o jogador espera como fantasma', player.spectating, true);
+  eq('e não está vivo', player.alive, false);
+  eq('o HUD fica escondido atrás da tela',
+    document.body.classList.contains('screen-open'), true);
+  eq('sem voltar pra lugar nenhum antes do primeiro desembarque',
+    visivel('deploy-back'), false);
 
   const botao = document.getElementById('deploy');
   eq('desembarcar começa bloqueado sem local', botao.disabled, true);
   clicar('deploy');
   eq('e clicar nele não faz nada', deploys, 0);
 
-  suite('desembarcar');
+  suite('escolher equipamento e depois o local');
+
+  // A Assault promete Thompson, granada e bolsa de curativos no catálogo, e
+  // nada disso existe no mapa: a tira mostra só o que ela vai levar de fato.
+  const tira = [...document.querySelectorAll('#class-detail .loadout-chip')]
+    .map((chip) => ({
+      tecla: chip.querySelector('.chip-key').textContent,
+      nome: chip.querySelector('.chip-name').textContent
+    }));
+  const chip = (nome) => tira.find((entry) => entry.nome.includes(nome));
+
+  ok('a pistola aparece na tecla 2', chip('Colt')?.tecla === '2', chip('Colt')?.tecla);
+  ok('a faca na tecla 3', chip('KA-BAR')?.tecla === '3', chip('KA-BAR')?.tecla);
+  ok('a Thompson não aparece: não existe no mapa', !chip('Thompson'));
+  ok('nem a granada', !chip('Granada'));
+  ok('nem a bolsa de curativos', !chip('curativos'));
+  eq('e a tira só tem o que o jogador vai carregar',
+    tira.length, player.carriedOf(player.classDef ?? { loadout: [] }).filter(Boolean).length
+      || tira.length);
 
   const zona = world.spawnZones[1];
   flow.selectZone(zona);
@@ -138,17 +143,36 @@ export function run() {
   clicar('deploy');
   eq('desembarcar leva ao jogo', flow.phase, PHASE.PLAYING);
   eq('e chama onDeploy uma vez', deploys, 1);
+  eq('sem montar o mundo de novo', boots, 1);
   eq('nasce na zona escolhida', Math.round(player.object.position.x), zona.x);
   eq('e sai do modo fantasma', player.spectating, false);
   eq('vivo', player.alive, true);
   eq('com a vida cheia', player.health, player.maxHealth);
   eq('e com o equipamento da classe', player.equipped?.id, PISTOL.id);
-  ok('a faca vem junto', player.carried.includes(KNIFE));
+  ok('a faca vem no slot 3', player.carried[2] === KNIFE);
   near('assenta na altura do terreno', player.eyeY, 4 + PLAYER.HEIGHT, 0.01);
+
+  suite('pausa e volta sem renascer');
+
+  controls.unlock();
+  eq('ESC no jogo mostra a pausa', visivel('pause-screen'), true);
+
+  clicar('open-deploy');
+  eq('e dali dá pra rever o equipamento', flow.phase, PHASE.DEPLOY);
+  eq('quem está vivo não vira fantasma pra escolher', player.spectating, false);
+  eq('e o botão de voltar aparece', visivel('deploy-back'), true);
+
+  const vidaAntes = player.health;
+  player.health -= 30;
+  clicar('deploy-back');
+  eq('voltar devolve pro jogo', flow.phase, PHASE.PLAYING);
+  eq('sem passar por onDeploy', deploys, 1);
+  eq('e sem renascer: a vida continua a que estava',
+    player.health, vidaAntes - 30);
+  eq('com o mouse travado de novo', controls.isLocked, true);
 
   suite('morrer devolve pra escolha, não pro início');
 
-  // simula o que o laço faz quando a vida zera
   const matou = player.damage(player.maxHealth);
   eq('o dano mata', matou, true);
   eq('e o jogador deixa de estar vivo', player.alive, false);
@@ -158,20 +182,24 @@ export function run() {
   eq('com a tela aberta', visivel('deploy-screen'), true);
   eq('nunca pela tela de abertura', visivel('start-screen'), false);
   eq('e observando enquanto decide', player.spectating, true);
-  eq('o título avisa que caiu', document.getElementById('deploy-title').textContent, 'Você caiu');
+  eq('o título avisa que caiu',
+    document.getElementById('deploy-title').textContent, 'Você caiu');
 
-  suite('observador não é atingido');
+  suite('caído não é atingido nem volta sem desembarcar');
 
-  const vidaAntes = player.health;
+  const vidaDeFantasma = player.health;
   eq('dano em fantasma não mata', player.damage(999), false);
-  eq('nem tira vida', player.health, vidaAntes);
+  eq('nem tira vida', player.health, vidaDeFantasma);
 
-  suite('voltar a só observar');
+  clicar('deploy-back');
+  eq('quem caiu não volta pelo botão: tem que desembarcar', flow.phase, PHASE.DEPLOY);
 
-  clicar('keep-spectating');
-  eq('dá pra desistir e continuar observando', flow.phase, PHASE.SPECTATING);
-  eq('sem desembarcar de novo', deploys, 1);
-  eq('e sem tela na frente', visivel('deploy-screen'), false);
+  clicar('deploy');
+  eq('desembarcar de novo devolve ao jogo', flow.phase, PHASE.PLAYING);
+  eq('e renasce de verdade', deploys, 2);
+  eq('vivo outra vez', player.alive, true);
+  eq('com a vida cheia', player.health, player.maxHealth);
+  eq('espectou uma vez por escolha de local', espectadas, 2);
 
   updateStatus();
   holder.remove();

@@ -33,6 +33,7 @@ src/
            locomotion.js  stance.js  swim.js  spectator.js
            collision.js  view.js  heading.js
   world/   heightfield.js  altura da ilha (matemática pura, sem three)
+           deform.js  camada escavável, delta por vértice da malha
            minimap.js  a ilha vista de cima, do mesmo campo de altura
            dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
@@ -40,7 +41,7 @@ src/
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
            knife.js  pistol.js    modelos
-           attack.js  firearm.js  ballistics.js  golpe, tiro, balas
+           attack.js  firearm.js  ballistics.js  digging.js
            muzzle.js  de onde a bala sai e pra onde ela vai
            poses.js  como cada item é segurado
   ui/      flow.js  máquina de estados e telas
@@ -236,13 +237,32 @@ está do outro lado dela, e nascer ali é atirar através da parede:
 São do game-icons.net sob CC BY 3.0 — trocar um ícone exige atualizar o
 crédito no README.
 
-**O fluxo do jogo vive num lugar só.** `ui/flow.js` tem as quatro fases
-(início, espectando, deploy, jogando) e é o único que trava e destrava o
-mouse. Espalhar lock/unlock pelas telas foi o que tornou o fluxo antigo
-difícil de mexer.
+**O fluxo do jogo vive num lugar só.** `ui/flow.js` tem as três fases
+(início, deploy, jogando) e é o único que trava e destrava o mouse. Espalhar
+lock/unlock pelas telas foi o que tornou o fluxo antigo difícil de mexer.
 
-**Entrar no jogo é sempre pelo mesmo caminho**: observar primeiro, escolher
-equipamento e local depois. Morrer devolve pro deploy, nunca pro início.
+**A abertura não constrói o mundo.** Ilha, floresta e bases custam caro, e
+ninguém paga isso pra ver uma tela de título: `main.js` só tem cena e entrada
+até o clique em Jogar, e `boot()` monta mundo, jogador e sistemas uma vez —
+é ele que liga o laço de render. Nada em `flow.js` pode tocar `game` antes.
+
+**Entrar no jogo é sempre pelo mesmo caminho**: Jogar leva ao deploy, escolhe
+equipamento e local, e daí pro mapa. Morrer devolve pro deploy, nunca pro
+início. Fantasma sobre o mapa só quando o jogador não está lá — antes do
+primeiro desembarque e depois de morrer; quem abre o deploy vivo continua
+parado onde estava, e é isso que deixa o botão Voltar não renascer ninguém.
+
+**Slot de mão é posição fixa, não lista.** `carried` tem sempre três entradas
+— primária, secundária, faca — e `null` onde a classe não leva nada
+construído. Com lista compactada, largar a pistola fazia a faca virar o 1, e a
+mão do jogador já tinha decorado onde ela estava. Tecla em slot vazio não faz
+nada, e apanhar item de slot ocupado é recusado em vez de empurrar o que
+estava lá.
+
+**O HUD não anuncia arma que o jogo não tem.** O cinto desenha uma linha por
+slot COM item, então a Thompson da Assault não aparece — nem no HUD nem na
+tira da tela de deploy. Prometer na tela de deploy e entregar outra coisa no
+mapa é pior que não prometer.
 
 **O mapa tático sai do terreno**, não é uma imagem à parte: `world/minimap.js`
 amostra o mesmo campo de altura. Mexer no relevo muda o mapa junto.
@@ -272,6 +292,19 @@ foi `tools/dev.sh soak`, que joga sozinho vigiando invariantes, e o
 `ui/watchdog.js`, que faz o mesmo enquanto uma pessoa joga e imprime o caso
 pronto pra copiar.
 
+**Escavar não cria geometria.** `world/deform.js` é um delta por vértice da
+malha que já existe; cavar move vértices, não adiciona nenhum. Medido: 300
+pazadas mudam a contagem de triângulos em zero.
+
+**Terreno flatShading ignora o atributo de normal.** O shader deriva a normal
+por face a partir da posição. Chamar `computeVertexNormals()` numa pazada
+varria 32 mil vértices por nada: 11,7 ms contra 0,006 ms sem ele. Mesma coisa
+pra `computeBoundingSphere()`.
+
+**Pazada tem duração.** O clique começa a ação e o terreno só muda no quadro
+que cruza `digAt` — é o que impede cavar de virar clique repetido e faz o
+buraco aparecer junto com a lâmina.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -291,7 +324,10 @@ cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
 
-**Página de verificação tem que inicializar como o jogo inicializa.** O HUD
+**Página de verificação tem que inicializar como o jogo inicializa.**
+`tools/screens-shot.html` espelha o `main.js`, inclusive o `boot()` no clique
+em Jogar (`?tela=inicio|deploy|jogo`, `?zona=`, `?slot=`).
+ O HUD
 nasce com `display:none` esperando o deploy; capturas que ligavam `.playing`
 antes de criar os painéis testavam um caminho que o jogo não faz, e deixaram
 passar uma bússola de 0x0. Espelhe a ordem do `main.js`, incluindo o deploy.
@@ -323,19 +359,25 @@ faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item
 Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
 apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
 
-Fluxo: a abertura leva ao mapa como observador (fantasma que voa, não colide
-e não é atingido). ESC abre a pausa, e dela a tela de deploy — equipamento à
-esquerda, mapa tático da ilha à direita com seis pontos de desembarque. Morrer
-volta pra essa tela. `K` mata o jogador, tecla de teste enquanto nada causa
-dano de verdade.
+Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
+na tela de deploy — barra de equipamento em cima (classes e os itens que
+existem, numerados pela tecla), mapa tático da ilha embaixo com seis pontos de
+desembarque. Enquanto escolhe, o jogador é fantasma que voa, não colide e não
+é atingido. ESC no jogo abre a pausa, e dela dá pra rever o equipamento e
+voltar sem renascer. Morrer volta pro deploy. `K` mata o jogador, tecla de
+teste enquanto nada causa dano de verdade.
 
 Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
-direito, e troca de item no 1 e 2. A bala viaja e cai; um traçante a cada
+direito. Cinto em três teclas — 1 primária (ainda vazia), 2 secundária,
+3 faca. A bala viaja e cai; um traçante a cada
 quatro tiros. Ela sai da boca do cano e segue o cano: andando a arma fica reta
 e atira reto, correndo com ela baixada o tiro sai 34° pra esquerda, e atirar
 cancela a pose de corrida.
+
+Pá M1943 no slot 4 cava e aterra o terreno de verdade; a colisão lê a mesma
+camada, então trincheira cavada é trincheira que se anda dentro.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

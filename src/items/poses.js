@@ -29,14 +29,24 @@ export const HAND_POSES = {
     // modelo, e a distância é de braço — perto demais o ferrolho fica mais
     // largo na tela que o alvo e tapa o que se quer acertar.
     ads: { position: [0, -0.0355, -0.5], rotation: [0, 0, 0] },
-    // Recarga: a arma desce e gira o poço do carregador pra dentro, que é
-    // pra onde a outra mão iria. Fica fora do centro da tela de propósito —
-    // recarregar tem que custar a visão do que está à frente.
     // Baixa e gira o poço do carregador pra dentro, que é pra onde a outra
     // mão iria. Sai do centro, mas continua no enquadramento: a recarga tem
     // que custar a visão do que está à frente e ainda assim ser vista.
     reloadOut: { position: [0.125, -0.175, -0.34], rotation: [0.34, -0.46, 0.62] },
     reloadIn: { position: [0.112, -0.14, -0.36], rotation: [0.2, -0.34, 0.44] }
+  },
+
+
+  m1943: {
+    // cabo já aponta pra frente; a pá fica baixa e cruzada, como quem carrega
+    // Recuada e de lado: a pá é comprida, e perto do olho a lâmina tapava
+    // justamente o ponto onde a pazada vai cair.
+    rest: { position: [0.2, -0.3, -0.52], rotation: [0.3, -0.34, 0.26] },
+    sprint: { position: [0.26, -0.4, -0.46], rotation: [-0.3, 0.6, 0.6] },
+    // Pazada: ergue, crava pra baixo e à frente, e volta. A lâmina passa
+    // pelo chão perto de digAt, que é quando o terreno muda.
+    wind: { position: [0.24, -0.12, -0.46], rotation: [0.8, -0.5, -0.06] },
+    slash: { position: [0.05, -0.5, -0.62], rotation: [-0.5, -0.18, 0.3] }
   }
 };
 

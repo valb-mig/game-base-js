@@ -51,9 +51,8 @@
 
 #class-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
 }
 
 .class-card {
@@ -218,37 +217,125 @@
 
 /* ------------------------------------------------------------- deploy */
 
+/* Barra de equipamento em cima, mapa ocupando o resto. A tela toda, sem
+   caixa centralizada: o mapa é a decisão principal aqui, e decisão principal
+   não fica num quadradinho. */
+#deploy-screen {
+  padding: 0;
+  place-items: stretch;
+}
+
 .deploy-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(320px, 420px);
-  gap: 2rem;
-  align-items: start;
-  width: min(1080px, 100%);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+  height: 100%;
+  padding: 1.25rem 1.5rem 1.5rem;
   text-align: left;
 }
 
-.deploy-layout h1,
-.deploy-layout .screen-sub {
-  text-align: left;
-}
-
-.deploy-layout .screen-sub {
-  margin-bottom: 0.75rem;
-}
-
-.deploy-loadout #class-grid {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.deploy-map {
+.deploy-bar {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+.deploy-head {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.deploy-layout h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+#map-name {
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+.deploy-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+/* cabeça e tira na mesma linha: a barra não pode roubar altura do mapa */
+#class-detail {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.detail-head {
+  color: var(--class-color);
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* tira do equipamento: uma peça por tecla, na horizontal */
+.loadout-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.loadout-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chip-key {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.chip-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.chip-slot {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.45;
 }
 
 /* A ilha é gerada em baixa resolução e ampliada. Pixel cru fica melhor que
    borrado, e deixa claro que é carta, não fotografia. */
+.deploy-map {
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+}
+
 #tactical-map {
-  width: 100%;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
   aspect-ratio: 1;
   border: 1px solid rgba(255, 255, 255, 0.16);
   image-rendering: pixelated;
@@ -256,8 +343,7 @@
 }
 
 #zone-label {
-  margin-top: 0.6rem;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -270,19 +356,12 @@
   opacity: 0.5;
 }
 
-.deploy-actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 1rem;
-}
-
 #deploy:disabled {
   cursor: not-allowed;
   opacity: 0.35;
 }
 
-#keep-spectating,
+#deploy-back,
 #open-deploy {
   padding: 0.5rem 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -293,29 +372,47 @@
   cursor: pointer;
 }
 
-#keep-spectating:hover,
+#deploy-back:hover,
 #open-deploy:hover {
   border-color: #9fe08a;
+}
+
+#deploy-back.hidden {
+  display: none;
 }
 
 #open-deploy {
   margin-top: 1.25rem;
 }
 
-#enter-map {
+/* -------------------------------------------------------------- abertura */
+
+.logo {
+  font-size: clamp(4rem, 16vw, 9rem);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.logo span {
+  color: #9fe08a;
+}
+
+#play {
   margin-top: 1.5rem;
-  padding: 0.7rem 2rem;
+  padding: 0.8rem 3rem;
   border: 0;
   border-radius: 8px;
   background: #9fe08a;
   color: #10200c;
   font: inherit;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   cursor: pointer;
 }
 
-/* Observando não há vida nem item: o HUD encolhe pro que ainda faz sentido. */
+/* Caído não há vida nem item: o HUD encolhe pro que ainda faz sentido. */
 body.spectating #vitals,
 body.spectating #equipped,
 body.spectating #prompt,

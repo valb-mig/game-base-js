@@ -128,12 +128,13 @@ export function initDrop(scene, player, viewmodel, world) {
   function pickUp() {
     const entity = reachable();
     if (!entity) return null;
+    // slot ocupado recusa: melhor deixar no chão que sumir com o item
+    if (!player.takeCarried(entity.item)) return null;
 
     items.splice(items.indexOf(entity), 1);
     scene.remove(entity.mesh);
     disposeModel(entity.mesh);
 
-    player.takeCarried(entity.item);
     viewmodel.setItem(entity.item);
     return entity.item;
   }

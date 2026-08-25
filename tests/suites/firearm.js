@@ -4,7 +4,7 @@ import { initFirearm } from '../../src/items/firearm.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { createDummy } from '../../src/world/dummy.js';
 import { initInput, endFrame } from '../../src/core/input.js';
-import { CLASSES, PISTOL, KNIFE, getClass } from '../../src/items/classes.js';
+import { CLASSES, PISTOL, KNIFE, SLOT_ORDER, getClass } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -65,9 +65,12 @@ export function run() {
   suite('inventário e troca');
 
   player.setClass(getClass('assault'));
-  eq('a Assault carrega dois itens com modelo', player.carried.length, 2);
-  ok('a pistola está entre eles', player.carried.includes(PISTOL));
-  ok('a faca também', player.carried.includes(KNIFE));
+  eq('um slot de mão por tecla', player.carried.length, SLOT_ORDER.length);
+  eq('a primária ainda não existe, e o slot fica vazio', player.carried[0], null);
+  eq('a pistola é o slot 2', player.carried[1], PISTOL);
+  eq('a faca é o slot 3', player.carried[2], KNIFE);
+  ok('e a mão começa no primeiro slot que existe', player.equipped === PISTOL);
+  eq('tecla no slot vazio não faz nada', player.selectSlot(0), false);
 
   const indicePistola = player.carried.indexOf(PISTOL);
   player.selectSlot(indicePistola);

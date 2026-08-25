@@ -59,7 +59,7 @@ function fbm(x, z) {
  *   podem nascer numa ladeira. Dentro de `radius` a altura é exatamente
  *   `height`, e ela volta pro relevo natural ao longo de `blend`.
  */
-export function createHeightfield(flatZones = []) {
+export function createHeightfield(flatZones = [], deform = null) {
   function naturalHeight(x, z) {
     const distance = Math.hypot(x, z) / WORLD.ISLAND_RADIUS;
     const inland = 1 - distance;
@@ -109,7 +109,10 @@ export function createHeightfield(flatZones = []) {
         flatHeight = zone.height;
       }
     }
-    return flatHeight * weight + natural * (1 - weight);
+    const base = flatHeight * weight + natural * (1 - weight);
+    // A escavação é uma camada por cima: a ilha continua sendo função pura,
+    // e quem cavou fica registrado num lugar só.
+    return deform ? base + deform.deltaAt(x, z) : base;
   }
 
   /** Profundidade da água em (x, z). 0 em terra seca. */
@@ -125,6 +128,16 @@ export function colorAt(height) {
   if (height < WORLD.SAND_UNTIL) return WORLD.SAND_COLOR;
   if (height > WORLD.ISLAND_HEIGHT * 0.62) return WORLD.HIGHLAND_COLOR;
   return WORLD.GRASS_COLOR;
+}
+
+/**
+ * Quanto o ponto parece terra revolvida, de 0 a 1.
+ *
+ * Sem isto uma trincheira fica com cor de capim no fundo e some visualmente:
+ * o relevo muda mas o olho não percebe. Cavar tem que expor terra.
+ */
+export function turnedSoil(delta) {
+  return Math.min(1, Math.abs(delta) / 0.55);
 }
 
 /**

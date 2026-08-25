@@ -1,9 +1,26 @@
+import { SLOT_ORDER } from '../items/classes.js';
+import { hasModel } from '../items/models.js';
+
 /**
- * Cartas de classe e o painel de detalhe da tela de deploy.
+ * Cartas de classe e a tira de equipamento da barra de deploy.
  *
  * Separado do fluxo porque é só construção de DOM a partir do catálogo: quem
  * decide quando mostrar é ui/flow.js.
+ *
+ * A tira mostra só o que o jogador vai levar de fato — item sem modelo não
+ * aparece. Prometer Thompson, granada e bolsa de curativos na tela de deploy e
+ * entregar pistola e faca no mapa é pior que não prometer.
  */
+
+/** Itens da classe que existem, na ordem das teclas 1, 2 e 3. */
+export function realLoadout(classDef) {
+  return SLOT_ORDER
+    .map((slot, index) => {
+      const item = classDef.loadout.find((entry) => entry.slot === slot && hasModel(entry));
+      return item ? { item, key: index + 1 } : null;
+    })
+    .filter(Boolean);
+}
 
 export function buildCard(classDef) {
   const card = document.createElement('button');
@@ -30,35 +47,39 @@ export function buildCard(classDef) {
   return card;
 }
 
-export function buildDetail(classDef) {
+/** Tira horizontal do equipamento: uma peça por tecla, na ordem delas. */
+export function buildLoadout(classDef) {
   const fragment = document.createDocumentFragment();
 
   const head = document.createElement('div');
   head.className = 'detail-head';
   head.style.setProperty('--class-color', classDef.color);
   head.textContent = `${classDef.name} · ${classDef.health} de vida`;
+  fragment.appendChild(head);
 
-  const description = document.createElement('p');
-  description.textContent = classDef.description;
+  const strip = document.createElement('div');
+  strip.className = 'loadout-strip';
 
-  const list = document.createElement('dl');
-  list.className = 'detail-loadout';
+  for (const { item, key } of realLoadout(classDef)) {
+    const chip = document.createElement('div');
+    chip.className = 'loadout-chip';
 
-  for (const item of classDef.loadout) {
-    const slot = document.createElement('dt');
+    const number = document.createElement('span');
+    number.className = 'chip-key';
+    number.textContent = `${key}`;
+
+    const name = document.createElement('span');
+    name.className = 'chip-name';
+    name.textContent = item.name;
+
+    const slot = document.createElement('span');
+    slot.className = 'chip-slot';
     slot.textContent = item.slot;
 
-    const value = document.createElement('dd');
-    value.textContent = item.name;
-    if (item.note) {
-      const note = document.createElement('span');
-      note.textContent = item.note;
-      value.appendChild(note);
-    }
-
-    list.append(slot, value);
+    chip.append(number, name, slot);
+    strip.appendChild(chip);
   }
 
-  fragment.append(head, description, list);
+  fragment.appendChild(strip);
   return fragment;
 }

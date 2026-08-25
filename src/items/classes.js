@@ -22,7 +22,7 @@
  * no 1. Slot vazio não vira botão no HUD nem responde à tecla — o que não
  * existe não aparece.
  */
-export const SLOT_ORDER = ['Primária', 'Secundária', 'Corpo a corpo'];
+export const SLOT_ORDER = ['Primária', 'Secundária', 'Corpo a corpo', 'Ferramenta'];
 
 export const KNIFE = {
   id: 'kabar',
@@ -62,6 +62,28 @@ export const PISTOL = {
   ammo: { loaded: 8, reserve: 21 }
 };
 
+/**
+ * Pá de trincheira M1943, dotação de todo soldado em 1945 e, como a faca,
+ * comum a todas as classes. É ferramenta, não arma: cava e aterra o terreno.
+ */
+export const SHOVEL = {
+  id: 'm1943',
+  slot: 'Ferramenta',
+  name: 'Pá M1943',
+  note: 'Cava e aterra · comum a todas as classes',
+  tool: {
+    // Alcance folgado de propósito: com a pazada funda que a malha exige, o
+    // fundo do próprio buraco sai do alcance de quem cava da beirada, e
+    // aprofundar vira impossível sem pular pra dentro.
+    reach: 4.2,        // até onde a pazada alcança, em metros
+    digTime: 0.85,     // cavar não é imediato, pra não virar clique repetido
+    placeTime: 0.7,
+    digAt: 0.62,       // fração da ação em que a terra sai do chão
+    placeAt: 0.55,
+    cooldown: 0.15
+  }
+};
+
 export const CLASSES = [
   {
     id: 'assault',
@@ -80,7 +102,8 @@ export const CLASSES = [
       PISTOL,
       { slot: 'Gadget 1', name: 'Granada Mk 2', note: 'Fragmentação, 4 a 5 segundos' },
       { slot: 'Gadget 2', name: 'Bolsa de curativos', note: 'Estanca sangramento em campo' },
-      KNIFE
+      KNIFE,
+      SHOVEL
     ]
   },
   {
@@ -98,7 +121,8 @@ export const CLASSES = [
       { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Bazuca M1A1', note: 'Foguete anti-tanque de 60 mm' },
       { slot: 'Gadget 2', name: 'Mina anti-tanque', note: 'Enterrada na estrada' },
-      KNIFE
+      KNIFE,
+      SHOVEL
     ]
   },
   {
@@ -116,7 +140,8 @@ export const CLASSES = [
       { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Caixa de munição', note: 'Reabastece quem estiver perto' },
       { slot: 'Gadget 2', name: 'Carga de demolição', note: 'Explosivo com estopim' },
-      KNIFE
+      KNIFE,
+      SHOVEL
     ]
   },
   {
@@ -134,7 +159,8 @@ export const CLASSES = [
       { slot: 'Secundária', name: 'Revólver Victory .38', note: '' },
       { slot: 'Gadget 1', name: 'Binóculo M3', note: 'Marca posição inimiga' },
       { slot: 'Gadget 2', name: 'Sinalizador', note: 'Chama fogo de artilharia' },
-      KNIFE
+      KNIFE,
+      SHOVEL
     ]
   }
 ];

@@ -76,6 +76,7 @@ export class Viewmodel {
 
     this.item = null;
     this.flash = null;
+    this.dirt = null;
     this.pose = null;
     this.muzzle = null;   // marcador da boca do cano, se o item tiver um
     this.aim = 0;         // último valor lido da mira, pra zerar o cano
@@ -107,6 +108,7 @@ export class Viewmodel {
 
     this.item = model;
     this.flash = model.getObjectByName('clarao') ?? null;
+    this.dirt = model.getObjectByName('terra') ?? null;
     this.muzzle = model.getObjectByName('boca') ?? null;
     this.pose = toVectors(handPose(item));
     this.group.add(model);
@@ -200,8 +202,16 @@ export class Viewmodel {
 
     const blend = this.sprintBlend;
 
+    // A pazada usa as mesmas poses do golpe: erguer, cravar, voltar. O que
+    // muda é o ritmo, que vem da ferramenta, não da lâmina.
+    const cavando = player.dig?.modo
+      ? { active: true, progress: player.dig.progresso }
+      : player.swing;
+
+    if (this.dirt) this.dirt.visible = (player.dig?.carga ?? 0) > 0;
+
     // golpear cancela a pose de corrida: não dá pra atacar com a arma baixada
-    const swinging = this.#applySwing(player.swing, this.group.position, this.group.rotation);
+    const swinging = this.#applySwing(cavando, this.group.position, this.group.rotation);
     if (swinging) {
       this.group.position.x += this.sway.x;
       this.group.position.y += this.sway.y;

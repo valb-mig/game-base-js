@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { createTerrain } from './terrain.js';
+import { createDeform } from './deform.js';
 import { createHeightfield, assertFlatZones } from './heightfield.js';
 import { PLAYER } from '../config.js';
 import { spawnIsClear } from '../player/collision.js';
@@ -57,8 +58,12 @@ export function buildWorld(scene) {
     { ...course, radius: COURSE_PLATFORM, blend: 18, height: probe.naturalHeight(course.x, course.z) }
   ]);
 
-  const terrain = createTerrain(flatZones);
-  scene.add(terrain.buildMesh());
+  // Camada escavável: a ilha continua sendo função pura de altura, e cavar
+  // é um delta por cima dela. A malha e a colisão leem a mesma coisa.
+  const deform = createDeform();
+  const terrain = createTerrain(flatZones, deform);
+  const chao = terrain.buildMesh();
+  scene.add(chao.mesh);
 
   const water = createWater();
   scene.add(water.mesh);
@@ -109,6 +114,19 @@ export function buildWorld(scene) {
   return {
     colliders,
     terrain,
+    deform,
+
+    /**
+     * Cava (amount negativo) ou aterra (positivo) em (x, z).
+     * Devolve true se o terreno mudou de fato.
+     */
+    reshape(x, z, amount, radius) {
+      const tocados = deform.apply(x, z, amount, radius);
+      if (tocados.length === 0) return false;
+      chao.applyEdit(tocados);
+      return true;
+    },
+
     water,
     targets,
     spawnZones,

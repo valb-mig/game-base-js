@@ -94,6 +94,7 @@ export const WORLD = {
   TREE_COLOR: 0x2f6b3a,
   TRUNK_COLOR: 0x4a3524,
   ROCK_COLOR: 0x7b7f80,
+  SOIL_COLOR: 0x6b5334,   // terra revolvida, onde a pá passou
   FOG_NEAR: 70,
   FOG_FAR: 320,
 

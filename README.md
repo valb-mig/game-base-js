@@ -28,7 +28,8 @@ Ou qualquer servidor estático apontado pra raiz do repositório.
 | Botão esquerdo | golpear ou atirar |
 | Botão direito | mirar pela mira de ferro |
 | R | recarregar |
-| 1 e 2 | trocar de item |
+| 1 a 4 | trocar de item |
+| Pá (4) | esquerdo cava · direito despeja a terra |
 | G / E | largar item · apanhar do chão |
 | K | morrer (tecla de teste) |
 | ` ou F2 | painel de depuração |
@@ -45,6 +46,10 @@ Ilha com praia, floresta e natação, duas bases militares opostas e um campo
 de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
 de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
 tiros marca o caminho.
+
+Pá M1943 no slot 4, comum a todas as classes: o botão esquerdo cava e enche a
+pá, o direito despeja a terra. O terreno é escavável de verdade — trincheira e
+parapeito ficam gravados no relevo, e a colisão os enxerga.
 
 Não existe ainda: dano ao jogador além da tecla de teste, objetivo de partida
 e captura de base.
@@ -70,6 +75,7 @@ armadilhas que já custaram caro.
 - **bowie-knife** — Skoll
 - **first-aid-kit** — Delapouite ([delapouite.com](https://delapouite.com))
 - **bullets** — Lorc ([lorcblog.blogspot.com](https://lorcblog.blogspot.com))
+- **spade** — Lorc ([lorcblog.blogspot.com](https://lorcblog.blogspot.com))
 
 Os arquivos originais e a licença completa estão em `vendor/icons/`.
 

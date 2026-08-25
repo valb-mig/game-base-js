@@ -90,7 +90,6 @@ body.spectating #hud-layer::before {
 
 /* o conteúdo do HUD fica acima do véu */
 #compass,
-#mission,
 #vitals,
 #equipped {
   z-index: 1;
@@ -121,52 +120,6 @@ body.spectating #hud-layer::before {
   border: 6px solid transparent;
   border-top-color: var(--ink);
   border-bottom: 0;
-}
-
-/* --------------------------------------------------------------- situação */
-
-#mission {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  min-width: 208px;
-}
-
-.mission-title {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.mission-era {
-  margin-top: 3px;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-
-.mission-bases {
-  margin-top: 6px;
-  font-size: 14px;
-  letter-spacing: 0.06em;
-}
-
-.mission-bases div {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  text-transform: uppercase;
-}
-
-.mission-bases b {
-  font-variant-numeric: tabular-nums;
-}
-
-.mission-bases .near b {
-  color: var(--vital);
 }
 
 /* ----------------------------------------------------------------- vitais */
@@ -216,90 +169,113 @@ body.spectating #hud-layer::before {
   background: var(--vital-low);
 }
 
-/* ------------------------------------------------------------------ item */
+/* ------------------------------------------------------------------ cinto */
 
+/* Uma linha por tecla: 1 primária, 2 secundária, 3 faca. Slot sem item não
+   vira linha, então a barra encolhe sozinha em vez de mostrar buraco. */
 #equipped {
   position: absolute;
   right: 22px;
   bottom: 22px;
-  min-width: 190px;
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 208px;
 }
 
-.item-row {
+.slot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--rule);
+  gap: 10px;
+  width: 100%;
+  padding: 4px 6px 4px 10px;
+  border-right: 2px solid transparent;
+  opacity: 0.5;
 }
 
-.item-count {
-  font-size: 34px;
+/* o que está na mão: mais claro, com o traço do lado que a arma aponta */
+.slot.active {
+  border-right-color: var(--ink);
+  background: rgba(14, 18, 12, 0.35);
+  opacity: 1;
+}
+
+.slot-key {
+  order: -1;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+  line-height: 15px;
+  text-align: center;
+  color: var(--ink-dim);
 }
 
-/* sem munição, o contador vira rótulo do slot e não pode gritar como número */
-.item-count.is-label {
+.slot.active .slot-key {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.slot-name {
+  flex: 1;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  text-align: right;
+  white-space: nowrap;
 }
 
-.item-reserve {
+.slot-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  color: var(--ink);
+}
+
+.slot-ammo {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 64px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.slot-ammo b {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.slot-ammo b.empty {
+  color: var(--vital-low);
+}
+
+/* as balas guardadas são informação secundária: número menor e apagado */
+.ammo-reserve {
   display: flex;
   align-items: center;
-  gap: 4px;
-  align-self: flex-end;
-  padding-bottom: 3px;
-  font-size: 13px;
+  gap: 3px;
+  font-size: 12px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
 
-.reserve-icon svg {
+.ammo-reserve .reserve-icon svg {
   display: block;
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   color: var(--ink-dim);
-}
-
-.item-count.empty {
-  color: var(--vital-low);
 }
 
 /* mirando, a mira central atrapalha: quem mira usa o ferro da arma */
 body.aiming #crosshair {
   opacity: 0;
-}
-
-.item-icon svg {
-  width: 30px;
-  height: 30px;
-  color: var(--ink);
-}
-
-#equipped.empty {
-  opacity: 0.55;
-}
-
-.item-icon.hidden {
-  display: none;
-}
-
-.item-name {
-  margin-top: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
 }
 
 /* --------------------------------------------------------- marca de acerto */

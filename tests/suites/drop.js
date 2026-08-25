@@ -54,9 +54,14 @@ export async function run() {
   press('KeyG');
   step(1);
 
-  // com dois itens no cinto, largar um passa a mão pro outro
-  eq('largar troca pro item restante', player.equipped?.id, 'm1911');
-  ok('e o viewmodel acompanha', viewmodel.item !== null);
+  // Slot tem lugar fixo: largar esvazia o slot e deixa a mão vazia, sem
+  // promover o item de outro slot pra tecla que o jogador não apertou.
+  eq('largar esvazia a mão', player.equipped, null);
+  eq('e o slot da faca fica vazio', player.carried[2], null);
+  eq('a pistola continua no slot dela', player.carried[1]?.id, 'm1911');
+
+  player.selectSlot(1);
+  eq('a tecla 2 volta pra pistola', player.equipped?.id, 'm1911');
   ok('a faca saiu do inventário', !player.carried.includes(KNIFE));
   eq('a faca virou objeto do mundo', drops.items.length, 1);
   ok('e entrou na cena', scene.children.includes(drops.items[0].mesh));
@@ -66,11 +71,11 @@ export async function run() {
   ok('nasce à frente do rosto, não dentro dele',
     faca.mesh.position.distanceTo(camera.position) > 0.3);
 
-  // largar o último item aí sim deixa a mão vazia
-  player.selectSlot(0);
+  // largar o último item deixa todos os slots vazios
   press('KeyG'); step(1);
   eq('largar o último deixa a mão vazia', player.equipped, null);
-  eq('e o inventário vazio', player.carried.length, 0);
+  eq('e os dois slots largados ficam vazios',
+    [player.carried[1], player.carried[2]].filter(Boolean).length, 0);
   player.carried = [KNIFE, drops.items[0].item];
   player.selectSlot(0);
   drops.items.length = 1;
@@ -186,25 +191,44 @@ export async function run() {
 
   aviso.remove();
 
-  suite('mão vazia');
+  suite('cinto no HUD');
 
-  // Regressão: o sentinela do HUD era `null`, igual ao valor de mão vazia, e
-  // o primeiro quadro sem item não desenhava nada.
+  // O HUD não anuncia arma que o jogo não tem: a Assault tem três slots e só
+  // dois com item construído, então saem duas linhas — e a tecla de cada uma é
+  // a posição do slot, não a ordem em que sobraram.
   const { initStatus } = await import('../../src/ui/status.js');
   const holder = document.createElement('div');
   holder.style.display = 'none';
   holder.innerHTML = '<div id="vitals"></div><div id="equipped"></div>';
   document.body.appendChild(holder);
-  const semItem = new Player(camera, document.body, { colliders: [], terrain: relevo });
-  semItem.carried = [];
-  semItem.equipped = null;
-  initStatus(semItem)();
-  ok('HUD desenha mão vazia no primeiro quadro',
-    document.getElementById('equipped').textContent.includes('Mãos vazias'),
-    document.getElementById('equipped').textContent.trim());
+
+  const comCinto = new Player(camera, document.body, { colliders: [], terrain: relevo });
+  const atualizarHud = initStatus(comCinto);
+  atualizarHud();
+
+  const linhas = () => [...document.querySelectorAll('#equipped .slot')];
+  const tecla = (i) => linhas()[i].querySelector('.slot-key').textContent;
+
+  eq('uma linha por item que existe, e nenhuma a mais',
+    linhas().length, comCinto.carried.filter(Boolean).length);
+  ok('a primária não existe e não vira linha', comCinto.carried[0] === null);
+  eq('a tecla da pistola é a 2', tecla(0), '2');
+  eq('e a da faca é a 3', tecla(1), '3');
+  ok('a linha do item na mão está marcada', linhas()[0].classList.contains('active'));
+  ok('a pistola mostra munição',
+    linhas()[0].querySelector('.slot-ammo b').textContent !== '');
+  eq('a faca não mostra número',
+    linhas()[1].querySelector('.slot-ammo b').textContent, '');
+
+  // Regressão: o sentinela do HUD era `null`, igual ao valor de mão vazia, e
+  // o primeiro quadro sem item não desenhava nada.
+  comCinto.carried.fill(null);
+  comCinto.equipped = null;
+  atualizarHud();
+  eq('sem nenhum item, o cinto some', linhas().length, 0);
   holder.remove();
 
-  player.carried = [];
+  player.carried.fill(null);
   player.equipped = null;
   const antes = drops.items.length;
   press('KeyG'); step(1);

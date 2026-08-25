@@ -12,7 +12,7 @@ export const PRONE_KEYS = ['KeyZ'];
 export const DROP_KEYS = ['KeyG'];
 export const PICK_KEYS = ['KeyE'];
 export const RELOAD_KEYS = ['KeyR'];
-export const SLOT_KEYS = ['Digit1', 'Digit2', 'Digit3'];
+export const SLOT_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 
 export const STAND = 'de pé';
 export const CROUCH = 'agachado';
