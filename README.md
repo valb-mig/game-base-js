@@ -52,6 +52,10 @@ pá, o direito despeja a terra. O terreno é escavável de verdade — trincheir
 parapeito ficam gravados no relevo, e a colisão os enxerga. Cavar embaixo de
 uma árvore, de uma pedra ou de uma parede derruba o que ficou sem chão.
 
+Tiro no chão marca o terreno também, em escala: a pá move 90 cm por pazada,
+um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e o corpo a corpo
+não mexe em nada. Esvaziar um carregador num ponto abre uma cova rasa.
+
 Não existe ainda: dano ao jogador além da tecla de teste, objetivo de partida
 e captura de base.
 

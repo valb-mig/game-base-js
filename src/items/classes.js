@@ -24,6 +24,21 @@
  */
 export const SLOT_ORDER = ['Primária', 'Secundária', 'Corpo a corpo', 'Ferramenta'];
 
+/**
+ * Quanto cada coisa afunda o terreno num acerto.
+ *
+ * A escala é a ordem que importa, não os valores: a pá move terra de
+ * verdade, a primária marca o chão, a secundária mal arranha e o corpo a
+ * corpo não mexe em nada. Ficam juntos aqui pra que a relação entre eles
+ * seja legível de uma vez, em vez de espalhada por quatro arquivos.
+ */
+export const TERRAIN_BITE = {
+  SHOVEL: 0.9,        // uma pazada inteira, definida em world/deform.js
+  PRIMARY: 0.085,
+  SECONDARY: 0.045,
+  MELEE: 0             // faca não cava
+};
+
 export const KNIFE = {
   id: 'kabar',
   slot: 'Corpo a corpo',
@@ -57,7 +72,8 @@ export const PISTOL = {
     hipSpread: 2.1,    // graus de abertura atirando do quadril
     adsSpread: 0.3,
     adsTime: 0.16,
-    recoil: 1.5        // coice, em graus
+    recoil: 1.5,       // coice, em graus
+    dig: TERRAIN_BITE.SECONDARY
   },
   ammo: { loaded: 8, reserve: 21 }
 };
@@ -84,6 +100,31 @@ export const SHOVEL = {
   }
 };
 
+/**
+ * Submetralhadora da Assault. Ainda não tem modelo, então não é empunhável —
+ * mas os números existem, e é deles que sai a regra de que a primária marca
+ * o terreno mais do que a secundária.
+ */
+export const THOMPSON = {
+  id: 'thompson',
+  slot: 'Primária',
+  name: 'Thompson M1A1',
+  note: '.45 ACP, devastadora de perto',
+  firearm: {
+    damage: 26,
+    range: 90,
+    magazine: 30,
+    reloadTime: 2.6,
+    fireInterval: 0.09,
+    hipSpread: 3.4,
+    adsSpread: 0.9,
+    adsTime: 0.2,
+    recoil: 1.1,
+    dig: TERRAIN_BITE.PRIMARY
+  },
+  ammo: { loaded: 30, reserve: 90 }
+};
+
 export const CLASSES = [
   {
     id: 'assault',
@@ -98,7 +139,7 @@ export const CLASSES = [
     health: 100,
     movement: {},
     loadout: [
-      { slot: 'Primária', name: 'Thompson M1A1', note: '.45 ACP, devastadora de perto' },
+      THOMPSON,
       PISTOL,
       { slot: 'Gadget 1', name: 'Granada Mk 2', note: 'Fragmentação, 4 a 5 segundos' },
       { slot: 'Gadget 2', name: 'Bolsa de curativos', note: 'Estanca sangramento em campo' },

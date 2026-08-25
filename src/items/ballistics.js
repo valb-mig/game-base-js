@@ -12,7 +12,7 @@ import { BULLET } from '../config.js';
  * posição final. A 253 m/s uma bala anda 4,2 m por quadro a 60 fps: testar só
  * onde ela parou faria ela atravessar qualquer parede e qualquer alvo.
  */
-export function createBallistics(scene, colliders) {
+export function createBallistics(scene, colliders, { onTerrainImpact = null } = {}) {
   const bullets = [];
   const listeners = [];
 
@@ -108,6 +108,7 @@ export function createBallistics(scene, colliders) {
     }
 
     // terreno: amostra ao longo do trecho, porque ele é curvo e a bala é reta
+    let noChao = false;
     if (terrain && closest === null) {
       const steps = Math.max(1, Math.ceil(segment.length() / BULLET.STEP));
       for (let i = 1; i <= steps; i++) {
@@ -115,6 +116,7 @@ export function createBallistics(scene, colliders) {
         hitPoint.copy(from).addScaledVector(segment, t);
         if (hitPoint.y <= terrain.heightAt(hitPoint.x, hitPoint.z)) {
           closest = t;
+          noChao = true;
           break;
         }
       }
@@ -124,10 +126,18 @@ export function createBallistics(scene, colliders) {
       hitPoint.copy(from).addScaledVector(segment, closest);
       retire(bullet, hitPoint);
 
+      // Bala no chão marca o terreno. Quem afunda de fato é o mundo — a
+      // balística só diz onde bateu e com que força.
+      if (noChao && bullet.dig > 0 && onTerrainImpact) {
+        onTerrainImpact(hitPoint.x, hitPoint.z, bullet.dig);
+      }
+
       const result = struck
         ? struck.damage(bullet.damage)
         : { target: null, amount: 0, killed: false };
-      for (const listener of listeners) listener({ ...result, point: hitPoint.clone() });
+      for (const listener of listeners) {
+        listener({ ...result, point: hitPoint.clone(), terreno: noChao });
+      }
       return;
     }
 
@@ -157,12 +167,13 @@ export function createBallistics(scene, colliders) {
     },
 
     /** Dispara uma bala. `tracer` decide se ela deixa risco. */
-    spawn(origin, direction, { damage, range, tracer = false }) {
+    spawn(origin, direction, { damage, range, tracer = false, dig = 0 }) {
       const bullet = {
         position: origin.clone(),
         velocity: direction.clone().multiplyScalar(BULLET.SPEED),
         damage,
         range,
+        dig,
         travelled: 0,
         life: BULLET.LIFE,
         spent: false,

@@ -304,6 +304,23 @@ foi `tools/dev.sh soak`, que joga sozinho vigiando invariantes, e o
 `ui/watchdog.js`, que faz o mesmo enquanto uma pessoa joga e imprime o caso
 pronto pra copiar.
 
+**Quem cava mais é uma escala, não quatro números soltos.** `TERRAIN_BITE`
+em `items/classes.js` guarda pá > primária > secundária > faca (zero) num
+lugar só, e cada arma aponta pra ele. Espalhado por quatro arquivos, a ordem
+seria fácil de quebrar sem ninguém perceber — e a ordem é a regra; os valores
+são só o jeito de escrevê-la.
+
+**A marca não pode ser menor que a célula da malha.** Com 2,55 m por vértice,
+uma craterinha de bala do tamanho real cai ENTRE dois vértices e não registra
+nada: dois tiros iguais fariam coisas diferentes conforme onde caíssem na
+grade. `DEFORM.RAIO_MIN` é o piso, e por isso a marca de bala é mais larga do
+que deveria — é o preço deste terreno, e é o preço certo.
+
+**A balística não conhece o mundo.** Ela diz onde a bala bateu e com que
+força (`onTerrainImpact`); quem afunda o terreno é `main.js`. Sem isso a bala
+precisaria saber o que é escavável, e a suíte precisaria de um mundo inteiro
+pra testar um tiro no chão.
+
 **Escavar não cria geometria.** `world/deform.js` é um delta por vértice da
 malha que já existe; cavar move vértices, não adiciona nenhum. Medido: 300
 pazadas mudam a contagem de triângulos em zero.
@@ -422,6 +439,11 @@ cancela a pose de corrida.
 Pá M1943 no slot 4 cava e aterra o terreno de verdade; a colisão lê a mesma
 camada, então trincheira cavada é trincheira que se anda dentro. Cavar embaixo
 de árvore, pedra ou construção derruba o que ficou sem chão.
+
+Tiro no chão também marca o terreno, na escala `TERRAIN_BITE`: a pá cava 90 cm
+por pazada, um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e a
+faca não mexe em nada. A Thompson ainda não tem modelo, então os números dela
+existem sem ser empunháveis.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

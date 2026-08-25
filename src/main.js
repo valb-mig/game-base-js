@@ -49,7 +49,10 @@ function boot() {
 
   const drops = initDrop(scene, player, viewmodel, world);
   const attack = initAttack(player, world);
-  const ballistics = createBallistics(scene, world.colliders);
+  const ballistics = createBallistics(scene, world.colliders, {
+    // tiro no chão marca o terreno; quanto afunda sai da arma
+    onTerrainImpact: (x, z, fundo) => world.reshape(x, z, -fundo)
+  });
   const firearm = initFirearm(player, world, ballistics, viewmodel);
   const digging = initDigging(player, world);
 

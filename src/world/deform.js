@@ -26,7 +26,14 @@ export const DEFORM = {
   FUNDO: 0.9,         // quanto uma pazada afunda no centro
   MONTE: 0.78,        // quanto uma pazada levanta no centro
   LIMITE: 4.2,        // afundamento máximo acumulado num ponto
-  ALTURA_MAX: 3.4     // levantamento máximo acumulado num ponto
+  ALTURA_MAX: 3.4,    // levantamento máximo acumulado num ponto
+
+  // Raio mínimo de qualquer marca. Abaixo disso a marca cai entre dois
+  // vértices e simplesmente não registra: dois tiros iguais no mesmo lugar
+  // fariam coisas diferentes conforme onde caíssem na grade. Craterinha de
+  // bala é mais larga do que deveria por causa disso — é o preço de um
+  // terreno de 2,55 m por vértice, e é o preço certo a pagar.
+  RAIO_MIN: 1.9
 };
 
 export function createDeform() {
@@ -70,7 +77,7 @@ export function createDeform() {
   function apply(x, z, amount, radius = DEFORM.RAIO) {
     const cx = coluna(x);
     const cz = linha(z);
-    const alcance = radius / PASSO;
+    const alcance = Math.max(radius, DEFORM.RAIO_MIN) / PASSO;
 
     const de = Math.max(0, Math.floor(cx - alcance));
     const ate = Math.min(LADO - 1, Math.ceil(cx + alcance));
