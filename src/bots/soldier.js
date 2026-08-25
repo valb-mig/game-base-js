@@ -5,6 +5,7 @@ import { teamOf } from '../game/teams.js';
 import { createItemModel } from '../items/models.js';
 import { SWAP } from '../config.js';
 import { corpoDe } from '../game/hitboxes.js';
+import { criarSoldado, soldadoPronto } from './model.js';
 
 /**
  * O corpo de um bot: modelo, colisor, vida e o andar dele.
@@ -55,6 +56,17 @@ function peca(grupo, material, w, h, d, x, y, z, giro = 0) {
  * inteiro e não se distingue a distância nenhuma.
  */
 function construirCorpo(time) {
+  // O modelo de verdade, quando ele já carregou. O de caixas abaixo continua
+  // existindo pro teste, que roda sem rede e sem esperar arquivo nenhum.
+  const doArquivo = soldadoPronto() ? criarSoldado(time.id) : null;
+  if (doArquivo) {
+    // Material por soldado: o piscar de dano é emissivo, e um material
+    // compartilhado faria bater num acender o time inteiro.
+    const proprio = doArquivo.material.clone();
+    for (const malha of doArquivo.pintados) malha.material = proprio;
+    return { grupo: doArquivo.grupo, painted: [proprio], maos: doArquivo.maos };
+  }
+
   const grupo = new THREE.Group();
 
   const farda = fosco(time.uniforme);
@@ -119,11 +131,13 @@ function construirCorpo(time) {
 export function createSoldier(scene, colliders, {
   id, team, x, z, terrain, weapons
 }) {
-  const { grupo, painted } = construirCorpo(teamOf(team));
+  const { grupo, painted, maos: maosDoModelo } = construirCorpo(teamOf(team));
   scene.add(grupo);
 
   // materiais próprios: piscar de dano num não pode acender os outros
-  for (const mesh of painted) mesh.material = mesh.material.clone();
+  for (const mesh of painted) {
+    if (mesh.isMesh) mesh.material = mesh.material.clone();
+  }
 
   // Arma na mão, do lado direito e na altura do peito. Os modelos nascem com
   // o cano no -Z, que é a frente do soldado — o mesmo que vale pro viewmodel.
@@ -131,9 +145,13 @@ export function createSoldier(scene, colliders, {
   // Um modelo por arma, criado uma vez e escondido: trocar de arma é ligar e
   // desligar visibilidade. Criar e destruir a cada troca daria churn de GPU
   // num bot que troca de arma no meio do tiroteio.
-  const maos = new THREE.Group();
-  maos.position.set(0.21, 0.92, 0.26);
-  grupo.add(maos);
+  // A arma pendura no nó `weapon` do modelo quando ele existe: é o lugar que
+  // o artista marcou, e adivinhar outro seria pôr o cano na barriga.
+  const maos = maosDoModelo ?? new THREE.Group();
+  if (!maosDoModelo) {
+    maos.position.set(0.21, 0.92, 0.26);
+    grupo.add(maos);
+  }
 
   const modelos = new Map();
   for (const arma of weapons) {
@@ -288,8 +306,9 @@ export function createSoldier(scene, colliders, {
       if (soldier.flash > 0) {
         soldier.flash = Math.max(0, soldier.flash - delta * 7);
         const calor = soldier.flash * 0.34;
-        for (const mesh of painted) {
-          mesh.material.emissive.setRGB(calor, calor * 0.06, calor * 0.04);
+        for (const alvo of painted) {
+          const material = alvo.isMesh ? alvo.material : alvo;
+          material.emissive?.setRGB(calor, calor * 0.06, calor * 0.04);
         }
       }
 

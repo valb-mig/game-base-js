@@ -62,6 +62,18 @@ export const ORDEM = ['cabeca', 'capacete', 'braco', 'perna', 'tronco'];
 export const ALTURA_BASE = 1.75;
 
 /**
+ * De onde sai a medida do modelo, quando há modelo.
+ *
+ * Injetado de fora pra que este arquivo continue sem three e sem arquivo:
+ * regra de dano não pode depender de um `.glb` ter carregado pra poder ser
+ * testada.
+ */
+let medidasDoModelo = null;
+export function usarMedidasDoModelo(fonte) {
+  medidasDoModelo = fonte;
+}
+
+/**
  * As caixas de um corpo, NO SISTEMA DELE.
  *
  * Quem testa acerto leva a bala pro sistema do alvo — uma conta por alvo — em
@@ -72,6 +84,23 @@ export const ALTURA_BASE = 1.75;
 export function corpoDe(altura = ALTURA_BASE, saida = []) {
   saida.length = 0;
   const escalaY = altura / ALTURA_BASE;
+
+  // Se o modelo carregou, a hitbox sai da MALHA dele: uma caixa por peça
+  // nomeada, medida em vez de escrita. A tabela abaixo é o que sobra pra
+  // quando não há modelo — o teste, que roda sem arquivo nenhum.
+  const doModelo = medidasDoModelo?.();
+  if (doModelo) {
+    for (const m of doModelo) {
+      const ordem = ORDEM.indexOf(m.grupo);
+      saida.push({
+        peca: m, regiao: GRUPOS[m.grupo], ordem: ordem < 0 ? ORDEM.length : ordem,
+        minX: m.minX, maxX: m.maxX,
+        minY: m.minY * escalaY, maxY: m.maxY * escalaY,
+        minZ: m.minZ, maxZ: m.maxZ
+      });
+    }
+    return saida;
+  }
 
   PECAS.forEach((peca, ordem) => {
     const lados = peca.espelhado ? [-1, 1] : [0];

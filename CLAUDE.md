@@ -32,7 +32,8 @@ src/
   game/    teams.js  os dois lados e a regra de quem domina o quê
            hitboxes.js  regiões do corpo e o que cada acerto vale
            capture.js  arriar e içar bandeira, sem three
-  bots/    aiming.js  atraso e erro de mira, sem three
+  bots/    model.js  carrega o .glb, veste o time e mede a hitbox
+           aiming.js  atraso e erro de mira, sem three
            soldier.js  corpo, colisor, vida e o andar
            brain.js  o que ele decide fazer · bots.js  gerente e fiação
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
@@ -462,6 +463,14 @@ slot COM item, então a Thompson da Assault não aparece — nem no HUD nem na
 tira da tela de deploy. Prometer na tela de deploy e entregar outra coisa no
 mapa é pior que não prometer.
 
+**`THREE.Color` converte hex de sRGB pra LINEAR.** Comparar `color.r * 255`
+com o pixel de um canvas mede 18 contra 76 e nunca casa — a troca de farda por
+time não pegava e os dois saíam idênticos. Pra mexer em textura, bytes crus.
+
+**A marca do time se põe medindo a superfície, não chutando.** A frente do
+tronco está em z 0,146 e o suspensório vai até 0,168; a bandeira em 0,125
+nasceu DENTRO do peito e não aparecia em vista nenhuma.
+
 **Time se distingue pelo TOM da farda, não pela cor dele.** Uniforme inteiro
 pintado de vermelho e azul seria fantasia, não farda, e o soldado deixaria de
 se esconder no mato — que é metade do jogo. Karnia é escura e Vestria clara, e
@@ -491,6 +500,18 @@ multiplicadores são calibrados pela arma mais FRACA que existe — com ela a
 promessa vale, com as outras vale com folga. Calibrar pela mais forte deixaria
 a promessa falsa justamente na arma que a maioria carrega, e há teste que
 CONTA os tiros em vez de conferir o multiplicador.
+
+**A hitbox é MEDIDA do modelo, não escrita à mão.** O artista nomeou cada
+malha — `cabeca`, `capacete_topo`, `coxa_L`, `bota_L`, `torso` — e uma caixa
+por malha nomeada bate com o desenho por construção. Medido: a hitbox e a
+malha dão exatamente o mesmo intervalo, e não sobra altura descoberta. A
+tabela à mão continua no código só pro teste, que roda sem arquivo nenhum —
+e ela JÁ tinha desalinhado 8 cm na cabeça e 7,7 na coxa assim que o modelo
+mudou, que é exatamente o que se previa dela.
+
+**Regra de dano não pode depender de um `.glb` ter carregado.**
+`usarMedidasDoModelo` injeta a fonte de fora: `game/hitboxes.js` continua sem
+three e sem arquivo, e por isso continua testável.
 
 **Hitbox é CAIXA, porque o soldado é feito de caixas.** Cápsula não cobre
 peça chata: o capacete tem 27 cm de largura e 19 de altura, e a cápsula que

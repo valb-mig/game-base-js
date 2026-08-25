@@ -28,6 +28,8 @@ import { initObjective, initFlagPrompt } from './ui/objective.js';
 import { isDown } from './core/input.js';
 import { FLAG_KEYS } from './player/constants.js';
 import { createBots, playerAsTarget } from './bots/bots.js';
+import { carregarSoldado, caixasDoModelo } from './bots/model.js';
+import { usarMedidasDoModelo } from './game/hitboxes.js';
 import { buildTrainingWorld } from './world/training-world.js';
 import { enemyOf, postOwner } from './game/teams.js';
 
@@ -39,6 +41,15 @@ import { enemyOf, postOwner } from './game/teams.js';
  * página tem cena vazia e nenhum laço de render — é o que faz a abertura
  * aparecer na hora, inclusive em máquina fraca.
  */
+
+// O modelo do soldado vem de arquivo, e carregar é assíncrono enquanto montar
+// mundo é síncrono. Ele é esperado AQUI, antes de qualquer tela: são 25 KB, e
+// pagar isso na abertura é melhor do que soldado nascendo sem corpo.
+await carregarSoldado().catch(() => {});
+
+// A hitbox passa a sair da MALHA do modelo. A regra de dano continua sem
+// conhecer three: ela só recebe de onde medir.
+usarMedidasDoModelo(caixasDoModelo);
 
 const { scene, camera, renderer } = createStage();
 const clock = new THREE.Clock();

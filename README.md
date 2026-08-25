@@ -112,6 +112,11 @@ um segundo. Morrer devolve pra tela de deploy.
 Eles seguram o tiro quando um companheiro está na linha, e voltam ao combate
 seis segundos depois de cair, num posto que o time ainda domine.
 
+O soldado é um modelo `.glb` em T-pose, posado no jogo a partir do esqueleto
+dele. A hitbox sai das malhas nomeadas do próprio modelo — uma caixa por
+parte do corpo —, então ela cola no desenho por construção em vez de por
+alguém ter medido certo.
+
 Os dois lados se distinguem pelo tom da farda — Karnia escura, Vestria clara —
 com a bandeira do time no peito e um vivo da cor dele no capacete. O tom
 resolve a quarenta metros; a bandeira diz qual é de perto. Uniforme inteiro na
