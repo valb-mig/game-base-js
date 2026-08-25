@@ -47,6 +47,27 @@ de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
 de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
 tiros marca o caminho.
 
+## Modo de jogo
+
+Dois países inventados: **Pacto de Karnia** (norte, vermelho) e **Aliança de
+Vestria** (sul, azul). Inventados de propósito — a ilha e a guerra são ficção,
+e nenhum exército real leva a culpa por nada que aconteça aqui.
+
+Cada lado tem uma base principal e seis postos militares, doze no total. Cada
+posto tem quatro mastros, e o objetivo é dominar todos os postos do inimigo.
+
+Pra tomar uma bandeira, chegue no mastro e segure **F**: a bandeira de quem
+era desce até o meio do mastro, o mastro fica vazio, e a sua sobe. São 30
+segundos por bandeira, quatro bandeiras por posto — dois minutos de posto com
+um soldado só.
+
+O posto é o spawn do time, e basta **uma** bandeira mexida pra ele deixar de
+servir: posto dominado, ou sendo dominado, o time perde o spawn ali. A base
+principal continua sempre disponível.
+
+Ainda não há adversário no mapa: Karnia não retoma nada, porque não existe
+soldado dela pra fazer isso.
+
 MP40 no slot 1 da Assault: 9×19mm, automática de 500 tiros por minuto, 32 no
 carregador. Segurar o gatilho despeja rajada — é a primeira arma do jogo que
 faz isso. Aço estampado, baquelite marrom no punho e no guarda-mão, carregador

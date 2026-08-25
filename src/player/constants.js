@@ -11,6 +11,11 @@ export const CROUCH_KEYS = ['KeyC'];
 export const PRONE_KEYS = ['KeyZ'];
 export const DROP_KEYS = ['KeyG'];
 export const PICK_KEYS = ['KeyE'];
+
+// Bandeira tem tecla própria, e não o E de apanhar: item largado ao pé de um
+// mastro faria as duas ações disputarem a mesma tecla, e a que perdesse
+// pareceria quebrada.
+export const FLAG_KEYS = ['KeyF'];
 export const RELOAD_KEYS = ['KeyR'];
 export const SLOT_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 

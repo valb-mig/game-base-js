@@ -1,6 +1,7 @@
 import { WORLD } from '../config.js';
 import { CLASSES, DEFAULT_CLASS_ID, getClass } from '../items/classes.js';
 import { readPreference, writePreference, grabKeyboard, releaseKeyboard } from './session.js';
+import { spawnableFor } from '../game/teams.js';
 import { initTacticalMap } from './tacticalmap.js';
 import { buildCard, buildLoadout } from './classcards.js';
 
@@ -73,10 +74,28 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
    * caminho: dá pra chegar aqui por código, e é o que torna o fluxo
    * inteiro testável sem depender de clique num canvas com tamanho.
    */
+  /**
+   * Zona serve pra este jogador AGORA?
+   *
+   * Zona sem posto atrás não tem o que disputar — é a base principal, que é
+   * sempre do dono dela, ou um ponto solto. Só quem tem posto passa pela
+   * regra de captura.
+   */
+  function zonaVale(zone) {
+    if (!zone) return true;
+    const time = game?.player?.team;
+    if (!zone.post) return !zone.team || !time || zone.team === time;
+    return spawnableFor(zone.post, time);
+  }
+
   function selectZone(zone) {
+    // Posto perdido ou em disputa não é porta de entrada: escolher um seria
+    // nascer em cima de quem está capturando.
+    if (zone && !zonaVale(zone)) return false;
     selectedZone = zone;
     tactical?.select(zone);
     refreshDeployButton();
+    return true;
   }
 
   function selectClass(classDef) {
@@ -88,6 +107,10 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
   }
 
   function refreshDeployButton() {
+    // Um posto pode virar inválido enquanto a tela está aberta — é o que
+    // acontece quando o inimigo começa a arriar bandeira lá.
+    if (selectedZone && !zonaVale(selectedZone)) selectedZone = null;
+
     const ready = Boolean(selectedClass?.available && selectedZone);
     deployButton.disabled = !ready;
     zoneLabel.textContent = selectedZone
@@ -126,7 +149,8 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
     if (!game) {
       game = boot();
       // O mapa tático sai do terreno, então só pode ser montado com mundo.
-      tactical = initTacticalMap(game.world.terrain, game.world.spawnZones, selectZone);
+      tactical = initTacticalMap(game.world.terrain, game.world.spawnZones, selectZone,
+        { team: game.player.team, valid: zonaVale });
       if (selectedZone) tactical.select(selectedZone);
 
       game.controls.addEventListener('lock', () => show(null));
@@ -236,7 +260,9 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
      */
     enterMap(index = 0) {
       if (!game) start();
-      const zonas = game.world.spawnZones;
+      // Só as que valem pra este jogador: entrar por código tem que passar
+      // pela mesma regra do clique, senão o teste prova outra coisa.
+      const zonas = game.world.spawnZones.filter(zonaVale);
       selectZone(zonas[((index % zonas.length) + zonas.length) % zonas.length]);
       deploy();
     },

@@ -3,6 +3,7 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import { PLAYER } from '../config.js';
 import { hasModel } from '../items/models.js';
 import { getClass, DEFAULT_CLASS_ID, SLOT_ORDER } from '../items/classes.js';
+import { PLAYER_TEAM } from '../game/teams.js';
 import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
 import { moveHorizontal, moveVertical } from './locomotion.js';
@@ -26,6 +27,10 @@ export class Player {
     this.colliders = world.colliders ?? [];
     this.terrain = world.terrain ?? null;   // campo de altura; sem ele o chão é y=0
     this.spawn = world.spawn ?? new THREE.Vector3(0, 0, 0);
+
+    // De que lado ele está. Não muda no meio da partida, e é o que decide
+    // onde ele pode nascer e que bandeira ele consegue içar.
+    this.team = world.team ?? PLAYER_TEAM;
 
     // stats precisa existir antes de qualquer leitura de altura ou velocidade
     this.setClass(getClass(DEFAULT_CLASS_ID));

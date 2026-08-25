@@ -29,6 +29,8 @@ triângulos — abrir no navegador ou capturar com `dev.sh shot`.
 src/
   main.js            fiação e loop de render
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
+  game/    teams.js  os dois lados e a regra de quem domina o quê
+           capture.js  arriar e içar bandeira, sem three
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
   player/  player.js estado + ordem dos sistemas
            locomotion.js  stance.js  swim.js  spectator.js
@@ -40,6 +42,7 @@ src/
            dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
            base.js  base militar · course.js  campo de treino
+           outpost.js  posto de 4 mastros · outposts.js  onde ficam os 12
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
            knife.js  pistol.js  mp40.js  shovel.js   modelos
@@ -49,7 +52,7 @@ src/
   ui/      flow.js  máquina de estados e telas
            watchdog.js  vigia de invariantes em jogo
            classcards.js  tacticalmap.js  session.js
-           compass.js  mission.js  status.js  prompt.js  hitmarker.js  debug.js
+           compass.js  objective.js  status.js  prompt.js  hitmarker.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
             drop, melee, firearm, ballistics, muzzle, slope, combate,
@@ -304,6 +307,36 @@ slot COM item, então a Thompson da Assault não aparece — nem no HUD nem na
 tira da tela de deploy. Prometer na tela de deploy e entregar outra coisa no
 mapa é pior que não prometer.
 
+**Regra de partida não conhece three.** `game/teams.js` e `game/capture.js`
+são só dado e conta: dá pra jogar o modo inteiro num teste, com postos de
+mentira, sem montar ilha nenhuma. Quem desenha bandeira é `world/outpost.js`,
+e ele lê o estado — nunca o contrário.
+
+**Uma bandeira arriada já tira o posto de quem era.** Dono é quem tem AS
+QUATRO; com três, o posto não é de ninguém. É o que faz a primeira captura
+valer alguma coisa em vez de só a última, e é o que cumpre "posto sendo
+dominado, o time perde o spawn".
+
+**Posto não achata o terreno.** Zona plana não pode cruzar com outra, e doze
+postos mais duas bases mais o campo de treino não cabem sem se encostar. Cada
+mastro e cada parede lê a altura do chão onde cai, e o quadrado sai torto de
+propósito.
+
+**Posição de posto sai de sondar o campo de altura DE VERDADE.** Sondei com
+`naturalHeight` e a montagem estourou: o mesmo par de postos dava 3,3 m no sul
+e 2,35 no norte, ou seja praia. A ilha não é simétrica porque o ruído do
+relevo não é — e `heightAt` com as zonas planas aplicadas é a única fonte que
+vale.
+
+**Bandeira tem tecla própria (F), não o E de apanhar.** Item largado ao pé de
+um mastro faria as duas ações disputarem a mesma tecla, e a que perdesse
+pareceria quebrada.
+
+**Capturar é trabalho, não presença.** Sem a tecla segurada o tempo não corre.
+Mas o progresso NÃO some ao sair de perto: meia bandeira arriada continua meia
+arriada, e é isso que deixa um posto ficar "sendo dominado" enquanto a briga
+acontece em outro canto.
+
 **O mapa tático sai do terreno**, não é uma imagem à parte: `world/minimap.js`
 amostra o mesmo campo de altura. Mexer no relevo muda o mapa junto.
 
@@ -515,6 +548,16 @@ Tiro no chão também marca o terreno, na escala `TERRAIN_BITE`: a pá cava 90 c
 por pazada, um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e a
 faca não mexe em nada.
 
-Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
-partida, e captura de base — as bases são cenário. Só a Assault é jogável; as
+Modo de jogo: dois países inventados, Pacto de Karnia (norte, vermelho) e
+Aliança de Vestria (sul, azul) — ficção de propósito, pra que nenhum exército
+real leve a culpa. Cada um tem uma base principal e seis postos, doze no
+total. Posto tem quatro mastros; trocar cada bandeira leva 30 s segurando F,
+ou seja dois minutos de posto com um soldado só. Posto é o spawn do time, e
+uma bandeira mexida já basta pra tirar o spawn de quem era. Vence quem dominar
+os doze.
+
+Ainda não existe: adversário. Não há soldado de Karnia no mapa, então ela
+nunca retoma nada — o modo está inteiro do lado do jogador e a metade que
+reage falta. Também não existe dano ao jogador que não seja a tecla de teste,
+nem captura de base (as bases são sempre do dono). Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.

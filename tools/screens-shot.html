@@ -86,6 +86,8 @@ import { Viewmodel } from '../src/items/viewmodel.js';
 import { initDrop } from '../src/items/drop.js';
 import { initStatus } from '../src/ui/status.js';
 import { initCompass } from '../src/ui/compass.js';
+import { initObjective, initFlagPrompt } from '../src/ui/objective.js';
+import { createCapture } from '../src/game/capture.js';
 import { initPrompt } from '../src/ui/prompt.js';
 import { initFlow } from '../src/ui/flow.js';
 
@@ -110,6 +112,16 @@ const flow = initFlow({
       player, viewmodel, world,
       status: initStatus(player),
       compass: initCompass(camera),
+      // O painel de objetivo é HUD como qualquer outro, e sem ele esta página
+      // testaria um caminho que o jogo não faz.
+      ...(() => {
+        const capture = createCapture(world.outposts);
+        return {
+          capture,
+          objective: initObjective(player, capture),
+          flagPrompt: initFlagPrompt(player, capture)
+        };
+      })(),
       prompt: initPrompt(drops)
     };
     // pointer lock não existe em headless; o fluxo só precisa dos eventos
@@ -168,6 +180,8 @@ renderer.setAnimationLoop(() => {
     // A pose da arma na mão vem do update, não do construtor: sem chamar isso
     // o modelo fica na origem da câmera do viewmodel e ocupa a tela inteira.
     if (!painel.player.spectating) painel.viewmodel.update(1 / 60, painel.player);
+    painel.objective();
+    painel.flagPrompt();
     painel.status();
     painel.compass();
     painel.prompt();

@@ -10,6 +10,8 @@ import { createWater } from './water.js';
 import { addForest } from './forest.js';
 import { addBase } from './base.js';
 import { addTrainingCourse } from './course.js';
+import { addOutposts } from './outposts.js';
+import { TEAMS } from '../game/teams.js';
 
 /**
  * Zona de nascimento dentro de geometria faz o jogador aparecer preso, sem
@@ -78,10 +80,12 @@ export function buildWorld(scene) {
   const northGround = terrain.heightAt(north.x, north.z);
   const southGround = terrain.heightAt(south.x, south.z);
   addBase(scene, colliders, {
-    name: 'BASE NORTE', ...north, ground: northGround, facing: 1, color: 0xd94f4f, settling
+    name: TEAMS.karnia.short, ...north, ground: northGround,
+    facing: 1, color: TEAMS.karnia.color, settling
   });
   addBase(scene, colliders, {
-    name: 'BASE SUL', ...south, ground: southGround, facing: -1, color: 0x3f7ad9, settling
+    name: TEAMS.vestria.short, ...south, ground: southGround,
+    facing: -1, color: TEAMS.vestria.color, settling
   });
 
   const courseGround = terrain.heightAt(course.x, course.z);
@@ -90,23 +94,40 @@ export function buildWorld(scene) {
 
   // nada de árvore dentro de base, do campo de treino, ou no caminho entre eles
   const occupied = [
-    { ...north, radius: BASE_PLATFORM + 4 },
-    { ...south, radius: BASE_PLATFORM + 4 },
-    { x: course.x, z: course.z, radius: COURSE_PLATFORM + 4 }
+    { ...north, radius: BASE_PLATFORM + 4, name: 'Base Karnia' },
+    { ...south, radius: BASE_PLATFORM + 4, name: 'Base Vestria' },
+    { x: course.x, z: course.z, radius: COURSE_PLATFORM + 4, name: 'campo de treino' }
   ];
+
+  // Os doze postos entram antes da floresta: eles empurram árvore, não o
+  // contrário. `occupied` cresce dentro de addOutposts com o raio de cada um.
+  const outposts = addOutposts(scene, colliders, { terrain, settling, occupied });
   const blocked = (x, z) => occupied.some(
     (zone) => Math.hypot(x - zone.x, z - zone.z) < zone.radius
   );
 
   // Zonas de nascimento. Ficam sobre terreno seco, longe de construção —
   // é o que a tela de deploy oferece como escolha de onde entrar.
+  // Onde dá pra desembarcar: a base principal de cada time, que é sempre
+  // dela, mais um ponto por posto. Quais postos valem AGORA é decisão da
+  // partida, não do mapa — aqui só existe o lugar.
   const spawnZones = [
-    { id: 'norte', name: 'Base Norte', x: north.x, z: north.z + 16, radius: 16 },
-    { id: 'treino', name: 'Campo de treino', x: course.x - 16, z: course.z + 14, radius: 18 },
-    { id: 'sul', name: 'Base Sul', x: south.x, z: south.z - 16, radius: 16 },
-    { id: 'praia-leste', name: 'Praia leste', x: 128, z: 0, radius: 14 },
-    { id: 'praia-oeste', name: 'Praia oeste', x: -128, z: 0, radius: 14 },
-    { id: 'morro', name: 'Alto da ilha', x: 20, z: 40, radius: 14 }
+    {
+      id: 'base-karnia', name: `Base ${TEAMS.karnia.short}`, team: 'karnia',
+      base: true, x: north.x, z: north.z + 16, radius: 16
+    },
+    {
+      id: 'base-vestria', name: `Base ${TEAMS.vestria.short}`, team: 'vestria',
+      base: true, x: south.x, z: south.z - 16, radius: 16
+    },
+    {
+      id: 'treino', name: 'Campo de treino', team: null,
+      base: true, x: course.x - 16, z: course.z + 14, radius: 18
+    },
+    ...outposts.map((posto) => ({
+      id: posto.id, name: `Posto ${posto.name}`, team: posto.startTeam,
+      base: false, post: posto, x: posto.x, z: posto.z + 7, radius: 10
+    }))
   ];
 
   const counts = addForest(scene, colliders, {
@@ -140,12 +161,16 @@ export function buildWorld(scene) {
 
     water,
     targets,
+    outposts,
     spawnZones,
     bases: [
       { id: 'norte', short: 'Norte', name: 'Base Norte', position: new THREE.Vector3(north.x, northGround, north.z) },
       { id: 'sul', short: 'Sul', name: 'Base Sul', position: new THREE.Vector3(south.x, southGround, south.z) }
     ],
     spawn: new THREE.Vector3(north.x, northGround, north.z + 12),
-    stats: { ...counts, alvos: targets.length, colliders: colliders.length }
+    stats: {
+      ...counts, alvos: targets.length, postos: outposts.length,
+      colliders: colliders.length
+    }
   };
 }

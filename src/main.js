@@ -18,6 +18,11 @@ import { initCompass } from './ui/compass.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
 import { initWatchdog } from './ui/watchdog.js';
+import { createCapture } from './game/capture.js';
+import { drawFlags } from './world/outpost.js';
+import { initObjective, initFlagPrompt } from './ui/objective.js';
+import { isDown } from './core/input.js';
+import { FLAG_KEYS } from './player/constants.js';
 
 /**
  * Fiação e laço de render.
@@ -56,12 +61,19 @@ function boot() {
   const firearm = initFirearm(player, world, ballistics, viewmodel);
   const digging = initDigging(player, world);
 
+  // Modo de jogo: doze postos, quatro bandeiras cada. Quem está de que lado
+  // é do jogador; de quem é cada posto é da partida.
+  const capture = createCapture(world.outposts);
+
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
 
   game = {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog,
+    capture,
+    updateObjective: initObjective(player, capture),
+    updateFlagPrompt: initFlagPrompt(player, capture),
     updateDebug: initDebug(player),
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
@@ -106,7 +118,8 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 
 function frame() {
   const {
-    world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog
+    world, player, viewmodel, drops, attack, ballistics, firearm, digging,
+    watchdog, capture
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -126,6 +139,16 @@ function frame() {
   }
   ballistics.update(delta, world.targets, world.terrain);
   world.settling.update(delta);
+
+  // Bandeira só anda com alguém trabalhando nela, e espectador não trabalha.
+  if (!player.spectating) {
+    const pes = player.object.position;
+    capture.update(delta, {
+      x: pes.x, y: player.feetY, z: pes.z, teamId: player.team,
+      agindo: player.isLocked && isDown(...FLAG_KEYS)
+    });
+  }
+  drawFlags(world.outposts);
 
   // tecla de teste enquanto nada causa dano de verdade ao jogador
   if (player.isLocked && !player.spectating && consumePress('KeyK')) {
@@ -150,6 +173,8 @@ function frame() {
   game.updateCompass();
   game.updatePrompt();
   game.updateHitmarker(delta);
+  game.updateObjective();
+  game.updateFlagPrompt();
   watchdog.update();
 
   renderer.render(scene, camera);

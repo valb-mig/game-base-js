@@ -326,7 +326,10 @@ body.aiming #crosshair {
 
 /* ----------------------------------------------------------- aviso de ação */
 
-#prompt {
+/* O aviso de bandeira usa o mesmo molde do de apanhar, uma linha abaixo:
+   os dois podem aparecer juntos, e empilhados nunca se cobrem. */
+#prompt,
+#flag-prompt {
   position: absolute;
   top: calc(50% + 34px);
   left: 50%;
@@ -341,11 +344,17 @@ body.aiming #crosshair {
   white-space: nowrap;
 }
 
-#prompt.visible {
+#flag-prompt {
+  top: calc(50% + 62px);
+}
+
+#prompt.visible,
+#flag-prompt.visible {
   display: flex;
 }
 
-#prompt kbd {
+#prompt kbd,
+#flag-prompt kbd {
   display: grid;
   place-items: center;
   min-width: 22px;
@@ -444,4 +453,67 @@ body.aiming #crosshair {
 
 #watchdog.visivel {
   display: block;
+}
+
+/* ------------------------------------------------------- objetivo e postos */
+
+#mission {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  min-width: 232px;
+  padding: 8px 12px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(210, 220, 190, 0.22);
+  background: rgba(16, 20, 14, 0.6);
+  text-align: center;
+}
+
+.mission-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  opacity: 0.62;
+}
+
+.placar {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 5px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* O time do jogador ganha um sublinhado: com dois números iguais lado a lado,
+   saber qual é o seu não pode depender de lembrar a cor. */
+.placar-time.meu {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.mission-line {
+  margin-top: 3px;
+  min-height: 13px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+}
+
+.captura {
+  display: none;
+  height: 4px;
+  margin-top: 6px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.captura.visivel {
+  display: block;
+}
+
+.captura i {
+  display: block;
+  height: 100%;
+  width: 0;
 }
