@@ -448,6 +448,17 @@ slot COM item, então a Thompson da Assault não aparece — nem no HUD nem na
 tira da tela de deploy. Prometer na tela de deploy e entregar outra coisa no
 mapa é pior que não prometer.
 
+**Time se distingue pelo TOM da farda, não pela cor dele.** Uniforme inteiro
+pintado de vermelho e azul seria fantasia, não farda, e o soldado deixaria de
+se esconder no mato — que é metade do jogo. Karnia é escura e Vestria clara, e
+isso resolve a quarenta metros; a bandeira no peito e o vivo do capacete dizem
+QUAL time, mas só de perto.
+
+**O soldado é 324 triângulos, e tudo é caixa.** Capacete arredondado custaria
+mais que o corpo inteiro e não se distingue a distância nenhuma. Cinto,
+cartucheiras e mochila custam cinco caixas e são o que faz a silhueta ler como
+soldado em vez de boneco — inclusive de costas, que é de onde se flanqueia.
+
 **Bot que aponta o vetor exato e atira não é difícil, é impossível.** Tudo em
 `bots/aiming.js` é atraso e erro de propósito: tempo de reação antes do
 primeiro tiro, velocidade finita pra virar a cabeça, mira que nasce aberta e

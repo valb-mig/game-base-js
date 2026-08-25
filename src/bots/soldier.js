@@ -25,49 +25,100 @@ const RAIO_ALVO = 0.5;       // esfera de acerto, do quadril à cabeça
 const ALTURA = 1.75;
 const ALTURA_AGACHADO = 1.15;
 
-const CAPACETE = 0x4a5340;
-const PELE = 0xa8825f;
-const BOTA = 0x2e2a24;
+const PELE = 0xc9a978;
+const BOTA = 0x4a3526;
+const METAL = 0x24261f;
 
 function fosco(color) {
   return new THREE.MeshLambertMaterial({ color, emissive: 0x0a0a0a, flatShading: true });
 }
 
-/** Soldado low poly: capacete, tronco, pernas. Sem braço, como a faca. */
-function construirCorpo(cor) {
+/** Uma caixa. Doze triângulos cada — o orçamento inteiro do soldado é isto. */
+function peca(grupo, material, w, h, d, x, y, z, giro = 0) {
+  const malha = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  malha.position.set(x, y, z);
+  if (giro) malha.rotation.x = giro;
+  grupo.add(malha);
+  return malha;
+}
+
+/**
+ * Soldado low poly, 1,75 m.
+ *
+ * O que separa os dois times a quarenta metros é o TOM da farda — uma escura,
+ * uma clara. A bandeira no peito e o vivo do capacete dizem QUAL é, mas só
+ * de perto: cor de time berrante no uniforme inteiro seria fantasia, não
+ * farda, e o soldado deixaria de se esconder no mato que é a metade do jogo.
+ *
+ * Tudo é caixa. Um capacete arredondado custaria mais triângulos que o corpo
+ * inteiro e não se distingue a distância nenhuma.
+ */
+function construirCorpo(time) {
   const grupo = new THREE.Group();
 
-  const farda = fosco(cor);
-  const pernas = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.82, 0.3), fosco(BOTA));
-  pernas.position.y = 0.41;
-  grupo.add(pernas);
+  const farda = fosco(time.uniforme);
+  const fardaEscura = fosco(time.uniformeEscuro);
+  const equipamento = fosco(time.equipamento);
+  const pele = fosco(PELE);
+  const bota = fosco(BOTA);
+  const metal = fosco(METAL);
 
-  const tronco = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.62, 0.32), farda);
-  tronco.position.y = 1.14;
-  grupo.add(tronco);
+  // ------------------------------------------------------------- pernas
+  for (const lado of [-1, 1]) {
+    peca(grupo, bota, 0.17, 0.11, 0.29, lado * 0.11, 0.055, 0.02);
+    peca(grupo, fardaEscura, 0.16, 0.34, 0.17, lado * 0.11, 0.27, 0);   // canela
+    peca(grupo, farda, 0.19, 0.36, 0.21, lado * 0.11, 0.62, 0);          // coxa
+  }
 
-  const cabeca = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), fosco(PELE));
-  cabeca.position.y = 1.58;
-  grupo.add(cabeca);
+  // -------------------------------------------------------------- tronco
+  const tronco = peca(grupo, farda, 0.44, 0.46, 0.24, 0, 1.05, 0);
+  peca(grupo, fardaEscura, 0.45, 0.07, 0.25, 0, 0.83, 0);       // barra da túnica
+  peca(grupo, fardaEscura, 0.2, 0.1, 0.13, 0, 1.25, 0.09);      // gola em V
 
-  // O capacete leva a cor do time: é o que se enxerga primeiro num tiroteio,
-  // e confundir amigo com inimigo a 40 m não pode depender da farda.
-  const capacete = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.32), fosco(CAPACETE));
-  capacete.position.y = 1.72;
-  grupo.add(capacete);
+  // Cinto e cartucheiras: é o que faz a silhueta ler como soldado e não como
+  // boneco, e custa três caixas.
+  peca(grupo, equipamento, 0.46, 0.06, 0.26, 0, 0.86, 0);
+  for (const lado of [-1, 1]) {
+    peca(grupo, equipamento, 0.13, 0.12, 0.09, lado * 0.13, 0.92, 0.14);
+  }
 
-  const faixa = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.05, 0.33), farda);
-  faixa.position.y = 1.665;
-  grupo.add(faixa);
+  // Mochila nas costas: dá volume por trás e torna o soldado reconhecível de
+  // costas, que é de onde se flanqueia.
+  peca(grupo, equipamento, 0.32, 0.3, 0.14, 0, 1.13, -0.18);
+  peca(grupo, equipamento, 0.14, 0.13, 0.1, 0, 0.95, -0.17);
 
-  return { grupo, painted: [tronco, faixa] };
+  // -------------------------------------------------------------- braços
+  // Erguidos e à frente: é a pose de quem carrega arma, e é onde o modelo da
+  // arma vai encaixar.
+  for (const lado of [-1, 1]) {
+    peca(grupo, farda, 0.13, 0.26, 0.15, lado * 0.28, 1.15, 0.02);        // ombro
+    peca(grupo, farda, 0.12, 0.24, 0.16, lado * 0.24, 0.98, 0.13, -0.5);  // antebraço
+    peca(grupo, pele, 0.09, 0.09, 0.11, lado * 0.21, 0.9, 0.24);          // mão
+  }
+
+  // ------------------------------------------------------ cabeça e capacete
+  peca(grupo, pele, 0.12, 0.07, 0.12, 0, 1.32, 0);                // pescoço
+  const cabeca = peca(grupo, pele, 0.2, 0.21, 0.2, 0, 1.46, 0);
+
+  peca(grupo, fardaEscura, 0.24, 0.13, 0.25, 0, 1.62, 0);         // casco
+  peca(grupo, fardaEscura, 0.27, 0.04, 0.29, 0, 1.55, 0);         // aba
+  // vivo do time no capacete: some a distância, e é isso que se quer
+  const vivo = peca(grupo, fosco(time.color), 0.245, 0.025, 0.255, 0, 1.585, 0);
+
+  // ------------------------------------------------------- bandeira no peito
+  // Quem chega perto identifica pela bandeira; quem está longe lê o tom da
+  // farda. A moldura fica ATRÁS dela — na frente, ela tapava justamente o que
+  // devia mostrar.
+  peca(grupo, metal, 0.135, 0.105, 0.01, -0.115, 1.17, 0.121);
+  const bandeira = peca(grupo, fosco(time.color), 0.12, 0.09, 0.02, -0.115, 1.17, 0.13);
+
+  return { grupo, painted: [tronco, cabeca, vivo, bandeira] };
 }
 
 export function createSoldier(scene, colliders, {
   id, team, x, z, terrain, weapons
 }) {
-  const cor = teamOf(team).color;
-  const { grupo, painted } = construirCorpo(cor);
+  const { grupo, painted } = construirCorpo(teamOf(team));
   scene.add(grupo);
 
   // materiais próprios: piscar de dano num não pode acender os outros
@@ -80,7 +131,7 @@ export function createSoldier(scene, colliders, {
   // desligar visibilidade. Criar e destruir a cada troca daria churn de GPU
   // num bot que troca de arma no meio do tiroteio.
   const maos = new THREE.Group();
-  maos.position.set(0.26, 1.24, 0.12);
+  maos.position.set(0.21, 0.92, 0.26);
   grupo.add(maos);
 
   const modelos = new Map();

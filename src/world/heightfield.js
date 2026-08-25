@@ -1,4 +1,5 @@
 import { WORLD } from '../config.js';
+import { declividadeAt, tipoDoChao } from './ground.js';
 
 /**
  * Campo de altura de Sainte-Mère. Matemática pura, sem three: é a fonte de
@@ -186,14 +187,20 @@ export function createHeightfield(flatZones = [], deform = null, perfil = 'saint
     return Math.max(0, WORLD.WATER_LEVEL - heightAt(x, z));
   }
 
-  return { heightAt, waterDepthAt, naturalHeight, riverBedAt: leitoDoRio, bridges: pontes };
-}
+  return {
+    heightAt,
+    waterDepthAt,
+    naturalHeight,
+    riverBedAt: leitoDoRio,
+    bridges: pontes,
 
-/** Cor do terreno pela altura: areia na praia, capim, e topo mais seco. */
-export function colorAt(height) {
-  if (height < WORLD.SAND_UNTIL) return WORLD.SAND_COLOR;
-  if (height > WORLD.ALTURA_PLANALTO * 1.22) return WORLD.HIGHLAND_COLOR;
-  return WORLD.GRASS_COLOR;
+    // Que chão é cada ponto sai daqui e de nenhum outro lugar: a malha pinta
+    // por isto, a floresta nasce por isto e o mapa tático desenha por isto.
+    // Duas fontes de verdade sobre o mesmo chão se separariam no primeiro
+    // ajuste da declividade.
+    declividadeAt: (x, z) => declividadeAt(heightAt, x, z),
+    tipoAt: (x, z) => tipoDoChao(heightAt(x, z), declividadeAt(heightAt, x, z))
+  };
 }
 
 /**

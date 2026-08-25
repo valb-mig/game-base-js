@@ -110,6 +110,13 @@ export const WORLD = {
   WATER_LEVEL: 0,
   SAND_UNTIL: 2.6,        // até essa altura o terreno é areia, não capim
 
+  // Acima dessa declividade (metro por metro) a grama não pega e fica terra.
+  // Medido no mapa inteiro: a mediana em terra seca é 0,019 e o percentil 95
+  // é 0,246. 0,16 pega o meio da escarpa (0,21) e as margens do rio (0,63) e
+  // deixa planalto (0,02) e flanco de colina (0,08) de grama — 8,5% do mapa
+  // vira terra. Terra é a exceção, e é a exceção nos lugares que importam.
+  DECLIVE_TERRA: 0.16,
+
   // Onde cada exército desembarca. Ao sul do rio, os dois: a frente anda de
   // sul pra norte, e é isso que faz as pontes serem gargalo pros dois lados.
   BASE_VESTRIA: { x: -693, z: 696 },
@@ -118,7 +125,11 @@ export const WORLD = {
 
   TREE_COUNT: 1400,
   ROCK_COUNT: 260,
-  TREE_LINE: 4.0,         // árvore não nasce abaixo disso: ali ainda é praia
+
+  // Arbusto só nasce em grama, e é o único prop que quebra. 1600 sobre os
+  // 2,6 km² de grama dá um a cada 40 m — perto o bastante pra haver mato na
+  // briga, longe o bastante pra não ser carpete.
+  BUSH_COUNT: 1600,
 
   // ------------------------------------------------------------- cores
   SKY_COLOR: 0x9ec6dd,
@@ -126,10 +137,12 @@ export const WORLD = {
   DEEP_WATER_COLOR: 0x14323d,
   SAND_COLOR: 0xd8c89a,
   GRASS_COLOR: 0x5f8b3c,
-  HIGHLAND_COLOR: 0x6f7a53,
+  DIRT_COLOR: 0x7d6446,   // barranco pelado, onde a grama não pega
   TREE_COLOR: 0x2f6b3a,
   TRUNK_COLOR: 0x4a3524,
   ROCK_COLOR: 0x7b7f80,
+  BUSH_COLOR: 0x40702f,
+  BUSH_COLOR_DARK: 0x2d5222,
   SOIL_COLOR: 0x6b5334,   // terra revolvida, onde a pá passou
 
   // A névoa fecha bem mais longe que na ilha: num mapa de dois quilômetros,

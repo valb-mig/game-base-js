@@ -14,14 +14,27 @@ export const TEAMS = {
     name: 'Pacto de Karnia',
     short: 'KARNIA',
     color: 0xd94f4f,
-    css: '#d94f4f'
+    css: '#d94f4f',
+
+    // Farda ESCURA. A cor do time é a bandeira no peito e o vivo do
+    // capacete; o uniforme inteiro pintado de vermelho e azul seria fantasia,
+    // não farda. O que separa os dois a quarenta metros é o TOM: um escuro,
+    // um claro — e isso funciona antes de dar pra ler qualquer bandeira.
+    uniforme: 0x3c4433,
+    uniformeEscuro: 0x2f3628,
+    equipamento: 0x6b6244
   },
   vestria: {
     id: 'vestria',
     name: 'Aliança de Vestria',
     short: 'VESTRIA',
     color: 0x3f7ad9,
-    css: '#3f7ad9'
+    css: '#3f7ad9',
+
+    // Farda CLARA, o outro extremo do mesmo tom.
+    uniforme: 0x8a8459,
+    uniformeEscuro: 0x6f6a46,
+    equipamento: 0xa8996c
   }
 };
 

@@ -112,6 +112,11 @@ um segundo. Morrer devolve pra tela de deploy.
 Eles seguram o tiro quando um companheiro está na linha, e voltam ao combate
 seis segundos depois de cair, num posto que o time ainda domine.
 
+Os dois lados se distinguem pelo tom da farda — Karnia escura, Vestria clara —
+com a bandeira do time no peito e um vivo da cor dele no capacete. O tom
+resolve a quarenta metros; a bandeira diz qual é de perto. Uniforme inteiro na
+cor do time seria fantasia, e o soldado deixaria de se esconder no mato.
+
 A mira deles é feita pra ser enfrentável: ele demora a reagir, vira a cabeça
 numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
 perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de
