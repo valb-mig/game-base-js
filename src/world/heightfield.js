@@ -240,3 +240,10 @@ export function assertFlatZones(zones) {
   }
   return zones;
 }
+
+/**
+ * `colorAt` mudou de casa pra `world/ground.js`, onde ela virou classificação
+ * de terreno e não só cor. O reexport fica aqui pra que quem ainda importa
+ * daqui não quebre no meio da mudança — pode sumir quando ninguém mais o usar.
+ */
+export { colorAt } from './ground.js';
