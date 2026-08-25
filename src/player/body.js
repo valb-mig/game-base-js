@@ -10,9 +10,10 @@ import { PLAYER_TEAM } from '../game/teams.js';
  * mesmo quando o corpo não está: dava pra ver a própria caixa de acerto
  * flutuando sobre nada.
  *
- * A CABEÇA é escondida. A câmera fica dentro dela — a 1,56 m, e o capacete
- * vai até 1,75 —, e desenhá-la encheria a tela de dentro de capacete. Quem
- * vê a cabeça do jogador é o inimigo, e pra ele existe o soldado do mundo.
+ * A CABEÇA nem é carregada. A câmera fica dentro dela — a 1,56 m, e o
+ * capacete vai até 1,75 —, e desenhá-la encheria a tela de dentro de
+ * capacete. Quem vê a cabeça do jogador é o inimigo, e pra ele existe o
+ * soldado do mundo.
  *
  * O corpo segue a posição e o GIRO, nunca a inclinação: olhar pro céu não
  * deita o soldado de costas. Quem inclina é só a câmera.
@@ -28,15 +29,21 @@ import { PLAYER_TEAM } from '../game/teams.js';
  * da nuca, passam a ficar na frente, que é onde os pés de alguém ficam.
  */
 
-/** Malhas que somem em primeira pessoa: a câmera está dentro delas. */
-const ESCONDER = /^(cabeca|rosto|pescoco|capacete)/;
-
 /**
- * Os braços também somem daqui. Eles existem no viewmodel, presos à arma —
- * duplicá-los no mundo daria dois pares de braços em posições diferentes,
+ * Galhos que o corpo do jogador não carrega. Removidos, não escondidos: o
+ * modelo do jogador é uma cópia exclusiva dele, e o que não aparece também
+ * não precisa existir — cada malha aqui é um `draw call` por quadro.
+ *
+ * `neck` leva junto cabeça, capacete, pescoço e a INSÍGNIA do capacete, que
+ * é filha de `head`. Foi ela que sobrou da primeira tentativa: escondendo
+ * por nome, `insignia` não casava com nada, e ela fica na altura do olho —
+ * atravessava a câmera de dentro.
+ *
+ * Os ombros levam os braços e o nó `weapon`. Braço quem desenha é o
+ * viewmodel, preso à arma; um segundo par no mundo ficaria em outra pose,
  * porque o do mundo não sabe de mira, coice nem balanço.
  */
-const BRACOS = /^(mao|antebraco|ombreira|braco)/;
+const SEM_ISSO = ['neck', 'shoulder_L', 'shoulder_R'];
 
 /**
  * Quanto o corpo recua atrás do olho, em metros.
@@ -55,13 +62,7 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
   if (!feito) return { update() {}, get visible() { return false; } };
 
   const grupo = feito.grupo;
-  grupo.traverse((o) => {
-    if (!o.isMesh || !o.name) return;
-    if (ESCONDER.test(o.name) || BRACOS.test(o.name)) o.visible = false;
-  });
-
-  // A arma vai na mão do viewmodel, não nesta cópia.
-  if (feito.maos) feito.maos.visible = false;
+  for (const nome of SEM_ISSO) grupo.getObjectByName(nome)?.removeFromParent();
 
   // Pose só desta cópia: a perna vem à frente pra caber no campo de visão.
   //

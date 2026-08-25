@@ -77,11 +77,24 @@ export async function run() {
   // Altura: o corpo assenta nos pés do jogador, não na altura dos olhos.
   ok('a bota encosta no chão', Math.abs(bota.caixa.min.y - player.feetY) < 0.12);
 
-  // A cabeça some: a câmera está dentro dela.
-  for (const nome of ['cabeca', 'capacete']) {
-    const malha = corpo.grupo.getObjectByName(nome);
-    ok(`${nome} não é desenhado`, malha ? malha.visible === false : true);
+  // A cabeça nem é carregada: a câmera está dentro dela. E `insignia` entra
+  // aqui de propósito — ela é filha de `head`, fica na altura do olho, e
+  // escondendo por nome ela sobrava atravessando a câmera por dentro.
+  for (const nome of ['cabeca', 'capacete_topo', 'capacete_aba', 'pescoco',
+                      'insignia', 'braco_L', 'braco_R', 'mao_L', 'mao_R']) {
+    ok(`${nome} não existe no corpo do jogador`,
+      corpo.grupo.getObjectByName(nome) === undefined);
   }
+
+  // E nada do que sobrou pode cruzar o olho por dentro.
+  let maisAlto = -Infinity, quem = '—';
+  corpo.grupo.traverse((o) => {
+    if (!o.isMesh || !o.visible) return;
+    const topo = new THREE.Box3().setFromObject(o).max.y;
+    if (topo > maisAlto) { maisAlto = topo; quem = o.name || '(sem nome)'; }
+  });
+  note('malha mais alta do corpo', `${quem} a ${(maisAlto - player.eyeY).toFixed(3)} m do olho`);
+  ok('nada do corpo chega na altura do olho', maisAlto < player.eyeY - 0.05);
 
   // Só o giro, nunca a inclinação: olhar pro céu não deita o soldado.
   camera.rotation.x = -1.2;
