@@ -15,6 +15,15 @@
  * o mecanismo existe e é testado no harness, mas ninguém usa ainda.
  */
 
+/**
+ * Slots de mão, na ordem das teclas 1, 2 e 3.
+ *
+ * A posição é fixa: a faca é sempre o 3, mesmo que a classe não tenha nada
+ * no 1. Slot vazio não vira botão no HUD nem responde à tecla — o que não
+ * existe não aparece.
+ */
+export const SLOT_ORDER = ['Primária', 'Secundária', 'Corpo a corpo'];
+
 export const KNIFE = {
   id: 'kabar',
   slot: 'Corpo a corpo',

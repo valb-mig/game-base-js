@@ -1,12 +1,30 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { axis, isDown, consumePress } from '../core/input.js';
-import { collides, groundHeightAt, terrainUnder } from './collision.js';
+import { collides, groundHeightAt, terrainUnder, ceilingAbove } from './collision.js';
 import { horizontalRight, forwardX, forwardZ } from './heading.js';
 import {
   STAND, CROUCH, PRONE,
   FORWARD_KEYS, BACK_KEYS, RIGHT_KEYS, LEFT_KEYS, JUMP_KEYS, RUN_KEYS
 } from './constants.js';
+
+// Folga contra ruído de ponto flutuante quando o jogador está quase parado.
+const SLOPE_EPSILON = 0.001;
+
+// De onde saiu o piso deste quadro: preenchido por groundHeightAt.
+const floorSource = { onCollider: false };
+
+/**
+ * Quanto o piso pode subir ou descer neste quadro e ainda ser ladeira.
+ *
+ * Sai da velocidade: numa rampa o chão só varia o que o jogador andou, vezes
+ * a inclinação. Qualquer variação maior que isso é beirada (descendo) ou
+ * degrau (subindo) — e a conta ser por quadro é o que faz o limite valer
+ * igual a 30 e a 144 fps.
+ */
+function slopeReach(player, delta) {
+  return player.speed * delta * player.stats.SNAP_SLOPE + SLOPE_EPSILON;
+}
 
 // Move `vec` na direção de `target` no máximo `maxStep`. Trabalhar com o
 // vetor inteiro (e não eixo a eixo) mantém a diagonal com a mesma resposta
@@ -155,13 +173,45 @@ export function moveVertical(player, delta) {
   // trajetória fecha com a física contínua em qualquer dt.
   const previousVertical = player.verticalVelocity;
   player.verticalVelocity -= stats.GRAVITY * delta;
+
+  const headBefore = player.eyeY;
   player.eyeY += (previousVertical + player.verticalVelocity) * 0.5 * delta;
+
+  // Bater a cabeça. Sem isto o pulo atravessava qualquer laje: o movimento
+  // vertical só olhava o piso, e subir por baixo de um teto levava o jogador
+  // pra dentro dele — e, ao cair, pra cima dele.
+  if (player.eyeY > headBefore) {
+    const teto = ceilingAbove(
+      player.colliders, position.x, position.z,
+      player.feetY, headBefore, player.eyeY
+    );
+    if (teto < Infinity) {
+      player.eyeY = teto;
+      player.verticalVelocity = 0;
+      player.jumpCutPending = false;
+    }
+  }
 
   const floorY = groundHeightAt(
     player.colliders, position.x, position.z, player.feetY,
-    terrainUnder(player, position.x, position.z)
+    terrainUnder(player, position.x, position.z), floorSource
   );
   const landingEyeY = floorY + player.height;
+  const reach = slopeReach(player, delta);
+
+  // Descer ladeira não é cair. O piso baixa mais rápido do que a gravidade
+  // puxa nos primeiros quadros, e sem isto o jogador passava a descida inteira
+  // no ar: 214 de 220 quadros a 40°, com os olhos até 1 m acima do chão,
+  // saltando e aterrissando sem parar — é este o tremor da ladeira.
+  //
+  // Colar só vale pra quem já estava no chão e não está subindo: pulo tem
+  // verticalVelocity positiva, e beirada de verdade baixa mais que a
+  // velocidade explica, então continua sendo queda.
+  const dropped = player.eyeY - landingEyeY;
+  if (player.onGround && player.verticalVelocity <= 0
+      && dropped > 0 && dropped <= reach) {
+    player.eyeY = landingEyeY;
+  }
 
   // só aterrissa descendo — senão o jogador gruda em caixas ao subir raspando
   if (player.verticalVelocity <= 0 && player.eyeY <= landingEyeY) {
@@ -184,10 +234,19 @@ export function moveVertical(player, delta) {
   // câmera deixa a subida contínua sem mentir pra física.
   if (player.onGround) {
     const climbed = floorY - player.floorY;
+
     // Só degrau de verdade desconta a câmera. Numa ladeira o jogador sobe um
-    // tiquinho todo frame, e o limiar antigo (1 cm) fazia a vista ficar
-    // permanentemente atrasada subindo qualquer morro.
-    if (climbed > stats.STEP_VIEW_MIN) {
+    // tiquinho todo frame, e a vista ficaria permanentemente atrasada subindo
+    // qualquer morro.
+    //
+    // O que separa um do outro é a FONTE do piso, não a altura: degrau é topo
+    // de colisor, ladeira é terreno. Pela altura isso dependia do framerate —
+    // a 30 fps a rampa de 40° sobe 23 cm por quadro, o limiar fixo de 12 cm
+    // achava degrau onde não tinha, e a vista passava 100 quadros atrasada.
+    // O terreno ainda pode dar um salto que nenhuma velocidade explica, e aí
+    // a suavização volta a fazer sentido.
+    const isStep = floorSource.onCollider || climbed > reach;
+    if (isStep && climbed > stats.STEP_VIEW_MIN) {
       player.viewOffset = Math.max(player.viewOffset - climbed, -stats.STEP_HEIGHT);
     }
     player.floorY = floorY;

@@ -50,6 +50,10 @@ export const PLAYER = {
 
   // acabamento de câmera — puro visual, não afeta colisão
   STEP_VIEW_MIN: 0.12,  // subida mínima pra contar como degrau, não ladeira
+  // Quanto o piso pode variar num quadro e ainda ser ladeira, como tangente
+  // da inclinação: tan(58°). Multiplicado pelo que o jogador andou no quadro,
+  // vira o limite entre descer uma rampa e cair de uma beirada.
+  SNAP_SLOPE: 1.6,
   VIEW_RECOVER: 14,
   LAND_DIP: 0.03,
   LAND_DIP_MAX: 0.3,
@@ -124,6 +128,11 @@ export const BULLET = {
   // um pouco abaixo existe porque o atraso da mão numa virada de 180° chega a
   // 5° e não deveria custar o tiro inteiro.
   MUZZLE_BEND: 0.8,
+  // Teto do desvio VERTICAL, em graus. O horizontal é livre: correndo, a arma
+  // baixada e de lado joga a bala 38° pra esquerda, e isso é o que se quer
+  // ver. Os 21° pra baixo da mesma pose não — enfiavam o tiro no chão a dois
+  // metros, e o jogador não lê isso como "arma fora de posição", lê como bug.
+  MUZZLE_RISE: 4,
 
   TRACER_EVERY: 4,    // um traçante a cada tantos tiros, como nas fitas da guerra
   // Comprido de propósito: atirando na direção do olhar o risco é visto de

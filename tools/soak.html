@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Soak</title>
+<style>
+  body { margin: 0; background: #12181a; color: #dfe6e2; font: 12px/1.6 ui-monospace, monospace; }
+  pre { padding: 20px; margin: 0; white-space: pre-wrap; }
+  .falha { color: #e6845a; }
+  .ok { color: #93bd5e; }
+</style>
+</head>
+<body>
+<pre id="out">rodando…</pre>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/three.module.js",
+    "three/addons/": "../vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { initInput } from '../src/core/input.js';
+import { soak } from '../tests/soak.js';
+
+// ?sementes=40&quadros=9000&onde=treino
+const params = new URLSearchParams(location.search);
+const sementes = Number(params.get('sementes') ?? 24);
+const quadros = Number(params.get('quadros') ?? 6000);
+const onde = params.get('onde') ?? 'treino';
+
+const scene = new THREE.Scene();
+const world = buildWorld(scene);
+initInput();
+
+// Parte dos mesmos pontos que a tela de deploy oferece: começar de um lugar
+// que o jogo não oferece testa um percurso que ninguém faz.
+const zona = world.spawnZones.find((z) => z.id === onde) ?? world.spawnZones[0];
+const from = new THREE.Vector3(zona.x, 0, zona.z);
+
+const linhas = [
+  `soak: ${sementes} sementes x ${quadros} quadros a partir de "${zona.name}"`,
+  `(${((sementes * quadros) / 60 / 60).toFixed(1)} minutos de jogo simulado)`,
+  ''
+];
+
+let quebradas = 0;
+const porTipo = new Map();
+
+for (let seed = 1; seed <= sementes; seed++) {
+  const resultado = soak({ world, seed, frames: quadros, from });
+  if (resultado.ok) continue;
+
+  quebradas++;
+  for (const v of resultado.violations) {
+    porTipo.set(v.tipo, (porTipo.get(v.tipo) ?? 0) + 1);
+  }
+
+  // só as três primeiras sementes quebradas mostram o caminho completo
+  if (quebradas <= 3) {
+    linhas.push(`SEMENTE ${seed} — ${resultado.violations.length} violação(ões)`);
+    for (const v of resultado.violations) {
+      linhas.push(`  [${v.tipo}] quadro ${v.frame}: ${v.detalhe}`);
+      linhas.push(`  posição ${JSON.stringify(v.posicao)}`);
+      linhas.push(`  corpo ${JSON.stringify(v.corpo)}`);
+      linhas.push(`  cruzando ${v.cruzando.length ? v.cruzando.join(' | ') : 'nada'}`);
+      linhas.push('  últimos quadros:');
+      for (const h of v.caminho.filter((_, i) => i % 4 === 0)) {
+        linhas.push(`    q${String(h.frame).padStart(5)} ` +
+          `x${String(h.x).padStart(8)} z${String(h.z).padStart(8)} ` +
+          `pés${String(h.pes).padStart(7)} alt${String(h.alt).padStart(6)} ` +
+          `${h.chao ? 'chão' : ' ar '} ` +
+          `${h.postura.padEnd(9)} ${h.teclas}`);
+      }
+      linhas.push('');
+    }
+  }
+}
+
+linhas.push('');
+linhas.push(`RESUMO: ${sementes - quebradas}/${sementes} sementes limpas`);
+for (const [tipo, n] of porTipo) linhas.push(`  ${tipo}: ${n}`);
+linhas.push(quebradas === 0 ? 'SOAK LIMPO' : 'SOAK ENCONTROU PROBLEMA');
+
+const out = document.getElementById('out');
+out.textContent = linhas.join('\n');
+out.className = quebradas === 0 ? 'ok' : 'falha';
+console.log('SOAK', JSON.stringify({
+  sementes, quadros, quebradas, tipos: Object.fromEntries(porTipo)
+}));
+</script>
+</body>
+</html>

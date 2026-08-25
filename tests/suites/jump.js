@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { PLAYER } from '../../src/config.js';
-import { suite, ok, near, between, note } from '../assert.js';
+import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
 
@@ -61,6 +61,58 @@ export function run() {
   const mid = jumpApex(5);
   ok('altura é progressiva com o tempo de tecla', tapped < mid && mid <= full);
   note('altura segurando 83 ms', `${mid.toFixed(2)} m`);
+
+  suite('cabeça bate no teto');
+
+  // Regressão: o movimento vertical só olhava o piso. Pular por baixo de uma
+  // laje levava a cabeça pra dentro dela e, ao cair, o jogador pousava em
+  // cima — "embaixo do teto, atravesso e subo em cima".
+  const comTeto = (de, ate) => {
+    const teto = {
+      box: new THREE.Box3(new THREE.Vector3(-6, de, -6), new THREE.Vector3(6, ate, 6)),
+      standable: true
+    };
+    const sujeito = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400),
+      document.body, {
+        colliders: [teto],
+        terrain: { heightAt: () => 0, waterDepthAt: () => 0 },
+        spawn: new THREE.Vector3(0, 0, 0)
+      });
+    sujeito.controls.isLocked = true;
+    sujeito.respawn();
+
+    // Espaço segurado o tempo todo: pulo cheio, sem o corte de altura
+    // variável interferir na conta. E a medição começa no quadro zero — a
+    // primeira versão deste teste pulava os três primeiros e perdia o pico,
+    // que é exatamente onde a cabeça encosta no teto.
+    down('Space');
+
+    let maiorCabeca = 0;
+    for (let i = 0; i < 140; i++) {
+      sujeito.update(DT);
+      endFrame();
+      maiorCabeca = Math.max(maiorCabeca, sujeito.eyeY);
+    }
+    up('Space');
+    sujeito.update(DT);
+    endFrame();
+
+    return { maiorCabeca, pes: sujeito.feetY };
+  };
+
+  const raspando = comTeto(2, 3);
+  near('a cabeça para exatamente no teto', raspando.maiorCabeca, 2, 0.001);
+  near('e o jogador volta pro chão', raspando.pes, 0, 0.001);
+
+  const rente = comTeto(PLAYER.HEIGHT + 0.05, PLAYER.HEIGHT + 1);
+  ok('teto rente mal deixa sair do chão',
+    rente.maiorCabeca <= PLAYER.HEIGHT + 0.05 + 1e-6,
+    `${rente.maiorCabeca.toFixed(2)}`);
+
+  const alto = comTeto(8, 9);
+  near('teto longe não atrapalha o pulo',
+    alto.maiorCabeca - PLAYER.HEIGHT, theoretical, 0.01);
+  note('pulo livre', `${(alto.maiorCabeca - PLAYER.HEIGHT).toFixed(2)} m`);
 
   suite('coyote time e buffer');
 

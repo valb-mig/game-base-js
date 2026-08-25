@@ -17,6 +17,11 @@ import * as THREE from 'three';
  * de 6° que a pose de descanso tem só por estética num erro fixo pra
  * esquerda em todo tiro do quadril — isso lê como bug, não como recuo.
  *
+ * E o desvio é assimétrico de propósito: pro lado ele é livre, pra cima e
+ * pra baixo tem teto. Correndo, a arma de lado manda a bala pra esquerda e é
+ * isso que se quer ver; os 21° de caimento da mesma pose só cravavam o tiro
+ * no chão logo à frente, o que não lê como arma fora de posição.
+ *
  * Sem three além da matemática: dá pra conferir a conta fora do navegador.
  */
 
@@ -32,9 +37,10 @@ const scaled = new THREE.Quaternion();
  *
  * `muzzle.position` e `muzzle.quaternion` são a boca como ela está agora;
  * `muzzle.zero` é a mesma boca na orientação zerada. `bend` de 0 a 1 é quanto
- * do desvio entre as duas a bala herda.
+ * do desvio entre as duas a bala herda, e `rise` é o teto desse desvio na
+ * vertical, em graus.
  */
-export function muzzleShot(shot, camera, muzzle, bend = 1) {
+export function muzzleShot(shot, camera, muzzle, bend = 1, rise = 90) {
   shot.origin.copy(muzzle.position)
     .applyQuaternion(camera.quaternion)
     .add(camera.position);
@@ -48,12 +54,35 @@ export function muzzleShot(shot, camera, muzzle, bend = 1) {
   // pose de corrida joga a arma uns 40° pro lado.
   if (bend < 1) drift.copy(scaled.identity().slerp(drift, bend));
 
-  shot.direction.copy(FORWARD)
-    .applyQuaternion(drift)
-    .applyQuaternion(camera.quaternion)
-    .normalize();
+  shot.direction.copy(FORWARD).applyQuaternion(drift);
+  limitRise(shot.direction, rise);
+
+  // até aqui em espaço de câmera; agora vai pro mundo
+  shot.direction.applyQuaternion(camera.quaternion).normalize();
 
   return shot;
+}
+
+/**
+ * Corta o desvio vertical em `graus`, preservando pra onde a bala vai de lado.
+ *
+ * Achatar o Y e renormalizar não serve: isso encurtaria o vetor e mudaria o
+ * rumo horizontal junto. Aqui o rumo horizontal fica igual e só o quanto ele
+ * sobe ou desce é reescrito.
+ */
+function limitRise(direction, graus) {
+  const limit = Math.sin(graus * Math.PI / 180);
+  const rise = THREE.MathUtils.clamp(direction.y, -1, 1);
+  if (Math.abs(rise) <= limit) return direction;
+
+  const wanted = Math.sign(rise) * limit;
+  const flat = Math.hypot(direction.x, direction.z);
+  const scale = flat > 1e-9 ? Math.sqrt(1 - wanted * wanted) / flat : 0;
+
+  direction.x *= scale;
+  direction.z *= scale;
+  direction.y = wanted;
+  return direction;
 }
 
 /** Par de vetores reaproveitável pra quem chama `muzzleShot` todo tiro. */

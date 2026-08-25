@@ -2,10 +2,28 @@ import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { createTerrain } from './terrain.js';
 import { createHeightfield, assertFlatZones } from './heightfield.js';
+import { PLAYER } from '../config.js';
+import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
 import { addForest } from './forest.js';
 import { addBase } from './base.js';
 import { addTrainingCourse } from './course.js';
+
+/**
+ * Zona de nascimento dentro de geometria faz o jogador aparecer preso, sem
+ * nada que ele possa fazer. Melhor estourar montando o mapa do que descobrir
+ * jogando — foi assim que o campo de treino nasceu dentro de uma plataforma.
+ */
+function assertSpawnZones(zones, colliders, terrain) {
+  for (const zone of zones) {
+    const ground = terrain.heightAt(zone.x, zone.z);
+    if (spawnIsClear(colliders, zone.x, zone.z, ground, PLAYER.HEIGHT)) continue;
+    throw new Error(
+      `zona de nascimento "${zone.name}" (${zone.x}, ${zone.z}) está dentro de geometria`
+    );
+  }
+  return zones;
+}
 
 /** Sorteio determinístico: o mapa tem que sair igual toda vez. */
 function seededRandom(seed) {
@@ -69,27 +87,31 @@ export function buildWorld(scene) {
     (zone) => Math.hypot(x - zone.x, z - zone.z) < zone.radius
   );
 
+  // Zonas de nascimento. Ficam sobre terreno seco, longe de construção —
+  // é o que a tela de deploy oferece como escolha de onde entrar.
+  const spawnZones = [
+    { id: 'norte', name: 'Base Norte', x: north.x, z: north.z + 16, radius: 16 },
+    { id: 'treino', name: 'Campo de treino', x: course.x - 16, z: course.z + 14, radius: 18 },
+    { id: 'sul', name: 'Base Sul', x: south.x, z: south.z - 16, radius: 16 },
+    { id: 'praia-leste', name: 'Praia leste', x: 128, z: 0, radius: 14 },
+    { id: 'praia-oeste', name: 'Praia oeste', x: -128, z: 0, radius: 14 },
+    { id: 'morro', name: 'Alto da ilha', x: 20, z: 40, radius: 14 }
+  ];
+
   const counts = addForest(scene, colliders, {
     heightAt: terrain.heightAt,
     blocked,
     rng: seededRandom(20250824)
   });
 
+  assertSpawnZones(spawnZones, colliders, terrain);
+
   return {
     colliders,
     terrain,
     water,
     targets,
-    // Zonas de nascimento. Ficam sobre terreno seco e afastadas entre si —
-    // é o que a tela de deploy oferece como escolha de onde entrar.
-    spawnZones: [
-      { id: 'norte', name: 'Base Norte', x: north.x, z: north.z + 12, radius: 16 },
-      { id: 'treino', name: 'Campo de treino', x: course.x, z: course.z, radius: 18 },
-      { id: 'sul', name: 'Base Sul', x: south.x, z: south.z - 12, radius: 16 },
-      { id: 'praia-leste', name: 'Praia leste', x: 128, z: 0, radius: 14 },
-      { id: 'praia-oeste', name: 'Praia oeste', x: -128, z: 0, radius: 14 },
-      { id: 'morro', name: 'Alto da ilha', x: 20, z: 26, radius: 14 }
-    ],
+    spawnZones,
     bases: [
       { id: 'norte', short: 'Norte', name: 'Base Norte', position: new THREE.Vector3(north.x, northGround, north.z) },
       { id: 'sul', short: 'Sul', name: 'Base Sul', position: new THREE.Vector3(south.x, southGround, south.z) }

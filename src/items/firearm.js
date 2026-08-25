@@ -34,7 +34,7 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
     const eye = player.object.position;
 
     if (viewmodel?.readMuzzle(muzzle)) {
-      muzzleShot(shot, player.object, muzzle, BULLET.MUZZLE_BEND);
+      muzzleShot(shot, player.object, muzzle, BULLET.MUZZLE_BEND, BULLET.MUZZLE_RISE);
       // arma encostada em parede: a boca está do outro lado dela, e nascer
       // ali seria atirar através da parede
       if (ballistics.blocked(eye, shot.origin)) shot.origin.copy(eye);

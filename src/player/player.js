@@ -93,21 +93,34 @@ export class Player {
     this.maxHealth = classDef.health;
     this.health = classDef.health;
     this.carried = this.carriedOf(classDef);
-    this.slot = 0;
-    this.equipped = this.carried[0] ?? null;
+    this.slot = this.firstSlot();
+    this.equipped = this.carried[this.slot] ?? null;
   }
 
   /**
-   * Itens da classe que existem de fato: os que têm modelo. O resto do
-   * loadout é texto de tela até alguém construir.
+   * O que a classe leva na mão, por slot: `carried[0]` é a primária,
+   * `carried[1]` a secundária e `carried[2]` a faca. Slot sem item construído
+   * fica `null` — o resto do loadout é texto de tela até alguém modelar.
+   *
+   * Posição fixa em vez de lista compactada porque a tecla é a posição: com
+   * lista, largar a pistola faria a faca virar o 1, e a mão do jogador já
+   * tinha decorado onde ela estava.
    */
   carriedOf(classDef) {
-    return classDef.loadout.filter((item) => hasModel(item));
+    return SLOT_ORDER.map((slot) =>
+      classDef.loadout.find((item) => item.slot === slot && hasModel(item)) ?? null);
+  }
+
+  /** Primeiro slot com item; 0 se a classe não leva nada construído. */
+  firstSlot() {
+    const index = this.carried.findIndex(Boolean);
+    return index < 0 ? 0 : index;
   }
 
   /** Troca o item na mão pelo do índice pedido. */
   selectSlot(index) {
     if (index < 0 || index >= this.carried.length) return false;
+    if (!this.carried[index]) return false;   // slot vazio não responde
     if (this.slot === index) return false;
 
     this.slot = index;
@@ -118,22 +131,33 @@ export class Player {
     return true;
   }
 
-  /** Tira da mão o item atual e o remove do inventário. Devolve o item. */
+  /**
+   * Tira da mão o item atual e esvazia o slot dele. Devolve o item.
+   *
+   * O slot continua sendo o mesmo, agora vazio: mão vazia é estado de jogo
+   * válido, e o jogador ainda pode ir pra outro slot com 1, 2 ou 3.
+   */
   dropCarried() {
     const item = this.equipped;
     if (!item) return null;
 
-    this.carried.splice(this.slot, 1);
-    this.slot = Math.min(this.slot, this.carried.length - 1);
-    this.equipped = this.carried[this.slot] ?? null;
+    this.carried[this.slot] = null;
+    this.equipped = null;
     return item;
   }
 
-  /** Põe um item no inventário e na mão. */
+  /**
+   * Guarda um item no slot dele e põe na mão. Devolve false se o slot já
+   * está ocupado — cada arma tem lugar fixo, e apanhar não empurra nada.
+   */
   takeCarried(item) {
-    this.carried.push(item);
-    this.slot = this.carried.length - 1;
+    const index = SLOT_ORDER.indexOf(item.slot);
+    if (index < 0 || this.carried[index]) return false;
+
+    this.carried[index] = item;
+    this.slot = index;
     this.equipped = item;
+    return true;
   }
 
   /** Entra em modo espectador: fantasma, sem colisão e sem gravidade. */
@@ -175,8 +199,8 @@ export class Player {
     this.gun.aim = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.carried = this.carriedOf(this.classDef);
-    this.slot = 0;
-    this.equipped = this.carried[0] ?? null;
+    this.slot = this.firstSlot();
+    this.equipped = this.carried[this.slot] ?? null;
     this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);
   }
 

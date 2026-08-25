@@ -42,11 +42,25 @@ export function run() {
   };
 
   /** Desvio do cano contra a frente da câmera, em graus. */
-  const desvio = (bend = 1) => {
+  const desvio = (bend = 1, rise = 90) => {
     viewmodel.readMuzzle(muzzle);
-    muzzleShot(shot, camera, muzzle, bend);
+    muzzleShot(shot, camera, muzzle, bend, rise);
     olhar.set(0, 0, -1).applyQuaternion(camera.quaternion);
     return olhar.angleTo(shot.direction) * GRAUS;
+  };
+
+  /**
+   * O mesmo desvio separado em lado e altura, com o teto vertical do jogo.
+   * Com a câmera na identidade, a direção do tiro já está em espaço de
+   * câmera: +lado é pra esquerda, +altura é pra cima.
+   */
+  const componentes = () => {
+    viewmodel.readMuzzle(muzzle);
+    muzzleShot(shot, camera, muzzle, BULLET.MUZZLE_BEND, BULLET.MUZZLE_RISE);
+    return {
+      lado: Math.atan2(-shot.direction.x, -shot.direction.z) * GRAUS,
+      altura: Math.asin(shot.direction.y) * GRAUS
+    };
   };
 
   suite('a bala sai da boca do cano');
@@ -93,13 +107,39 @@ export function run() {
   posar(4, { gun: { aim: 0.5 } });
   ok('e no meio do caminho entre as duas', desvio() < 0.05, `${desvio().toFixed(3)}°`);
 
-  suite('arma fora de posição atira torto');
+  suite('andando a arma fica reta');
+
+  posar(40);
+  const andando = componentes();
+  ok('andando, o tiro não vai pro lado', Math.abs(andando.lado) < 0.05,
+    `${andando.lado.toFixed(3)}°`);
+  ok('nem pra cima ou pra baixo', Math.abs(andando.altura) < 0.05,
+    `${andando.altura.toFixed(3)}°`);
+
+  suite('correndo a arma atira pra esquerda');
 
   // pose de corrida: arma baixada e de lado
   posar(40, { running: true });
   const correndo = desvio();
   ok('correndo com a arma baixada, o tiro sai torto', correndo > 10,
     `${correndo.toFixed(1)}°`);
+
+  const lado = componentes();
+  ok('e ele sai pra esquerda', lado.lado > 20, `${lado.lado.toFixed(1)}° pra esquerda`);
+  ok('não pro chão logo à frente', Math.abs(lado.altura) <= BULLET.MUZZLE_RISE + 0.01,
+    `${lado.altura.toFixed(1)}° (teto ${BULLET.MUZZLE_RISE}°)`);
+  note('correndo', `${lado.lado.toFixed(1)}° pra esquerda · ` +
+    `${lado.altura.toFixed(1)}° na vertical`);
+
+  // O teto é só na vertical: cortar o Y sem reescalar o resto mudaria o rumo
+  // horizontal junto, e a bala sairia pra esquerda errada.
+  posar(40, { running: true });
+  const semTeto = componentes();
+  viewmodel.readMuzzle(muzzle);
+  muzzleShot(shot, camera, muzzle, BULLET.MUZZLE_BEND, 90);
+  near('o teto vertical não mexe no rumo lateral',
+    Math.atan2(-shot.direction.x, -shot.direction.z) * GRAUS, semTeto.lado, 0.01);
+  ok('o tiro continua unitário', Math.abs(shot.direction.length() - 1) < 1e-6);
 
   // volta à guarda antes de medir o coice, senão a pose de corrida é que fala
   posar(40);
@@ -108,6 +148,10 @@ export function run() {
   muzzleShot(shot, camera, muzzle, 1);
   ok('e no coice a bala sobe', shot.direction.y > 0.02,
     `${(Math.asin(shot.direction.y) * GRAUS).toFixed(1)}°`);
+
+  const coice = componentes();
+  ok('mas dentro do teto vertical', coice.altura > 0.5
+    && coice.altura <= BULLET.MUZZLE_RISE + 0.01, `${coice.altura.toFixed(1)}°`);
 
   suite('o amortecimento escala o desvio, não o eixo');
 

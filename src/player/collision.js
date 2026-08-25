@@ -33,18 +33,49 @@ export function collides(colliders, x, z, feetY, height) {
  * Altura do piso sob o player: o terreno, ou o topo do colisor mais alto que
  * ele ainda alcança. `terrainY` é o chão de verdade — sem ele o jogador
  * afundaria na ilha, porque antes o terreno era um plano em y=0.
+ *
+ * `out`, quando vem, recebe de onde saiu o piso: degrau é topo de colisor,
+ * ladeira é terreno. Quem suaviza a vista precisa saber a fonte, e sair daqui
+ * é de graça — a alternativa era percorrer os colisores uma segunda vez.
  */
-export function groundHeightAt(colliders, x, z, feetY, terrainY = 0) {
+export function groundHeightAt(colliders, x, z, feetY, terrainY = 0, out = null) {
   const reach = feetY + PLAYER.STEP_HEIGHT;
   let highest = terrainY;
+  let onCollider = false;
 
   for (const { box, standable } of colliders) {
     if (!standable) continue;
     if (box.max.y <= highest || box.max.y > reach) continue;
     if (!overlapsXZ(box, x, z)) continue;
     highest = box.max.y;
+    onCollider = true;
   }
+  if (out) out.onCollider = onCollider;
   return highest;
+}
+
+/**
+ * Teto mais baixo que a cabeça atravessa ao subir de `fromHeadY` até
+ * `toHeadY`, ou Infinity se o caminho está livre.
+ *
+ * O trecho inteiro é considerado, não só onde a cabeça parou: pulando, ela
+ * sobe vários centímetros por quadro, e testar só o fim deixaria a laje fina
+ * passar entre dois quadros.
+ *
+ * Caixa cujo topo está ao alcance do degrau não conta — aquilo é piso pra
+ * subir, não teto pra bater.
+ */
+export function ceilingAbove(colliders, x, z, feetY, fromHeadY, toHeadY) {
+  const climbY = feetY + PLAYER.STEP_HEIGHT;
+  let lowest = Infinity;
+
+  for (const { box } of colliders) {
+    if (box.max.y <= climbY) continue;          // é piso, não teto
+    if (box.min.y < fromHeadY || box.min.y >= toHeadY) continue;
+    if (!overlapsXZ(box, x, z)) continue;
+    if (box.min.y < lowest) lowest = box.min.y;
+  }
+  return lowest;
 }
 
 /** Altura do terreno sob o player, ou 0 se ele não tem terreno. */
@@ -79,4 +110,14 @@ export function restHeightAt(colliders, x, z, fromY, terrainY = 0) {
     highest = box.max.y;
   }
   return highest;
+}
+
+/**
+ * O ponto está livre pra um jogador de pé nascer ali?
+ *
+ * Vale como porteiro de mapa: zona de nascimento dentro de geometria faz o
+ * jogador aparecer preso, e não há nada que ele possa fazer a respeito.
+ */
+export function spawnIsClear(colliders, x, z, groundY, height) {
+  return !collides(colliders, x, z, groundY, height);
 }

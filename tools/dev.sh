@@ -41,7 +41,9 @@ ensure_server() {
 
   printf '%s\n' "$ROOT" > "$ROOT/.serverroot"
   echo "subindo servidor em $URL" >&2
-  (cd "$ROOT" && nohup python3 -m http.server "$PORT" >/dev/null 2>&1 &)
+  # tools/serve.py em vez do http.server padrão: ele manda no-store, e sem
+  # isso o navegador serve módulo ES velho depois de um conserto no disco
+  (cd "$ROOT" && nohup python3 tools/serve.py "$PORT" "$ROOT" >/dev/null 2>&1 &)
   for _ in $(seq 20); do serving && return; sleep 0.25; done
   echo "servidor não subiu na porta $PORT" >&2
   exit 1
@@ -51,6 +53,17 @@ strip_html() { sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g;s/&lt;/<
 
 case "${1:-check}" in
   serve)
+    ensure_server
+    echo "$URL"
+    ;;
+
+  restart)
+    # derruba só o servidor DESTE projeto e sobe de novo, pra pegar mudanças
+    # no próprio tools/serve.py
+    pkill -f "tools/serve.py .* $ROOT" 2>/dev/null || true
+    pkill -f "http.server .*$PORT" 2>/dev/null || true
+    rm -f "$ROOT/.serverroot"
+    sleep 0.4
     ensure_server
     echo "$URL"
     ;;
@@ -98,6 +111,23 @@ case "${1:-check}" in
     echo "sem erro de console em ${2:-index.html}"
     ;;
 
+  soak)
+    ensure_server
+    zona="${2:-treino}"
+    sementes="${3:-14}"
+    quadros="${4:-4200}"
+    out="$(headless --virtual-time-budget=90000 --dump-dom \
+      "$URL/tools/soak.html?sementes=$sementes&quadros=$quadros&onde=$zona" 2>/dev/null \
+      | python3 -c "
+import re, html, sys
+s = sys.stdin.read()
+m = re.search(r'<pre id=\"out\"[^>]*>(.*?)</pre>', s, re.S)
+print(html.unescape(re.sub(r'<[^>]*>', '', m.group(1))) if m else 'soak não rodou')
+")"
+    echo "$out"
+    grep -q 'SOAK LIMPO' <<<"$out"
+    ;;
+
   shot)
     ensure_server
     page="${2:-index.html}"
@@ -112,7 +142,9 @@ case "${1:-check}" in
     cat <<'USAGE'
 uso: tools/dev.sh <comando>
 
-  serve              sobe o servidor estático (idempotente)
+  serve              sobe o servidor estático (idempotente, sem cache)
+  restart            derruba e sobe o servidor de novo
+  soak [zona]        joga sozinho vigiando invariantes
   syntax             parseia todo módulo de src/ e tests/ como ES module
   check              sintaxe + suíte de testes; sai != 0 se algo falhar
   errors [pagina]    abre a página e reporta erro de console

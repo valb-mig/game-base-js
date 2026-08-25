@@ -44,12 +44,14 @@ src/
            muzzle.js  de onde a bala sai e pra onde ela vai
            poses.js  como cada item é segurado
   ui/      flow.js  máquina de estados e telas
+           watchdog.js  vigia de invariantes em jogo
            classcards.js  tacticalmap.js  session.js
            compass.js  mission.js  status.js  prompt.js  hitmarker.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
-            drop, melee, firearm, ballistics, muzzle, combate, flow)
-tools/     dev.sh  model-viewer.html
+            drop, melee, firearm, ballistics, muzzle, slope, combate,
+            flow)
+tools/     dev.sh  serve.py (sem cache)  soak.html  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
            icons/  game-icons.net, CC BY 3.0 (crédito no README)
 ```
@@ -115,6 +117,19 @@ mapa se duas se encostarem.
 gravidade, sem pulo, direção pelo olhar, empuxo puxando pra superfície. Quem
 decide é a profundidade do fundo (`SWIM_DEPTH`), não a altura do jogador —
 assim entrar e sair da água acontece sozinho.
+
+**Descer ladeira não é cair.** O piso baixa mais rápido do que a gravidade
+puxa nos primeiros quadros: sem colar o jogador no chão, descer uma rampa de
+40° passava 214 de 220 quadros no ar, com os olhos até 1 m acima do chão,
+saltando e aterrissando sem parar — era esse o tremor de ladeira. O limite pra
+colar sai da velocidade do quadro (`SNAP_SLOPE`), então beirada de verdade
+continua sendo queda: ela baixa mais do que a velocidade explica.
+
+**Degrau é topo de colisor; ladeira é terreno.** A vista só suaviza degrau, e
+quem decide é a FONTE do piso (`groundHeightAt` devolve isso), não a altura da
+subida. Pela altura o resultado dependia do framerate: a 30 fps uma rampa de
+40° sobe 23 cm por quadro, o limiar fixo de 12 cm achava degrau onde não tinha,
+e a câmera passava 100 quadros seguidos atrasada.
 
 **O atraso do degrau só vale pra degrau.** Com terreno inclinado o jogador sobe
 alguns centímetros todo frame; o limiar antigo de 1 cm deixava a câmera
@@ -197,6 +212,13 @@ lê como bug, não como recuo. O zero é `rest` misturado com `ads` pelo nível 
 mira, então tanto do quadril quanto no ferro a arma parada atira reto, e o que
 torce é corrida, coice e atraso da mão.
 
+**O desvio é assimétrico: livre pro lado, com teto pra cima e pra baixo.**
+Correndo, a arma baixada e de lado manda a bala 34° pra esquerda — isso é o
+que se quer ver. Os 21° de caimento da mesma pose não: cravavam o tiro no
+chão a dois metros, e o jogador lê isso como bug, não como arma fora de
+posição. `MUZZLE_RISE` é o teto vertical, e cortá-lo reescala o rumo
+horizontal pra que ele não mude junto.
+
 **Amortecer desvio é interpolar rotação, não escalar ângulo.** A pose de
 corrida joga a arma uns 48° pro lado; multiplicar o ângulo por um fator dá
 eixo errado assim que o desvio deixa de ser pequeno. É slerp da identidade até
@@ -237,6 +259,18 @@ impossível de testar — canvas em headless não tem tamanho.
   deitar resolvia.
 - `locomotion.js` não bloqueia movimento de quem **já** colide onde está.
   Bloquear ali não protege nada: só prende. Vale enquanto ele não sair.
+
+**O movimento vertical checa teto, não só piso.** Sem isso o pulo atravessava
+qualquer laje: subir por baixo levava a cabeça pra dentro dela e, ao cair, o
+jogador pousava em cima. `ceilingAbove` testa o TRECHO que a cabeça percorreu
+no quadro, não onde ela parou — pulando ela sobe vários centímetros por
+quadro, e uma laje fina passaria entre dois testes.
+
+**Testar estado não é testar jogo.** Três sessões seguidas eu confirmei que
+posições escolhidas a dedo funcionavam, enquanto o bug continuava. O que achou
+foi `tools/dev.sh soak`, que joga sozinho vigiando invariantes, e o
+`ui/watchdog.js`, que faz o mesmo enquanto uma pessoa joga e imprime o caso
+pronto pra copiar.
 
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
@@ -299,9 +333,9 @@ Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
 direito, e troca de item no 1 e 2. A bala viaja e cai; um traçante a cada
-quatro tiros. Ela sai da boca do cano e segue o cano: parada a arma atira
-reto, correndo com ela baixada o tiro vai pro mato, e atirar cancela a pose
-de corrida.
+quatro tiros. Ela sai da boca do cano e segue o cano: andando a arma fica reta
+e atira reto, correndo com ela baixada o tiro sai 34° pra esquerda, e atirar
+cancela a pose de corrida.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

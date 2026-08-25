@@ -17,6 +17,7 @@ import { initCompass } from './ui/compass.js';
 import { initMission } from './ui/mission.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
+import { initWatchdog } from './ui/watchdog.js';
 
 const { scene, camera, renderer } = createStage();
 const world = buildWorld(scene);
@@ -42,6 +43,10 @@ const attack = initAttack(player, world);
 const ballistics = createBallistics(scene, world.colliders);
 const firearm = initFirearm(player, world, ballistics, viewmodel);
 const updateHitmarker = initHitmarker(attack, ballistics);
+
+// vigia de invariantes: grita se o jogo entrar num estado impossível
+const watchdog = initWatchdog(player, world);
+window.watchdog = watchdog;   // pra copiar o relatório do console
 
 const flow = initFlow({
   controls: player.controls,
@@ -109,6 +114,7 @@ renderer.setAnimationLoop(() => {
   updateMission();
   updatePrompt();
   updateHitmarker(delta);
+  watchdog.update();
 
   renderer.render(scene, camera);
   viewmodel.render(renderer);
