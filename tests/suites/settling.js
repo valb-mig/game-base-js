@@ -96,6 +96,53 @@ export function run() {
     torre.collider.box.max.y - torre.collider.box.min.y < 5,
     `${(torre.collider.box.max.y - torre.collider.box.min.y).toFixed(2)} m de 5`);
 
+  suite('o colisor acompanha o corpo tombado');
+
+  // Reportado jogando: a parede caía pra um lado e a hitbox ficava em pé onde
+  // ela estava. Sobravam quase dois metros de entulho que o jogador
+  // atravessava, e um muro invisível no lugar que tinha ficado vazio.
+  // Medir contra a malha de verdade, e não contra a conta, é o ponto aqui.
+  const mundo5 = bancada();
+  const muro = poste(mundo5, 0, 0, 3);
+  mundo5.cavar(2.4, 0, -DEFORM.FUNDO * 4);
+  mundo5.rodar(8);
+
+  muro.mesh.updateMatrixWorld(true);
+  const real = new THREE.Box3().setFromObject(muro.mesh);
+  const caixa = muro.collider.box;
+
+  // O buraco foi cavado em x positivo, e é pra lá que ele tem que ir.
+  // Invertido, cavar de um lado da parede jogava ela pro outro: lia como
+  // empurrão, não como desmoronamento.
+  ok('o corpo tomba PRA DENTRO do buraco',
+    real.max.x > 0.9, `malha x ${real.min.x.toFixed(2)}..${real.max.x.toFixed(2)}`);
+  ok('e não pro lado contrário', real.min.x > -0.9,
+    `beirada oposta em ${real.min.x.toFixed(2)}`);
+
+  ok('e a caixa cobre onde ele foi parar, em x',
+    caixa.min.x <= real.min.x + 0.3 && caixa.max.x >= real.max.x - 0.3,
+    `caixa ${caixa.min.x.toFixed(2)}..${caixa.max.x.toFixed(2)}` +
+    ` · malha ${real.min.x.toFixed(2)}..${real.max.x.toFixed(2)}`);
+
+  ok('e em z',
+    caixa.min.z <= real.min.z + 0.3 && caixa.max.z >= real.max.z - 0.3,
+    `caixa ${caixa.min.z.toFixed(2)}..${caixa.max.z.toFixed(2)}` +
+    ` · malha ${real.min.z.toFixed(2)}..${real.max.z.toFixed(2)}`);
+
+  ok('e o topo da caixa acompanha o topo do corpo',
+    Math.abs(caixa.max.y - real.max.y) < 0.35,
+    `caixa ${caixa.max.y.toFixed(2)} · malha ${real.max.y.toFixed(2)}`);
+
+  // A caixa é reescrita a cada quadro da queda; sem guardar a pegada de pé
+  // ela cresceria em cima de si mesma a cada quadro.
+  const larguraCaida = caixa.max.x - caixa.min.x;
+  mundo5.rodar(8);
+  near('e ela não cresce sozinha depois de assentar',
+    muro.collider.box.max.x - muro.collider.box.min.x, larguraCaida, 1e-6);
+
+  note('caixa tombada', `${larguraCaida.toFixed(2)} m de largura,` +
+    ` ${(caixa.max.y - caixa.min.y).toFixed(2)} m de altura`);
+
   suite('quem tem chão não se mexe');
 
   const mundo3 = bancada();

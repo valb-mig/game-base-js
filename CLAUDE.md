@@ -357,6 +357,20 @@ cada prop assentou; se o terreno sob ele descer, ele desaba e tomba pro lado
 que perdeu apoio. O colisor desce junto — sem isso o objeto cairia só de
 mentira e o jogador seguiria esbarrando no ar onde ele estava.
 
+**O colisor tem que ir junto com o corpo tombado, não só descer.** Mexendo só
+no Y, a parede caía pra um lado e a hitbox ficava em pé onde ela estava:
+sobravam quase dois metros de entulho atravessável e um muro invisível no
+lugar vazio. Girando em volta da base, um ponto na altura h anda h·sen(tombo)
+na horizontal, então a pegada de pé é esticada até o alcance do topo. A altura
+da caixa soma a largura (`altura·cos + raio·sen`), senão o topo do corpo caído
+fica de fora.
+
+**E o lado da queda sai da rotação, não de dedução.** Errei o sinal duas
+vezes seguidas: primeiro a caixa esticou pro lado contrário ao do corpo,
+depois descobri que o corpo mesmo tombava pra longe do buraco — cavar de um
+lado da parede jogava ela pro outro, e lia como empurrão. Quem gira em volta
+de um eixo anda pra `eixo × cima`; medir isso é uma linha, deduzir errou duas.
+
 **A queda mira o centro do prop, não o ponto mais fundo em volta.** Usando o
 mais fundo, um prop assentava dentro do buraco cavado ao lado e ficava meio
 metro enterrado. O centro decide o quanto desce; o desnível em volta decide o
