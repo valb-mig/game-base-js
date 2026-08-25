@@ -13,7 +13,8 @@ tools/dev.sh errors index.html            # erro de console na página
 tools/dev.sh shot index.html /tmp/a.png   # captura headless
 ```
 
-`tools/dev.sh check` é o portão. Rode antes e depois de qualquer mudança.
+`tools/dev.sh check` é o portão: sintaxe, suíte, e o console do jogo já
+desembarcado (`index.html?deploy=0`). Rode antes e depois de qualquer mudança.
 
 **Meça antes de deduzir.** Três diagnósticos errados nesta base saíram de
 raciocinar sobre o código em vez de instrumentar. Os testes rodam em Chrome
@@ -34,6 +35,7 @@ src/
            collision.js  view.js  heading.js
   world/   heightfield.js  altura da ilha (matemática pura, sem three)
            deform.js  camada escavável, delta por vértice da malha
+           settling.js  o que perde o chão desaba e tomba
            minimap.js  a ilha vista de cima, do mesmo campo de altura
            dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
@@ -139,6 +141,16 @@ permanentemente atrasada em qualquer ladeira. Hoje é `STEP_VIEW_MIN`.
 **O HUD não inventa número.** Munição e objetivo não existem como sistema, e
 por isso não aparecem: o canto do item mostra o rótulo do slot quando o item
 não tem munição. Se aparecer contador, é porque o dado existe.
+
+**Apanhar do chão olha o SLOT, não a mão.** Largar a pistola e continuar com
+a faca na mão trancava a pistola no chão pra sempre, e largando tudo só o
+primeiro item voltava. O item volta pro lugar dele; slot ocupado recusa em vez
+de empurrar o que estava lá.
+
+**Alcance pra apanhar é no plano, com folga de um corpo na vertical.** Medindo
+em 3D a partir dos olhos, 1,7 m dos 2,4 iam embora só porque o item está no
+chão: item largado andando assentava já fora do alcance, e parecia que o jogo
+tinha comido ele.
 
 **Item na mão e item no chão saem da mesma fábrica.** `items/models.js` mapeia
 o dado do item pro modelo 3D. Largar tem que produzir exatamente o que estava
@@ -305,6 +317,20 @@ pra `computeBoundingSphere()`.
 que cruza `digAt` — é o que impede cavar de virar clique repetido e faz o
 buraco aparecer junto com a lâmina.
 
+**Nada flutua depois de cavado.** `world/settling.js` guarda a altura em que
+cada prop assentou; se o terreno sob ele descer, ele desaba e tomba pro lado
+que perdeu apoio. O colisor desce junto — sem isso o objeto cairia só de
+mentira e o jogador seguiria esbarrando no ar onde ele estava.
+
+**A queda mira o centro do prop, não o ponto mais fundo em volta.** Usando o
+mais fundo, um prop assentava dentro do buraco cavado ao lado e ficava meio
+metro enterrado. O centro decide o quanto desce; o desnível em volta decide o
+quanto tomba.
+
+**Só o que a pazada tocou é reavaliado.** Varrer 834 props a cada cavada seria
+absurdo. Medido: 0,15 ms por pazada com reavaliação, e 0,0006 ms por quadro
+com nada caindo.
+
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
 Por isso `heading.js` existe como módulo.
@@ -323,6 +349,23 @@ cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 **Screenshot precisa de loop de render.** `preserveDrawingBuffer` é false, então
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
+
+**Sistema no laço sem dono só aparece depois do desembarque.** Um
+`digging.update(delta)` ficou no `frame()` sem que `digging` existisse: a
+abertura abria limpa, a suíte inteira passava, e o quadro estourava a cada
+frame depois de clicar em Desembarcar — o jogo congelava como fantasma, sem
+render e sem `endFrame()`, então nem andar nem trocar de arma respondia. Por
+isso `index.html?deploy=N` entra no mapa por código e entrou no `check`.
+
+**O item na mão nasce na pose de guarda.** `viewmodel.update` só roda com o
+mouse travado; entre desembarcar e o pointer lock ser concedido o modelo
+ficava na origem da câmera do viewmodel, ou seja do tamanho da tela — um
+borrão preto por cima do mapa. `setItem` aplica `rest` na hora.
+
+**`controls.lock()` do three joga fora a promessa.** Pointer lock recusado
+(sem gesto do usuário, ou logo depois de um unlock) virava rejeição não
+tratada no console, e isso poluía justamente a verificação que olha o console.
+`flow.js` pede `requestPointerLock()` direto no elemento pra poder tratar.
 
 **Página de verificação tem que inicializar como o jogo inicializa.**
 `tools/screens-shot.html` espelha o `main.js`, inclusive o `boot()` no clique
@@ -356,8 +399,8 @@ deitar em Z, pulo com coyote time e buffer), natação, mapa de ilha com praia,
 floresta e duas bases militares opostas, campo de treino, seleção de classe,
 faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item).
 
-Largar com G e apanhar com E funcionam. **Trocar item ainda não existe**:
-apanhar de mão cheia não faz nada, porque não há segundo item pra alternar.
+Largar com G e apanhar com E funcionam, com item na mão ou sem: quem decide é
+o slot do item estar livre.
 
 Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
 na tela de deploy — barra de equipamento em cima (classes e os itens que
@@ -377,7 +420,8 @@ e atira reto, correndo com ela baixada o tiro sai 34° pra esquerda, e atirar
 cancela a pose de corrida.
 
 Pá M1943 no slot 4 cava e aterra o terreno de verdade; a colisão lê a mesma
-camada, então trincheira cavada é trincheira que se anda dentro.
+camada, então trincheira cavada é trincheira que se anda dentro. Cavar embaixo
+de árvore, pedra ou construção derruba o que ficou sem chão.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

@@ -106,7 +106,16 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
   }
 
   function lockPointer() {
-    game.controls.lock();   // síncrono: consome o clique antes da tela cheia
+    // Pedido direto no elemento, e não pelo lock() do three: ele joga fora a
+    // promessa do requestPointerLock, e a recusa — sem gesto do usuário, ou
+    // logo depois de um unlock — virava rejeição não tratada no console.
+    // Continua síncrono, que é o que consome o clique antes da tela cheia.
+    const element = game.controls.domElement;
+    if (element?.requestPointerLock) {
+      Promise.resolve(element.requestPointerLock()).catch(() => {});
+    } else {
+      game.controls.lock();
+    }
     if (toggle.checked) grabKeyboard();
   }
 
@@ -216,6 +225,21 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
 
     openDeployScreen,
     selectZone,
+
+    /**
+     * Entra no mapa por código: Jogar, escolher zona e desembarcar de uma vez.
+     *
+     * Existe pra verificação. Sem isto, o quadro com o jogador VIVO só era
+     * exercitado por clique humano — e foi assim que um `digging.update` sem
+     * dono passou: a página abria limpa, e o laço só estourava depois do
+     * desembarque, todo quadro, congelando o jogo como fantasma.
+     */
+    enterMap(index = 0) {
+      if (!game) start();
+      const zonas = game.world.spawnZones;
+      selectZone(zonas[((index % zonas.length) + zonas.length) % zonas.length]);
+      deploy();
+    },
 
     get selectedZone() {
       return selectedZone;

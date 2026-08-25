@@ -49,7 +49,8 @@ tiros marca o caminho.
 
 Pá M1943 no slot 4, comum a todas as classes: o botão esquerdo cava e enche a
 pá, o direito despeja a terra. O terreno é escavável de verdade — trincheira e
-parapeito ficam gravados no relevo, e a colisão os enxerga.
+parapeito ficam gravados no relevo, e a colisão os enxerga. Cavar embaixo de
+uma árvore, de uma pedra ou de uma parede derruba o que ficou sem chão.
 
 Não existe ainda: dano ao jogador além da tecla de teste, objetivo de partida
 e captura de base.

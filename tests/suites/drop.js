@@ -3,9 +3,9 @@ import { Player } from '../../src/player/player.js';
 import { Viewmodel } from '../../src/items/viewmodel.js';
 import { initDrop } from '../../src/items/drop.js';
 import { initInput, endFrame } from '../../src/core/input.js';
-import { WORLD, DROP } from '../../src/config.js';
+import { WORLD, DROP, PLAYER } from '../../src/config.js';
 import { initPrompt } from '../../src/ui/prompt.js';
-import { KNIFE } from '../../src/items/classes.js';
+import { KNIFE, PISTOL, getClass } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -147,7 +147,7 @@ export async function run() {
   const alvo = drops.items[0];
   player.object.position.set(alvo.mesh.position.x, 6.7, alvo.mesh.position.z + 1);
   player.eyeY = 6.7;
-  player.carried = [];
+  player.carried.fill(null);
   player.equipped = null;
   viewmodel.setItem(null);
 
@@ -164,16 +164,18 @@ export async function run() {
   ok('a malha sai da cena', !scene.children.includes(alvo.mesh));
 
   updatePrompt();
-  ok('de mão cheia o aviso some', !aviso.classList.contains('visible'));
+  ok('com o slot da faca ocupado, o aviso some',
+    !aviso.classList.contains('visible'));
 
-  // Trocar item ainda não existe: apanhar de mão cheia não pode roubar nada
+  // O que trava não é a mão cheia, é o slot: a outra faca no chão não tem
+  // pra onde ir, então ela fica lá em vez de empurrar a que está na mão.
   const restante = drops.items.length;
   press('KeyE'); step(1);
-  eq('E de mão cheia não apanha', drops.items.length, restante);
+  eq('E não apanha item de slot ocupado', drops.items.length, restante);
 
   suite('alcance');
 
-  player.carried = [];
+  player.carried.fill(null);
   player.equipped = null;
   viewmodel.setItem(null);
   const longe = drops.items[0];
@@ -188,6 +190,104 @@ export async function run() {
   player.object.position.z = longe.mesh.position.z + DROP.PICK_REACH * 0.4;
   press('KeyE'); step(1);
   eq('dentro do alcance, apanha', player.equipped?.id, KNIFE.id);
+
+  suite('largar tudo e apanhar de volta');
+
+  // Bug relatado: largando um item e ficando com outro na mão, o do chão nunca
+  // mais voltava; largando todos, só um voltava. Quem decide é o SLOT: se o
+  // lugar dele está livre, apanhar tem que funcionar, com o que for na mão.
+  for (const entity of drops.items.splice(0)) scene.remove(entity.mesh);
+  player.setClass(getClass('assault'));
+  player.object.position.set(0, player.eyeY, 0);
+  viewmodel.setItem(player.equipped);
+
+  const largar = (slot) => {
+    player.selectSlot(slot);
+    viewmodel.setItem(player.equipped);
+    press('KeyG');
+    step(60);   // um segundo: tempo de cair de 1,7 m e assentar
+  };
+  const apanhar = () => { press('KeyE'); step(1); return player.equipped; };
+
+  const slotDaPistola = player.carried.indexOf(PISTOL);
+  const slotDaFaca = player.carried.indexOf(KNIFE);
+
+  largar(slotDaPistola);
+  eq('a pistola foi pro chão', drops.items.length, 1);
+  eq('e é a pistola mesmo', drops.items[0]?.item?.id, PISTOL.id);
+  player.selectSlot(slotDaFaca);
+  viewmodel.setItem(player.equipped);
+  eq('e a faca está na mão', player.equipped?.id, KNIFE.id);
+
+  note('item no chão, jogador de pé', (() => {
+    const chao = drops.items[0].mesh.position;
+    const olho = player.object.position;
+    return `${Math.hypot(chao.x - olho.x, chao.z - olho.z).toFixed(2)} m no plano · ` +
+      `${chao.distanceTo(olho).toFixed(2)} m em 3D · alcance ${DROP.PICK_REACH} m`;
+  })());
+
+  updatePrompt();
+  ok('com a faca na mão, o aviso ainda oferece a pistola',
+    aviso.classList.contains('visible'), aviso.textContent.trim());
+  eq('e E apanha a pistola de volta', apanhar()?.id, PISTOL.id);
+  eq('o chão fica limpo', drops.items.length, 0);
+
+  // agora tudo no chão de uma vez
+  const tudo = player.carried.filter(Boolean).length;
+  for (let slot = 0; slot < player.carried.length; slot++) {
+    if (player.carried[slot]) largar(slot);
+  }
+  eq('todos os itens no chão', drops.items.length, tudo);
+  eq('e nenhum na mão', player.carried.filter(Boolean).length, 0);
+
+  const recuperados = new Set();
+  for (let i = 0; i < tudo; i++) {
+    const item = apanhar();
+    if (item) recuperados.add(item.id);
+  }
+  eq('todos voltam pro cinto', recuperados.size, tudo);
+  eq('e o chão fica limpo', drops.items.length, 0);
+
+  // O slot é o limite: com o lugar ocupado, o item fica onde está em vez de
+  // sumir ou empurrar o que estava na mão.
+  largar(slotDaFaca);
+  const outraFaca = { ...KNIFE };
+  player.carried[slotDaFaca] = outraFaca;
+  updatePrompt();
+  ok('slot ocupado não anuncia apanhar', !aviso.classList.contains('visible'));
+  const noChao = drops.items.length;
+  press('KeyE'); step(1);
+  eq('e E não apanha nada', drops.items.length, noChao);
+  eq('nem troca o que estava no slot', player.carried[slotDaFaca], outraFaca);
+
+  suite('largar andando joga longe, e ainda dá pra buscar');
+
+  // O item herda o embalo de quem largou, então largar correndo joga ele pra
+  // frente. Isso é físico e fica — o que não pode é o item ficar inalcançável
+  // pra sempre, que é a diferença entre "joguei longe" e "o jogo comeu".
+  for (const entity of drops.items.splice(0)) scene.remove(entity.mesh);
+  player.setClass(getClass('assault'));
+  player.object.position.set(0, player.eyeY, 0);
+  viewmodel.setItem(player.equipped);
+  player.velocity.set(0, 0, -PLAYER.RUN_SPEED);   // correndo pro -Z
+
+  press('KeyG');
+  step(60);
+  player.velocity.set(0, 0, 0);
+
+  const jogado = drops.items[0];
+  const longeDemais = Math.hypot(
+    jogado.mesh.position.x, jogado.mesh.position.z);
+  ok('largado correndo, o item vai pra longe', longeDemais > DROP.PICK_REACH,
+    `${longeDemais.toFixed(1)} m`);
+  eq('e de onde se largou não alcança', drops.reachable(), null);
+
+  // andar até ele: a mesma distância a pé
+  player.object.position.z = jogado.mesh.position.z + DROP.PICK_REACH * 0.5;
+  ok('chegando perto, ele volta a ser alcançável', drops.reachable() === jogado);
+  press('KeyE'); step(1);
+  eq('e E apanha', player.equipped?.id, jogado.item.id);
+  note('largado correndo', `${longeDemais.toFixed(1)} m à frente`);
 
   aviso.remove();
 

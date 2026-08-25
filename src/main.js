@@ -51,13 +51,14 @@ function boot() {
   const attack = initAttack(player, world);
   const ballistics = createBallistics(scene, world.colliders);
   const firearm = initFirearm(player, world, ballistics, viewmodel);
+  const digging = initDigging(player, world);
 
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
 
   game = {
-    world, player, viewmodel, drops, attack, ballistics, firearm, watchdog,
+    world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog,
     updateDebug: initDebug(player),
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
@@ -94,9 +95,15 @@ const flow = initFlow({
   }
 });
 
+// ?deploy=N entra no mapa sem clique nenhum, na zona N. É o que deixa a
+// verificação headless exercitar o quadro com o jogador vivo, que é onde
+// sistema sem dono aparece.
+const autoDeploy = new URLSearchParams(location.search).get('deploy');
+if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
+
 function frame() {
   const {
-    world, player, viewmodel, drops, attack, ballistics, firearm, watchdog
+    world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -115,6 +122,7 @@ function frame() {
     digging.update(delta);
   }
   ballistics.update(delta, world.targets, world.terrain);
+  world.settling.update(delta);
 
   // tecla de teste enquanto nada causa dano de verdade ao jogador
   if (player.isLocked && !player.spectating && consumePress('KeyK')) {

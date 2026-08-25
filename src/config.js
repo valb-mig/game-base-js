@@ -114,7 +114,7 @@ export const DROP = {
   WATER_SINK: 1.1,   // velocidade terminal afundando
   SETTLE_TIME: 0.2,  // tempo pra assentar deitado depois de tocar o chão
   REACH: 0.55,       // distância à frente do rosto onde o item nasce
-  PICK_REACH: 2.4    // alcance pra apanhar do chão; tem que cobrir a largada
+  PICK_REACH: 2.4    // alcance no plano pra apanhar do chão; cobre a largada
 };
 
 export const BULLET = {

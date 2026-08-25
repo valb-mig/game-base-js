@@ -103,19 +103,28 @@ export function initDrop(scene, player, viewmodel, world) {
    * Item alcançável agora, ou null.
    *
    * Só conta o que já parou de cair: sem isso, largar e apanhar no mesmo
-   * instante viraria um piscar. E só com a mão vazia — trocar item ainda não
-   * existe, então apanhar de mão cheia não faria nada de útil.
+   * instante viraria um piscar. E o que decide é o SLOT estar livre, não a mão
+   * estar vazia: largar a pistola e continuar com a faca na mão não pode
+   * trancar a pistola no chão pra sempre, que era o bug.
    */
   function reachable() {
-    if (player.equipped) return null;
-
     const position = player.object.position;
     let best = null;
     let bestDistance = DROP.PICK_REACH;
 
     for (const entity of items) {
       if (!entity.resting) continue;
-      const distance = entity.mesh.position.distanceTo(position);
+      if (!player.canTake(entity.item)) continue;
+
+      // Alcance no plano, com folga de um corpo na vertical. Medir em 3D a
+      // partir dos olhos gastava 1,7 m dos 2,4 só porque o item está no chão:
+      // um item largado andando assentava já fora do alcance, e parecia que o
+      // jogo tinha comido ele.
+      const ground = entity.mesh.position;
+      const rise = position.y - ground.y;
+      if (rise < -0.5 || rise > player.height + 0.5) continue;
+
+      const distance = Math.hypot(ground.x - position.x, ground.z - position.z);
       if (distance < bestDistance) {
         bestDistance = distance;
         best = entity;

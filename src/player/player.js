@@ -153,6 +153,18 @@ export class Player {
   }
 
   /**
+   * O slot deste item está livre?
+   *
+   * Quem apanha do chão pergunta isto, e não "a mão está vazia": com slot
+   * fixo, largar a pistola e ficar com a faca na mão não pode impedir de
+   * apanhar a pistola — o lugar dela continua vago.
+   */
+  canTake(item) {
+    const index = SLOT_ORDER.indexOf(item?.slot);
+    return index >= 0 && !this.carried[index];
+  }
+
+  /**
    * Guarda um item no slot dele e põe na mão. Devolve false se o slot já
    * está ocupado — cada arma tem lugar fixo, e apanhar não empurra nada.
    */

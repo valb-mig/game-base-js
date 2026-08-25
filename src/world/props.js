@@ -22,7 +22,8 @@ export function material(color) {
  * construção: "essa parede começa no chão e sobe 2 metros".
  */
 export function addBox(scene, colliders, {
-  x, y, z, w, h, d, color, rotation = 0, standable = true, solid = true
+  x, y, z, w, h, d, color, rotation = 0, standable = true, solid = true,
+  settling = null
 }) {
   const mesh = new THREE.Mesh(BOX, material(color));
   mesh.scale.set(w, h, d);
@@ -32,7 +33,15 @@ export function addBox(scene, colliders, {
 
   if (solid) {
     mesh.updateMatrixWorld(true);
-    colliders.push({ box: new THREE.Box3().setFromObject(mesh), standable });
+    const collider = { box: new THREE.Box3().setFromObject(mesh), standable };
+    colliders.push(collider);
+
+    // Cavar embaixo de uma parede tem que derrubar a parede, não deixá-la
+    // pendurada. Quem não passa `settling` simplesmente não desaba.
+    settling?.register({
+      x, z, baseY: y, radius: Math.max(w, d) * 0.5, collider,
+      parts: [{ mesh }]
+    });
   }
   return mesh;
 }

@@ -19,14 +19,15 @@ import { createDummy } from './dummy.js';
  * atravessar e cair. Quem de fato não é pisável é a copa de árvore, cujo
  * colisor é uma caixa alta em volta de um tronco fino (ver world/forest.js).
  */
-export function addTrainingCourse(scene, colliders, { origin, ground }) {
+export function addTrainingCourse(scene, colliders, { origin, ground, settling = null }) {
   const [RED, AMBER, BLUE, PURPLE, BONE] =
     [0xd94f4f, 0xe0a02f, 0x3f7ad9, 0xa050c0, 0xe8e0d0];
 
   const ox = origin.x;
   // as estações descem no -Z a partir da entrada da clareira
   const at = (offset) => origin.z - WORLD.COURSE_LENGTH / 2 + offset;
-  const put = (options) => addBox(scene, colliders, { ...options, y: ground + (options.y ?? 0) });
+  const put = (options) => addBox(scene, colliders,
+    { settling, ...options, y: ground + (options.y ?? 0) });
 
   // 1. escada — 5 degraus de 0,3 m, dentro do STEP_HEIGHT
   for (let i = 0; i < 5; i++) {
@@ -62,7 +63,8 @@ export function addTrainingCourse(scene, colliders, { origin, ground }) {
 
   // 6. estande de baioneta — três bonecos lado a lado, virados pra quem chega
   const dummies = [-2.6, 0, 2.6].map((offset, i) => createDummy(scene, colliders, {
-    x: ox + offset, z: at(50), ground, facing: Math.PI, name: `boneco ${i + 1}`
+    x: ox + offset, z: at(50), ground, facing: Math.PI,
+    name: `boneco ${i + 1}`, settling
   }));
   addLabel(scene, 'estande · golpe com o botão esquerdo', ox, ground + 3.4, at(46), 5.2);
 

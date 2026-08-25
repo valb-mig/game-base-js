@@ -6,7 +6,7 @@ import { suite, ok, eq, between, note } from '../assert.js';
  * Malha da faca. Um render sozinho não pega triângulo de área zero nem
  * winding invertido — os dois já apareceram aqui, então viraram teste.
  */
-export function run() {
+export async function run() {
   suite('modelo da faca');
 
   const knife = createKnife();
@@ -62,4 +62,20 @@ export function run() {
   const size = new THREE.Box3().setFromObject(knife).getSize(new THREE.Vector3());
   between('comprimento na medida da KA-BAR real', size.x * 100, 30, 33);
   note('dimensões', `${(size.x * 100).toFixed(1)} x ${(size.y * 100).toFixed(1)} x ${(size.z * 100).toFixed(1)} cm`);
+
+  suite('item na mão nasce na guarda');
+
+  // Regressão: `update` só roda com o mouse travado, e entre desembarcar e o
+  // pointer lock ser dado o item ficava na origem da câmera do viewmodel —
+  // do tamanho da tela inteira, um borrão preto por cima do mapa.
+  const { Viewmodel } = await import('../../src/items/viewmodel.js');
+  const { PISTOL } = await import('../../src/items/classes.js');
+  const viewmodel = new Viewmodel(new THREE.PerspectiveCamera(70, 1, 0.1, 400), 1);
+  viewmodel.setItem(PISTOL);
+
+  ok('a arma não fica na origem da câmera do viewmodel',
+    viewmodel.group.position.length() > 0.1,
+    `${viewmodel.group.position.length().toFixed(2)} m do olho`);
+  ok('e sim à frente dele', viewmodel.group.position.z < -0.3,
+    `z ${viewmodel.group.position.z.toFixed(2)}`);
 }

@@ -92,7 +92,11 @@ case "${1:-check}" in
     out="$(headless --virtual-time-budget=15000 --dump-dom "$URL/tests/run.html" 2>/dev/null | strip_html)"
     echo "$out"
     # falha de verdade também derruba o comando, pra CI ou pra encadear
-    grep -q '^TUDO VERDE$' <<<"$out"
+    grep -q '^TUDO VERDE$' <<<"$out" || exit 1
+    # O quadro com o jogador VIVO só existe depois do desembarque, e é lá que
+    # sistema sem dono no laço aparece: um digging.update sem digging passou
+    # pela suíte inteira e só estourava depois de clicar em Desembarcar.
+    "$0" errors "index.html?deploy=0"
     ;;
 
   errors)

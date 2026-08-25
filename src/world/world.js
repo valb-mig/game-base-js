@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { createTerrain } from './terrain.js';
-import { createDeform } from './deform.js';
+import { createDeform, DEFORM } from './deform.js';
+import { createSettling } from './settling.js';
 import { createHeightfield, assertFlatZones } from './heightfield.js';
 import { PLAYER } from '../config.js';
 import { spawnIsClear } from '../player/collision.js';
@@ -70,17 +71,22 @@ export function buildWorld(scene) {
 
   const colliders = [];
 
+  // Quem perde o chão desaba. Registrado na construção do mapa pra que a
+  // pazada só precise perguntar "o que tem por perto".
+  const settling = createSettling(terrain);
+
   const northGround = terrain.heightAt(north.x, north.z);
   const southGround = terrain.heightAt(south.x, south.z);
   addBase(scene, colliders, {
-    name: 'BASE NORTE', ...north, ground: northGround, facing: 1, color: 0xd94f4f
+    name: 'BASE NORTE', ...north, ground: northGround, facing: 1, color: 0xd94f4f, settling
   });
   addBase(scene, colliders, {
-    name: 'BASE SUL', ...south, ground: southGround, facing: -1, color: 0x3f7ad9
+    name: 'BASE SUL', ...south, ground: southGround, facing: -1, color: 0x3f7ad9, settling
   });
 
   const courseGround = terrain.heightAt(course.x, course.z);
-  const targets = addTrainingCourse(scene, colliders, { origin: course, ground: courseGround });
+  const targets = addTrainingCourse(scene, colliders,
+    { origin: course, ground: courseGround, settling });
 
   // nada de árvore dentro de base, do campo de treino, ou no caminho entre eles
   const occupied = [
@@ -106,7 +112,8 @@ export function buildWorld(scene) {
   const counts = addForest(scene, colliders, {
     heightAt: terrain.heightAt,
     blocked,
-    rng: seededRandom(20250824)
+    rng: seededRandom(20250824),
+    settling
   });
 
   assertSpawnZones(spawnZones, colliders, terrain);
@@ -120,10 +127,14 @@ export function buildWorld(scene) {
      * Cava (amount negativo) ou aterra (positivo) em (x, z).
      * Devolve true se o terreno mudou de fato.
      */
-    reshape(x, z, amount, radius) {
+    settling,
+
+    reshape(x, z, amount, radius = DEFORM.RAIO) {
       const tocados = deform.apply(x, z, amount, radius);
       if (tocados.length === 0) return false;
       chao.applyEdit(tocados);
+      // o que ficou sem chão em volta começa a desabar
+      settling.disturb(x, z, radius);
       return true;
     },
 

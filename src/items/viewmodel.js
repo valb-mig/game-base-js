@@ -112,6 +112,13 @@ export class Viewmodel {
     this.muzzle = model.getObjectByName('boca') ?? null;
     this.pose = toVectors(handPose(item));
     this.group.add(model);
+
+    // Pose de guarda já aqui, e não no primeiro update: enquanto o mouse não
+    // travar, `update` não roda, e o item ficaria na origem da câmera do
+    // viewmodel — ou seja, do tamanho da tela inteira. Aparecia como um
+    // borrão preto nos quadros entre desembarcar e o pointer lock ser dado.
+    this.group.position.copy(this.pose.rest.p);
+    this.group.rotation.copy(this.pose.rest.r);
   }
 
   get visible() {

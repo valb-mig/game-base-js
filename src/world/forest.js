@@ -32,7 +32,7 @@ function scatter(count, { heightAt, minHeight, blocked, rng }) {
   return spots;
 }
 
-export function addForest(scene, colliders, { heightAt, blocked, rng }) {
+export function addForest(scene, colliders, { heightAt, blocked, rng, settling = null }) {
   const trees = scatter(WORLD.TREE_COUNT, { heightAt, minHeight: WORLD.TREE_LINE, blocked, rng });
   const rocks = scatter(WORLD.ROCK_COUNT, { heightAt, minHeight: 0.2, blocked, rng });
 
@@ -68,24 +68,42 @@ export function addForest(scene, colliders, { heightAt, blocked, rng }) {
 
     // colisor só do tronco, com folga: bater na copa seria bater no ar
     const half = trunkRadius * 1.5;
-    colliders.push({
+    const collider = {
       box: new THREE.Box3(
         new THREE.Vector3(tree.x - half, tree.y, tree.z - half),
         new THREE.Vector3(tree.x + half, tree.y + trunkHeight + canopy, tree.z + half)
       ),
       standable: false
+    };
+    colliders.push(collider);
+
+    // Uma árvore são três instâncias que têm que cair juntas. Descalçá-la
+    // com a pá derruba as três e o colisor.
+    settling?.register({
+      x: tree.x, z: tree.z, baseY: tree.y, radius: 1.1 * size, collider,
+      parts: [
+        { mesh: trunks, index: i, instanced: true },
+        { mesh: lower, index: i, instanced: true },
+        { mesh: upper, index: i, instanced: true }
+      ]
     });
   });
 
   rocks.forEach((rock, i) => {
     const size = 0.5 + rock.rng * 1.5;
     place(stones, i, rock.x, rock.y + size * 0.35, rock.z, size, size * 0.7, size * 1.1, rock.rng * 6);
-    colliders.push({
+    const collider = {
       box: new THREE.Box3(
         new THREE.Vector3(rock.x - size, rock.y, rock.z - size),
         new THREE.Vector3(rock.x + size, rock.y + size * 0.9, rock.z + size)
       ),
       standable: true
+    };
+    colliders.push(collider);
+
+    settling?.register({
+      x: rock.x, z: rock.z, baseY: rock.y, radius: size, collider,
+      parts: [{ mesh: stones, index: i, instanced: true }]
     });
   });
 

@@ -50,7 +50,8 @@ function createHealthBar() {
   return { sprite, draw };
 }
 
-export function createDummy(scene, colliders, { x, z, ground, facing = 0, name = '' }) {
+export function createDummy(scene, colliders,
+  { x, z, ground, facing = 0, name = '', settling = null }) {
   const group = new THREE.Group();
   group.position.set(x, ground, z);
   group.rotation.y = facing;
@@ -94,6 +95,11 @@ export function createDummy(scene, colliders, { x, z, ground, facing = 0, name =
     standable: false
   };
   colliders.push(collider);
+
+  // boneco descalçado também tomba: ele é um poste fincado, não um decalque
+  settling?.register({
+    x, z, baseY: ground, radius: 0.45, collider, parts: [{ mesh: group }]
+  });
 
   const middle = new THREE.Vector3(x, ground + 1.25, z);
   const painted = [torso, belt, head];

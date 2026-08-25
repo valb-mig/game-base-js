@@ -1,0 +1,134 @@
+import * as THREE from 'three';
+import { createSettling } from '../../src/world/settling.js';
+import { createDeform, DEFORM } from '../../src/world/deform.js';
+import { suite, ok, eq, near, between, note } from '../assert.js';
+
+const DT = 1 / 60;
+
+/** Mundo mínimo: terreno plano escavável e props registrados nele. */
+function bancada() {
+  const deform = createDeform();
+  const terrain = { heightAt: (x, z) => deform.deltaAt(x, z) };
+  const settling = createSettling(terrain);
+
+  return {
+    deform,
+    terrain,
+    settling,
+    cavar(x, z, quanto = -DEFORM.FUNDO * 3) {
+      deform.apply(x, z, quanto);
+      settling.disturb(x, z, DEFORM.RAIO);
+    },
+    rodar(segundos) {
+      for (let i = 0; i < Math.ceil(segundos / DT); i++) settling.update(DT);
+    }
+  };
+}
+
+/** Prop de uma malha só, como uma parede. */
+function poste(mundo, x, z, altura = 3) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, altura, 0.6));
+  mesh.position.set(x, altura / 2, z);
+  mesh.updateMatrix();
+
+  const collider = {
+    box: new THREE.Box3(
+      new THREE.Vector3(x - 0.3, 0, z - 0.3),
+      new THREE.Vector3(x + 0.3, altura, z + 0.3)
+    ),
+    standable: false
+  };
+
+  const prop = mundo.settling.register({
+    x, z, baseY: 0, radius: 0.5, collider, parts: [{ mesh }]
+  });
+  return { mesh, collider, prop };
+}
+
+export function run() {
+  suite('o que perde o chão desaba');
+
+  const mundo = bancada();
+  const arvore = poste(mundo, 0, 0, 4);
+
+  eq('parado, nada está caindo', mundo.settling.falling, 0);
+  near('e o pé está no chão', arvore.collider.box.min.y, 0, 1e-9);
+
+  mundo.cavar(0, 0);
+  ok('cavar embaixo põe o prop pra cair', mundo.settling.falling > 0);
+
+  mundo.rodar(0.05);
+  ok('ele começa a descer', arvore.mesh.position.y < 2,
+    `${arvore.mesh.position.y.toFixed(2)}`);
+
+  mundo.rodar(3);
+  eq('e para de cair quando encosta', mundo.settling.falling, 0);
+
+  const chaoNovo = mundo.terrain.heightAt(0, 0);
+  near('o pé assenta no chão novo', arvore.collider.box.min.y, chaoNovo, 0.02);
+  ok('que está abaixo de onde ele estava', chaoNovo < -0.5, `${chaoNovo.toFixed(2)} m`);
+  note('afundou', `${(-chaoNovo).toFixed(2)} m`);
+
+  suite('o colisor desce junto');
+
+  // Sem isso o objeto cai só de mentira: o jogador continua esbarrando no ar.
+  ok('a caixa de colisão acompanhou',
+    arvore.collider.box.min.y < -0.5,
+    `topo em ${arvore.collider.box.max.y.toFixed(2)}`);
+  ok('e o desenho e a colisão concordam',
+    Math.abs(arvore.collider.box.min.y - chaoNovo) < 0.05);
+
+  suite('tomba pro lado que perdeu apoio');
+
+  const mundo2 = bancada();
+  const torre = poste(mundo2, 0, 0, 5);
+
+  // cava só de um lado: a base fica torta
+  mundo2.cavar(2.4, 0, -DEFORM.FUNDO * 4);
+  mundo2.rodar(3);
+
+  const inclinou = new THREE.Euler().setFromQuaternion(torre.mesh.quaternion);
+  const angulo = Math.hypot(inclinou.x, inclinou.z);
+  ok('o prop tombou', angulo > 0.1, `${(angulo * 180 / Math.PI).toFixed(0)}°`);
+  between('mas não virou de cabeça pra baixo', angulo, 0.1, 1.6);
+
+  ok('tombado, ele ocupa menos altura',
+    torre.collider.box.max.y - torre.collider.box.min.y < 5,
+    `${(torre.collider.box.max.y - torre.collider.box.min.y).toFixed(2)} m de 5`);
+
+  suite('quem tem chão não se mexe');
+
+  const mundo3 = bancada();
+  const firme = poste(mundo3, 0, 0, 3);
+  const alturaAntes = firme.mesh.position.y;
+
+  // cava longe: nada deve acontecer com este prop
+  mundo3.cavar(30, 30);
+  mundo3.rodar(2);
+  eq('cavar longe não derruba nada', mundo3.settling.falling, 0);
+  near('e o prop não se mexeu', firme.mesh.position.y, alturaAntes, 1e-9);
+
+  // aterrar por cima também não pode fazer nada cair
+  mundo3.deform.apply(0, 0, DEFORM.MONTE);
+  mundo3.settling.disturb(0, 0, DEFORM.RAIO);
+  mundo3.rodar(1);
+  eq('aterrar em volta não derruba', mundo3.settling.falling, 0);
+  near('e o prop segue de pé', firme.mesh.position.y, alturaAntes, 1e-9);
+
+  suite('custo');
+
+  // Só o que a pazada tocou é reavaliado: varrer o mapa a cada cavada seria
+  // absurdo num mapa com centenas de props.
+  const mundo4 = bancada();
+  for (let i = 0; i < 400; i++) {
+    poste(mundo4, (i % 20) * 12 - 120, Math.floor(i / 20) * 12 - 120, 3);
+  }
+  eq('registrou todos', mundo4.settling.props.length, 400);
+
+  const t0 = performance.now();
+  for (let i = 0; i < 200; i++) mundo4.cavar((i % 40) * 5 - 100, Math.floor(i / 40) * 5 - 100);
+  const custo = (performance.now() - t0) / 200;
+
+  ok('reavaliar depois da pazada é barato', custo < 1.5, `${custo.toFixed(3)} ms por pazada`);
+  note('com 400 props no mapa', `${custo.toFixed(3)} ms`);
+}
