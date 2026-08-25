@@ -26,8 +26,6 @@ export const CAPTURE = {
 const METADE = CAPTURE.FLAG_SECONDS / 2;
 
 export function createCapture(posts) {
-  let ultimoAlvo = null;
-
   /** Mastro mais perto do jogador que ele possa mexer, ou null. */
   function alvoDe(x, y, z, teamId) {
     let melhor = null;
@@ -88,14 +86,16 @@ export function createCapture(posts) {
     posts,
     CAPTURE,
 
-    /** O que o jogador pode capturar agora. Serve pro aviso na tela. */
+    /**
+     * O que quem estiver aqui pode capturar. É consulta, não estado.
+     *
+     * Já foi um `working` guardado no último `update`, e como o bot também
+     * chama update — depois do jogador, no mesmo quadro —, a tela do jogador
+     * mostrava a bandeira que o BOT estava trocando, a sessenta metros dali,
+     * como se fosse ele. Quem pergunta diz de onde pergunta.
+     */
     targetAt(x, y, z, teamId) {
       return alvoDe(x, y, z, teamId);
-    },
-
-    /** Última bandeira mexida, pra quem quiser desenhar o progresso. */
-    get working() {
-      return ultimoAlvo;
     },
 
     /**
@@ -104,8 +104,6 @@ export function createCapture(posts) {
      */
     update(delta, { x, y, z, teamId, agindo }) {
       const alvo = alvoDe(x, y, z, teamId);
-      ultimoAlvo = alvo;
-
       if (!alvo || !agindo) return null;
 
       const antes = postOwner(alvo.post);

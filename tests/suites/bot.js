@@ -7,6 +7,7 @@ import { createBots, playerAsTarget } from '../../src/bots/bots.js';
 import { createCapture } from '../../src/game/capture.js';
 import { Player } from '../../src/player/player.js';
 import { getClass } from '../../src/items/classes.js';
+import { initHitmarker } from '../../src/ui/hitmarker.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -32,14 +33,21 @@ function soldado(cena, colisores, team, x, z) {
   });
 }
 
-/** Alvo de mentira com o contrato que a balística e o cérebro esperam. */
+/**
+ * Alvo de mentira com o contrato que a balística e o cérebro esperam.
+ *
+ * O `damage` devolve `target` porque o de verdade devolve: sem ele, quem
+ * escuta acerto trata como tiro que não pegou em nada, e um teste de marca de
+ * acerto passa por vácuo nos dois lados.
+ */
 function alvoEm(x, z, team = 'vestria') {
   const centro = new THREE.Vector3();
-  return {
+  const alvo = {
     team, alive: true, radius: 0.5, collider: null, speed: 0, x, z,
     center: () => centro.set(x, 1.1, z),
-    damage: () => ({ amount: 0, killed: false })
+    damage: (amount) => ({ target: alvo, amount, killed: false })
   };
+  return alvo;
 }
 
 export function run() {
@@ -547,6 +555,70 @@ export function run() {
 
   // O bot não pode se machucar sozinho no meio disso.
   eq('e o bot sai ileso do próprio tiroteio', atirador.health, SOLDIER.VIDA);
+
+  suite('o que o bot faz não aparece como se fosse do jogador');
+
+  // Reportado jogando: acerto de bot acendia a marca na mira do jogador, e a
+  // bandeira que o bot estava trocando aparecia no painel dele. Os dois pelo
+  // mesmo motivo — sistema compartilhado reportando em tela que é de um só.
+
+  // 1. A marca de acerto: a balística é de todo mundo.
+  const marca = document.createElement('div');
+  marca.id = 'hitmarker';
+  document.body.append(marca);
+
+  const cenaH = new THREE.Scene();
+  const balisticaH = createBallistics(cenaH, []);
+  const centroH = new THREE.Vector3();
+  const eu = {
+    name: 'jogador', team: 'vestria', alive: true, radius: 0.5, collider: null,
+    center: () => centroH.set(0, 1.1, 0), damage: () => ({ amount: 0, killed: false })
+  };
+  const outroAtirador = { name: 'bot', team: 'karnia' };
+  const vitimaH = alvoEm(0, 20, 'vestria');
+  const atualizarMarca = initHitmarker(eu, balisticaH);
+
+  // A marca acende e apaga em poucos quadros, então o que vale é se ela
+  // acendeu EM ALGUM quadro — conferir no fim media o decaimento, não o
+  // acerto, e passava por engano nos dois casos.
+  const acertar = (dono) => {
+    marca.classList.remove('visible');
+    balisticaH.spawn(new THREE.Vector3(0, 1.1, 30), new THREE.Vector3(0, 0, -1),
+      { damage: 24, range: 60, owner: dono });
+    let acendeu = false;
+    for (let i = 0; i < 30; i++) {
+      balisticaH.update(DT, [vitimaH], null);
+      atualizarMarca(DT);
+      if (marca.classList.contains('visible')) acendeu = true;
+    }
+    return acendeu;
+  };
+
+  ok('acerto de bot não acende a marca do jogador', !acertar(outroAtirador));
+  ok('mas o acerto dele acende', acertar(eu));
+
+  // Corpo a corpo não declara dono, e hoje só o jogador tem: tem que passar.
+  marca.classList.remove('visible');
+  marca.classList.remove('kill');
+  const soCorpoACorpo = { onHit: (fn) => { soCorpoACorpo.avisar = fn; } };
+  const marca2 = initHitmarker(eu, soCorpoACorpo);
+  soCorpoACorpo.avisar({ target: vitimaH, amount: 55, killed: false });
+  ok('golpe sem dono declarado continua acendendo',
+    marca.classList.contains('visible'));
+  marca2(0);
+  marca.remove();
+
+  // 2. A bandeira: quem pergunta diz de onde pergunta.
+  const postoP = {
+    id: 'q', name: 'Longe', x: 60, z: 0,
+    flags: [{ x: 60, z: 0, y: 1.2, base: 0, owner: 'vestria', byTeam: 'karnia', phase: 'arriando', progress: 0.4 }]
+  };
+  const capturaP = createCapture([postoP]);
+
+  eq('bandeira sendo trocada longe não aparece pra quem está longe',
+    capturaP.targetAt(0, 1.2, 0, 'vestria'), null);
+  ok('e aparece pra quem está nela',
+    Boolean(capturaP.targetAt(60, 1.2, 0, 'vestria')));
 
   suite('bot morto volta ao combate');
 

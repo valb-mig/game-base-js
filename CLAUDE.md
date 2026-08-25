@@ -375,6 +375,18 @@ bala do bot nasce na altura do olho, ou seja DENTRO da caixa dele, e sem
 77 tiros, zero acertos, a dez metros de um alvo parado. O jogador nunca viu
 isso porque ele não tem colisor no mundo.
 
+**Sistema de todos não pode reportar em tela de um.** A balística é
+compartilhada, e o evento de acerto viajava sem dizer QUEM atirou: cada acerto
+de bot acendia a marca na mira do jogador. Medido: 128 quadros de marca acesa
+com ele a sessenta metros da briga, parado. Hoje `owner` vai junto no evento,
+e a marca compara. Acerto sem dono declarado passa — é o corpo a corpo, que
+hoje só o jogador tem.
+
+**Quem pergunta diz de onde pergunta.** `capture` guardava o último alvo num
+`working`, e como o bot também chama `update` — depois do jogador, no mesmo
+quadro — o painel do jogador mostrava a bandeira que o BOT estava trocando a
+sessenta metros dali. Virou `targetAt(x, y, z, time)`: consulta, não estado.
+
 **A bala não distingue farda; quem segura o tiro é quem atira.** Com nove
 bots amontoados num posto, sem checar companheiro na linha eles se abatem
 numa porta e a briga parece quebrada estando correta. `amigoNaFrente` testa um

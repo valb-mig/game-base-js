@@ -145,8 +145,13 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
       const result = struck
         ? struck.damage(bullet.damage)
         : { target: null, amount: 0, killed: false };
+      // `owner` vai junto: sem ele, quem escuta acerto não tem como saber se
+      // a bala era dele. Era assim que o acerto de um bot a sessenta metros
+      // acendia a marca na mira do jogador.
       for (const listener of listeners) {
-        listener({ ...result, point: hitPoint.clone(), terreno: noChao });
+        listener({
+          ...result, point: hitPoint.clone(), terreno: noChao, owner: bullet.owner
+        });
       }
       return;
     }

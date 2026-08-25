@@ -51,7 +51,8 @@ export function initObjective(player, capture) {
       marca.classList.toggle('meu', id === player.team);
     }
 
-    const alvo = capture.working;
+    const p = player.object.position;
+    const alvo = capture.targetAt(p.x, player.feetY, p.z, player.team);
     const bandeira = alvo?.flag;
     const mexendo = bandeira && bandeira.phase !== 'parada';
 
@@ -96,7 +97,8 @@ export function initFlagPrompt(player, capture) {
   let mostrado = null;
 
   return function updateFlagPrompt() {
-    const alvo = capture.working;
+    const p = player.object.position;
+    const alvo = capture.targetAt(p.x, player.feetY, p.z, player.team);
     let texto = null;
 
     if (alvo) {

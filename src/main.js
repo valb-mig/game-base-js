@@ -126,7 +126,7 @@ function boot() {
     updateCompass: initCompass(camera),
     updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops),
-    updateHitmarker: initHitmarker(attack, ballistics)
+    updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics)
   };
 
   clock.getDelta();   // descarta o tempo que a abertura ficou na tela
