@@ -1,4 +1,5 @@
 import { isDown, consumePress } from '../core/input.js';
+import { spreadFactor } from '../items/firearm.js';
 
 const KEYS = [
   { label: 'W', codes: ['KeyW', 'ArrowUp'] },
@@ -8,13 +9,22 @@ const KEYS = [
   { label: 'Shift', codes: ['ShiftLeft', 'ShiftRight'] },
   { label: 'C', codes: ['KeyC'] },
   { label: 'Z', codes: ['KeyZ'] },
-  { label: 'Espaço', codes: ['Space'] }
+  { label: 'Espaço', codes: ['Space'] },
+  { label: 'F', codes: ['KeyF'] },
+  { label: 'E', codes: ['KeyE'] },
+  { label: 'G', codes: ['KeyG'] },
+  { label: 'R', codes: ['KeyR'] }
 ];
 
 /**
- * Painel de estado. Existe pra conferir combinação de comandos: as teclas
- * acendem juntas e o estado resultante aparece na mesma tela.
- * Liga/desliga com ` (crase) ou F2.
+ * Modo de depuração, no F2.
+ *
+ * Ele é o DONO do interruptor: o painel de estado é só uma das coisas que
+ * acendem junto. As caixas de colisão e os rótulos sobre a cabeça dos bots
+ * leem `on` daqui, pra que uma tecla só ligue tudo e nada saia de sincronia.
+ *
+ * Nasce desligado. Painel de depuração aceso por padrão vira parte do HUD
+ * sem ninguém decidir isso.
  */
 export function initDebug(player) {
   const panel = document.getElementById('debug');
@@ -35,15 +45,15 @@ export function initDebug(player) {
 
   panel.append(body, keys, ghost);
 
-  let visible = true;
+  let visible = false;
   let accumulator = 0;
   let frames = 0;
   let fps = 0;
 
-  return function updateDebug(delta) {
+  function updateDebug(delta) {
     if (consumePress('Backquote', 'F2')) {
       visible = !visible;
-      panel.classList.toggle('hidden', !visible);
+      panel.classList.toggle('visivel', visible);
     }
 
     frames++;
@@ -56,15 +66,29 @@ export function initDebug(player) {
     if (!visible) return;
 
     const pos = player.object.position;
+    const arma = player.equipped;
+    const fogo = arma?.firearm;
+    const abertura = fogo
+      ? (fogo.hipSpread * (1 - player.gun.aim) + fogo.adsSpread * player.gun.aim)
+        * spreadFactor(player)
+      : 0;
 
     body.innerHTML = [
-      `estado <b>${player.state}</b>`,
+      `estado <b>${player.state}</b> · time <b>${player.team}</b>`,
+      `vida <b>${Math.round(player.health)}</b>/${player.maxHealth} · ` +
+        (player.spectating ? '<b>fantasma</b>'
+          : player.alive ? 'em jogo' : '<b>caído</b>'),
       `velocidade <b>${player.speed.toFixed(2)}</b> m/s`,
       `postura <b>${player.stance}</b> · corpo <b>${player.height.toFixed(2)}</b> m`,
       `corrida <b>${player.runLatched ? 'ligada' : 'desligada'}</b>`,
       `no chão <b>${player.onGround ? 'sim' : 'não'}</b> · vertical <b>${player.verticalVelocity.toFixed(1)}</b>`,
       `coyote <b>${player.coyote.toFixed(2)}</b> · buffer <b>${player.jumpBuffer.toFixed(2)}</b>`,
-      `xz <b>${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}</b> · ${fps} fps`
+      `item <b>${arma?.name ?? 'mão vazia'}</b>` +
+        (arma?.ammo ? ` <b>${arma.ammo.loaded}</b>/${arma.ammo.reserve}` : ''),
+      `mira <b>${player.gun.aim.toFixed(2)}</b>` +
+        ` · dispersão <b>${abertura.toFixed(2)}°</b> (×${spreadFactor(player)})`,
+      `xz <b>${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}</b>` +
+        ` · pés <b>${player.feetY.toFixed(2)}</b> · ${fps} fps`
     ].map((line) => `<div>${line}</div>`).join('');
 
     KEYS.forEach((key, i) => {
@@ -76,5 +100,13 @@ export function initDebug(player) {
     ghost.textContent = KEYS.filter((key) => isDown(...key.codes)).length >= 3
       ? 'combo de 3+ teclas: confira se todas acenderam'
       : '';
+  }
+
+  return {
+    update: updateDebug,
+    /** Quem desenha caixa de colisão e rótulo de bot lê isto. */
+    get on() {
+      return visible;
+    }
   };
 }

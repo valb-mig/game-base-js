@@ -13,6 +13,7 @@ import { initDigging } from './items/digging.js';
 import { createBallistics } from './items/ballistics.js';
 import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
+import { initDebugView } from './ui/debugview.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
 import { initCrosshair } from './ui/crosshair.js';
@@ -121,12 +122,15 @@ function boot() {
     capture, bots,
     updateObjective: initObjective(player, capture),
     updateFlagPrompt: initFlagPrompt(player, capture),
-    updateDebug: initDebug(player),
+    debug: initDebug(player),
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
     updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops),
-    updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics)
+    updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics),
+    // Caixas de colisão e o que cada bot está pensando. Quem manda no
+    // interruptor é o painel: uma tecla acende tudo junto.
+    updateDebugView: initDebugView(scene, world, bots)
   };
 
   clock.getDelta();   // descarta o tempo que a abertura ficou na tela
@@ -220,7 +224,8 @@ function frame() {
   world.water.update(clock.elapsedTime);
   applyUnderwater(scene, player.headUnderwater);
 
-  game.updateDebug(delta);
+  game.debug.update(delta);
+  game.updateDebugView(game.debug.on);
   game.updateStatus(delta);
   game.updateCompass();
   game.updateCrosshair();

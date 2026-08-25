@@ -56,7 +56,9 @@ src/
            watchdog.js  vigia de invariantes em jogo
            classcards.js  tacticalmap.js  session.js
            compass.js  objective.js  status.js  prompt.js  hitmarker.js
-           crosshair.js  a mira abre com a dispersão · debug.js
+           crosshair.js  a mira abre com a dispersão
+           debug.js  painel e o interruptor do F2
+           debugview.js  caixas de colisão e estado dos bots na cena
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
             drop, melee, firearm, ballistics, muzzle, slope, combate,
@@ -151,6 +153,21 @@ a barra de vida no canto não ganha esse olhar no meio de um tiroteio. A
 vinheta vermelha fica nas BORDAS de propósito: no centro taparia justamente o
 que ele precisa ver pra revidar.
 
+**F2 é um interruptor só, e `ui/debug.js` é o dono dele.** O painel de estado,
+as caixas de colisão e o rótulo sobre a cabeça dos bots leem `debug.on`: uma
+tecla acende tudo e nada sai de sincronia. O painel nasce DESLIGADO — aceso
+por padrão ele vira parte do HUD sem ninguém decidir isso.
+
+**Caixa de colisão e esfera de acerto são coisas diferentes.** A caixa é por
+onde o corpo não passa; a esfera é onde a bala pega. Elas erram por motivos
+diferentes, e ver as duas juntas é metade do valor da depuração. Verde é
+colisor em que dá pra ficar em pé.
+
+**Depuração não pode mudar o que se investiga.** Um `Box3Helper` por colisor
+seriam oitocentos objetos na cena. É um `LineSegments` só, com todas as
+arestas, reconstruído apenas enquanto o modo está ligado — desligado ele não
+toca no buffer.
+
 **O HUD não inventa número.** Munição e objetivo não existem como sistema, e
 por isso não aparecem: o canto do item mostra o rótulo do slot quando o item
 não tem munição. Se aparecer contador, é porque o dado existe.
@@ -178,6 +195,13 @@ isso já fez o HUD ficar em branco.
 **Objeto caindo testa o trecho percorrido, não só onde parou.** Entre dois
 frames um item rápido passa inteiro por dentro de uma caixa; `restHeightAt`
 recebe o topo do trecho justamente por isso.
+
+**Asserção de TEMPO na suíte não testa nada.** Ela roda sob
+`--virtual-time-budget`, e ali `performance.now()` não anda: `custo < 1.5`
+passa com 0,000 ms e fica verde sem exercitar coisa alguma. Duas suítes
+tinham isso. Prove a REGRA por comportamento — quantas consultas de altura uma
+pazada faz (9 para 400 props), se o buffer foi reescrito — e deixe o
+milissegundo pra uma página de bancada, que roda em tempo real.
 
 **Nada de medir layout uma vez só.** Quem depende de `clientWidth` tem que
 remedir quando o tamanho mudar, inclusive de zero pra alguma coisa: a bússola
@@ -620,6 +644,10 @@ faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item
 
 Largar com G e apanhar com E funcionam, com item na mão ou sem: quem decide é
 o slot do item estar livre.
+
+F2 (ou crase) liga a depuração: painel com teclas acesas e o estado do
+jogador, caixa de colisão de tudo desenhada na cena, esfera de acerto de cada
+alvo, e o que cada bot está pensando escrito sobre a cabeça dele.
 
 Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
 na tela de deploy — barra de equipamento em cima (classes e os itens que

@@ -181,10 +181,24 @@ export function run() {
   }
   eq('registrou todos', mundo4.settling.props.length, 400);
 
-  const t0 = performance.now();
-  for (let i = 0; i < 200; i++) mundo4.cavar((i % 40) * 5 - 100, Math.floor(i / 40) * 5 - 100);
-  const custo = (performance.now() - t0) / 200;
+  // Medir MILISSEGUNDOS aqui não prova nada: a suíte roda sob
+  // --virtual-time-budget, e ali performance.now() não anda. Esta asserção já
+  // foi `custo < 1.5` e passava com 0,000 ms — verde sem testar coisa alguma.
+  //
+  // O que dá pra provar é a REGRA: só o que a pazada tocou é reavaliado. Se
+  // ela varresse o mapa, uma cavada consultaria a altura de todos os 400
+  // props, cinco pontos cada.
+  let consultas = 0;
+  const original = mundo4.terrain.heightAt;
+  mundo4.terrain.heightAt = (x, z) => {
+    consultas++;
+    return original(x, z);
+  };
 
-  ok('reavaliar depois da pazada é barato', custo < 1.5, `${custo.toFixed(3)} ms por pazada`);
-  note('com 400 props no mapa', `${custo.toFixed(3)} ms`);
+  mundo4.cavar(0, 0);
+  ok('uma pazada não varre o mapa inteiro', consultas < 400,
+    `${consultas} consultas de altura, com 400 props no mapa`);
+  note('consultas por pazada', `${consultas} para 400 props`);
+
+  mundo4.terrain.heightAt = original;
 }

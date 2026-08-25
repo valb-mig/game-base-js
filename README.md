@@ -87,6 +87,19 @@ numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
 perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de
 lado sobrevive 7,5. Mexa-se.
 
+## Depuração
+
+**F2** (ou a crase) liga o modo de depuração:
+
+- painel com as teclas acesas e o estado do jogador — postura, velocidade,
+  vida, item na mão, dispersão atual e quanto o corpo a multiplica;
+- a caixa de colisão de tudo desenhada na cena, em verde quando dá pra ficar
+  em pé em cima e em azul quando é só parede;
+- a esfera de acerto de cada alvo, em vermelho: é onde a bala pega, que não é
+  o mesmo lugar por onde o corpo não passa;
+- o que cada bot está pensando, escrito sobre a cabeça dele, com vida e
+  munição no carregador.
+
 ## Atirar
 
 Parado, a bala vai exatamente onde a mira aponta — sem dispersão nenhuma.

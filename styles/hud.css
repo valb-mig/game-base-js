@@ -369,17 +369,11 @@ body.aiming #crosshair {
 
 /* ------------------------------------------------------------------ debug */
 
+/* Nasce escondido: F2 liga. Antes havia DUAS regras #debug, e o
+   `display: none` da primeira nunca era desfeito pela classe da segunda —
+   o painel existia, o F2 alternava a classe, e nada aparecia nunca. */
 #debug {
   display: none;
-}
-
-
-
-
-
-
-
-#debug {
   position: fixed;
   top: 12px;
   right: 12px;
@@ -392,8 +386,8 @@ body.aiming #crosshair {
   user-select: none;
 }
 
-#debug.hidden {
-  display: none;
+#debug.visivel {
+  display: block;
 }
 
 #debug b {
@@ -403,8 +397,10 @@ body.aiming #crosshair {
 
 .debug-keys {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-top: 8px;
+  max-width: 260px;
 }
 
 .debug-keys span {
