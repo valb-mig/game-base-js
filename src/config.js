@@ -62,29 +62,65 @@ export const PLAYER = {
 };
 
 export const WORLD = {
-  MAP_NAME: 'Ilha Corvo',
-  MAP_ERA: 'Pacífico · 1945',
+  MAP_NAME: 'Sainte-Mère',
+  MAP_ERA: 'Normandia · 1944',
 
-  SIZE: 460,              // lado do mapa; a ilha fica no meio, mar até a borda
-  TERRAIN_SEGMENTS: 180,  // resolução da malha do terreno
+  // Dois quilômetros de lado, com 2,5 m por vértice da malha. A resolução não
+  // é escolha estética: abaixo de ~2,6 m a pazada cai entre dois vértices e
+  // cavar deixa de registrar. Medido: montar essa malha custa 0,64 s uma vez,
+  // e desenhar custa 0,06 ms por quadro.
+  SIZE: 2000,
+  TERRAIN_SEGMENTS: 800,
 
-  // A ilha é uma parábola suavizada: alta no centro, cruzando o nível da
-  // água exatamente em ISLAND_RADIUS. Passando disso, vira fundo de mar.
-  ISLAND_RADIUS: 150,
-  ISLAND_HEIGHT: 16,
-  SEA_DEPTH: 14,
-  RELIEF: 3.4,            // amplitude do ruído que ondula a floresta
-  RELIEF_SCALE: 0.012,    // frequência do ruído (menor = colina mais larga)
+  // ------------------------------------------------------------- litoral
+  // O mar fica ao NORTE (z negativo). A praia é a faixa de desembarque, e
+  // logo atrás dela sobe a escarpa que dá vista pra ela — é a geografia que
+  // faz o ponto 01 ser difícil e o 02 valer a pena.
+  MAR_ATE: -880,          // ao norte disto é água
+  PRAIA_ATE: -742,        // faixa de areia
+  ESCARPA_ATE: -600,      // subida atrás da praia
+  ALTURA_PLANALTO: 24,    // o interior, onde ficam vila e fazenda
+  SEA_DEPTH: 22,
+
+  // --------------------------------------------------------------- rio
+  // Corta o mapa na diagonal, do sudoeste pro nordeste. Ele e as pontes são
+  // o gargalo do sul do mapa.
+  RIO_Z: 194,             // z do leito em x=0
+  RIO_INCLINACAO: -0.224, // quanto o leito desce por metro de x
+  RIO_ONDA: 34,           // amplitude da serpentina: rio reto lê como vala
+  RIO_LARGURA: 34,
+  RIO_MARGEM: 78,         // a rampa das margens
+  RIO_FUNDO: 5.5,         // altura do leito
+
+  // Pontes: buracos no rio onde o terreno não é cavado. Só o X entra aqui —
+  // o Z sai do próprio leito, senão o mapa teria duas fontes de verdade
+  // sobre onde o rio passa, e elas se separariam no primeiro ajuste.
+  PONTES: [-473, 330],
+  PONTE_LARGURA: 26,
+
+  // ------------------------------------------------------------- colinas
+  COLINAS: [
+    { x: -549, z: -418, raio: 210, altura: 15 },   // Bunker da Colina
+    { x: 301, z: 351, raio: 190, altura: 13 }      // Moinho
+  ],
+
+  RELIEF: 4.2,            // amplitude do ruído que ondula o interior
+  RELIEF_SCALE: 0.004,    // frequência (menor = colina mais larga)
 
   WATER_LEVEL: 0,
-  SAND_UNTIL: 1.7,        // até essa altura o terreno é areia, não capim
+  SAND_UNTIL: 2.6,        // até essa altura o terreno é areia, não capim
 
-  TREE_COUNT: 420,
-  ROCK_COUNT: 90,
-  TREE_LINE: 2.4,         // árvore não nasce abaixo disso: ali ainda é praia
+  // Onde cada exército desembarca. Ao sul do rio, os dois: a frente anda de
+  // sul pra norte, e é isso que faz as pontes serem gargalo pros dois lados.
+  BASE_VESTRIA: { x: -693, z: 696 },
+  BASE_KARNIA: { x: 638, z: 745 },
+  COURSE_ORIGIN: { x: -880, z: 830 },   // campo de treino, num canto
 
-  BASE_DISTANCE: 104,     // bases em z = ±BASE_DISTANCE, pontas opostas
+  TREE_COUNT: 1400,
+  ROCK_COUNT: 260,
+  TREE_LINE: 4.0,         // árvore não nasce abaixo disso: ali ainda é praia
 
+  // ------------------------------------------------------------- cores
   SKY_COLOR: 0x9ec6dd,
   WATER_COLOR: 0x2e6d80,
   DEEP_WATER_COLOR: 0x14323d,
@@ -95,15 +131,19 @@ export const WORLD = {
   TRUNK_COLOR: 0x4a3524,
   ROCK_COLOR: 0x7b7f80,
   SOIL_COLOR: 0x6b5334,   // terra revolvida, onde a pá passou
-  FOG_NEAR: 70,
-  FOG_FAR: 320,
 
-  // Clareira do campo de treino: a oeste, no miolo da ilha. Longe das duas
-  // bases de propósito — platôs de alturas diferentes não podem se encostar.
-  COURSE_ORIGIN: { x: -58, z: -6 },
-  COURSE_HALF_WIDTH: 11,
-  COURSE_LENGTH: 52
+  // A névoa fecha bem mais longe que na ilha: num mapa de dois quilômetros,
+  // 320 m de alcance esconderia o mapa inteiro do jogador.
+  FOG_NEAR: 260,
+  FOG_FAR: 1400,
+
+  COURSE_LENGTH: 52,
+
+  // Raio da área jogável, medido do centro. Existe pra que floresta e
+  // sorteios saibam onde parar sem cada um inventar o próprio limite.
+  ISLAND_RADIUS: 980
 };
+
 
 export const DROP = {
   FORWARD: 1.5,      // impulso pra frente ao soltar, em m/s

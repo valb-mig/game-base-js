@@ -641,10 +641,12 @@ export function run() {
   };
   const capturaP = createCapture([postoP]);
 
+  // O ponto já é do atacante, então quem tem o que fazer nele é o DEFENSOR:
+  // no modo sequencial cada lado só mexe no ponto da vez dele.
   eq('bandeira sendo trocada longe não aparece pra quem está longe',
-    capturaP.targetAt(0, 1.2, 0, 'vestria'), null);
+    capturaP.targetAt(0, 1.2, 0, 'karnia'), null);
   ok('e aparece pra quem está nela',
-    Boolean(capturaP.targetAt(60, 1.2, 0, 'vestria')));
+    Boolean(capturaP.targetAt(60, 1.2, 0, 'karnia')));
 
   suite('bot morto volta ao combate');
 

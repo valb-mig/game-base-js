@@ -33,6 +33,15 @@ export const TEAM_IDS = Object.keys(TEAMS);
  */
 export const PLAYER_TEAM = 'vestria';
 
+/**
+ * Quem ataca. Vestria desembarca na praia e empurra a frente até o moinho;
+ * Karnia defende e retoma o que perdeu.
+ *
+ * A assimetria é o modo: sem um atacante declarado, "avançar" não tem
+ * direção e a linha de frente não existe.
+ */
+export const ATACANTE = 'vestria';
+
 /** O outro lado. Vale pra qualquer um dos dois. */
 export function enemyOf(teamId) {
   return TEAM_IDS.find((id) => id !== teamId) ?? null;
@@ -69,6 +78,30 @@ export function postContested(post) {
  */
 export function spawnableFor(post, teamId) {
   return postOwner(post) === teamId && !postContested(post);
+}
+
+/**
+ * Onde está a linha de frente: o índice do primeiro ponto que o atacante
+ * ainda não tomou.
+ *
+ * Com todos tomados devolve `posts.length` — a partida acabou.
+ */
+export function frontIndex(posts) {
+  const primeiro = posts.findIndex((post) => postOwner(post) !== ATACANTE);
+  return primeiro < 0 ? posts.length : primeiro;
+}
+
+/**
+ * O ponto em que este time pode mexer AGORA.
+ *
+ * O atacante trabalha na frente; o defensor, no último que perdeu. Um só de
+ * cada lado, e é isso que faz a partida ser uma linha que anda em vez de seis
+ * brigas soltas — sem isso, o time todo pularia direto pro último ponto.
+ */
+export function activePostFor(posts, teamId) {
+  const frente = frontIndex(posts);
+  if (teamId === ATACANTE) return posts[frente] ?? null;
+  return posts[frente - 1] ?? null;
 }
 
 /** Quantos postos cada lado domina inteiros. */

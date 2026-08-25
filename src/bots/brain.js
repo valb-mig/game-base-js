@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AIM, createAim, turnToward, angleGap } from './aiming.js';
-import { postOwner } from '../game/teams.js';
+import { postOwner, activePostFor } from '../game/teams.js';
 
 /**
  * O que um bot decide fazer.
@@ -101,18 +101,15 @@ export function createBrain(bot, mundo, rng = Math.random) {
     return melhor;
   }
 
-  /** Posto inimigo mais perto: é pra lá que ele vai quando não há briga. */
+  /**
+   * Pra onde ele vai quando não há briga: o ponto da LINHA DE FRENTE.
+   *
+   * O mais perto seria errado — o time todo se espalharia pelos pontos que
+   * ainda não são a vez, e a frente nunca andaria. Num modo sequencial, ir
+   * pro lugar certo é metade do comportamento.
+   */
   function objetivo() {
-    let melhor = null;
-    let menor = Infinity;
-    for (const post of mundo.outposts) {
-      if (postOwner(post) === bot.team) continue;
-      const distancia = Math.hypot(post.x - bot.x, post.z - bot.z);
-      if (distancia >= menor) continue;
-      menor = distancia;
-      melhor = post;
-    }
-    return melhor;
+    return activePostFor(mundo.outposts, bot.team);
   }
 
   /** Bandeira do posto que ainda não é dele. */

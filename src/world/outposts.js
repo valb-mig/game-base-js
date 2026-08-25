@@ -2,87 +2,96 @@ import { WORLD } from '../config.js';
 import { createOutpost } from './outpost.js';
 
 /**
- * Onde ficam os doze postos, seis de cada lado.
+ * Os seis pontos de Sainte-Mère, na ordem em que a frente avança.
  *
- * As posições são fixas, não sorteadas: o mapa de um jogo de território tem
- * que ser decorável. Quem aprendeu que o posto do Farol fica na ponta leste
- * não pode chegar lá numa partida e não achar nada.
+ * A ordem é a regra do modo: 01 é a praia de desembarque e 06 é o moinho que
+ * domina a base inimiga. Cada ponto só pode ser tomado quando o anterior já
+ * caiu, então a partida é uma linha que anda pelo mapa em vez de seis brigas
+ * soltas.
  *
- * Cada lado tem os seus na metade dele, e os dois postos de linha de frente
- * ficam perto do meio da ilha — é onde a briga começa.
+ * As posições são fixas e decoráveis, e cada uma é difícil de um jeito
+ * diferente — a praia é aberta, a colina é alta, o rio é gargalo. É o terreno
+ * que faz isso, não um número de dificuldade.
  */
 
-const NOMES_KARNIA = ['Farol', 'Pedreira', 'Ponte Norte', 'Cabo Frio', 'Vigia', 'Trincheira'];
-const NOMES_VESTRIA = ['Enseada', 'Serraria', 'Ponte Sul', 'Duna', 'Torre', 'Paiol'];
-
-// Fila de cada lado, do fundo pra frente. O z é multiplicado pelo lado, então
-// a mesma tabela serve pros dois — o mapa fica simétrico e legível.
-// Os x e z saíram de sondar o campo de altura de verdade, com as zonas planas
-// aplicadas, e nos DOIS lados: a ilha não é simétrica, porque o ruído do
-// relevo não é. Um par de postos de fundo que dava 3,3 m no sul dava 2,35 no
-// norte, ou seja praia — e a montagem estourou por isso.
-const FORMACAO = [
-  { x: -52, z: 86 },    // fundo, canto oeste
-  { x: 52, z: 86 },     // fundo, canto leste
-  { x: -46, z: 58 },    // meio
-  { x: 46, z: 58 },
-  { x: -30, z: 30 },    // linha de frente, perto do meio da ilha
-  { x: 30, z: 30 }
+export const PONTOS = [
+  {
+    id: 'praia', numero: 1, name: 'Praia',
+    x: -88, z: -790,
+    nota: 'desembarque · aberta, sem cobertura'
+  },
+  {
+    id: 'colina', numero: 2, name: 'Bunker da Colina',
+    x: -549, z: -418,
+    nota: 'domina a praia e a vila'
+  },
+  {
+    id: 'vila', numero: 3, name: 'Vila Central',
+    x: -44, z: -173,
+    nota: 'urbano · curta e média distância'
+  },
+  {
+    id: 'fazenda', numero: 4, name: 'Fazenda La Haye',
+    x: 490, z: -453,
+    nota: 'aberto, com muros e celeiros'
+  },
+  {
+    id: 'ponte', numero: 5, name: 'Ponte do Rio',
+    x: -473, z: 0,        // o z sai do leito: ver posicionar()
+    nota: 'gargalo · fácil de defender'
+  },
+  {
+    id: 'moinho', numero: 6, name: 'Moinho',
+    x: 301, z: 351,
+    nota: 'elevado · vista da base inimiga'
+  }
 ];
 
-// Karnia no norte (z negativo), Vestria no sul. As bases principais ficam
-// atrás dos postos de cada um.
-const LADO = { karnia: -1, vestria: 1 };
-
-/** Longe demais de tudo pra ser posto: mar, ou beirada de praia. */
-const ALTURA_MINIMA = WORLD.SAND_UNTIL + 0.8;
-
-/**
- * Posto no mar, ou em cima de base, é bug de mapa e tem que estourar na
- * montagem. Descobrir isso jogando custou uma sessão inteira quando o campo
- * de treino nasceu dentro de uma plataforma.
- */
-function assertPostos(postos, terrain, ocupado) {
-  for (const posto of postos) {
-    const chao = terrain.heightAt(posto.x, posto.z);
-    if (chao < ALTURA_MINIMA) {
+/** Ponto no mar, ou em cima de outro, é bug de mapa e estoura na montagem. */
+function assertPontos(pontos, terrain, ocupado) {
+  for (const ponto of pontos) {
+    const chao = terrain.heightAt(ponto.x, ponto.z);
+    if (chao < WORLD.SAND_UNTIL - 0.4) {
       throw new Error(
-        `posto "${posto.name}" (${posto.x}, ${posto.z}) está na água: altura ${chao.toFixed(2)}`
+        `ponto "${ponto.name}" (${ponto.x}, ${ponto.z}) está na água: ${chao.toFixed(2)} m`
       );
     }
     for (const zona of ocupado) {
-      const distancia = Math.hypot(posto.x - zona.x, posto.z - zona.z);
+      const distancia = Math.hypot(ponto.x - zona.x, ponto.z - zona.z);
       if (distancia < zona.radius) {
         throw new Error(
-          `posto "${posto.name}" encosta em ${zona.name}: ${distancia.toFixed(1)} m`
+          `ponto "${ponto.name}" encosta em ${zona.name}: ${distancia.toFixed(1)} m`
         );
       }
     }
-    ocupado.push({ x: posto.x, z: posto.z, radius: 26, name: `posto ${posto.name}` });
+    ocupado.push({ x: ponto.x, z: ponto.z, radius: 62, name: `ponto ${ponto.name}` });
   }
-  return postos;
+  return pontos;
 }
 
-export function addOutposts(scene, colliders, { terrain, settling, occupied }) {
-  const postos = [];
+/**
+ * O ponto da ponte fica ONDE A PONTE ESTÁ, e a ponte sai do leito do rio.
+ * Fixar o z na tabela criaria uma segunda fonte de verdade sobre onde o rio
+ * passa, e as duas se separariam no primeiro ajuste do leito.
+ */
+function posicionar(pontos, campo) {
+  const ponte = campo.bridges()[0];
+  return pontos.map((ponto) => (ponto.id === 'ponte'
+    ? { ...ponto, x: ponte.x, z: ponte.z + 44 }
+    : ponto));
+}
 
-  for (const [team, sinal] of Object.entries(LADO)) {
-    const nomes = team === 'karnia' ? NOMES_KARNIA : NOMES_VESTRIA;
+export function addOutposts(scene, colliders, { terrain, settling, occupied, campo }) {
+  const postos = posicionar(PONTOS, campo);
+  assertPontos(postos, terrain, occupied);
 
-    FORMACAO.forEach((lugar, i) => {
-      postos.push({
-        id: `${team}-${i}`,
-        name: nomes[i],
-        x: lugar.x,
-        z: lugar.z * sinal,
-        team
-      });
-    });
-  }
-
-  assertPostos(postos, terrain, occupied);
-
-  return postos.map((posto) => createOutpost(scene, colliders, {
-    ...posto, terrain, settling
+  // Todos começam neutros: quem os tomou por último é a partida, não o mapa.
+  // O 01 nasce do atacante porque é a cabeça de praia — sem ela ele não teria
+  // por onde entrar.
+  return postos.map((ponto, i) => createOutpost(scene, colliders, {
+    ...ponto,
+    team: i === 0 ? 'vestria' : 'karnia',
+    terrain,
+    settling
   }));
 }

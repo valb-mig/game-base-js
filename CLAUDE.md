@@ -139,6 +139,27 @@ cima do mundo com o depth limpo. É o que impede o item de atravessar parede e
 o que desacopla o tamanho dele na tela do FOV do jogo — com os 70° do mundo,
 a faca ocupava 74% da altura da tela.
 
+**O terreno É a regra do mapa.** Em Sainte-Mère, de norte pra sul: mar, praia
+de desembarque, a escarpa que domina essa praia, o planalto da vila e da
+fazenda, e o rio cortando na diagonal com duas pontes. Cada trecho existe pra
+que um ponto seja difícil de um jeito diferente — a praia é aberta, a colina é
+alta, o rio é gargalo. Não há número de dificuldade em lugar nenhum.
+
+**Duas fontes de verdade sobre o rio se separam no primeiro ajuste.** Só o X
+das pontes fica na tabela; o Z sai de `riverBedAt`. O ponto 05 e a ponte leem
+a mesma função, e mexer no leito move os dois juntos.
+
+**A resolução da malha não é escolha estética.** 2 km com 800 segmentos dá
+2,5 m por vértice, e abaixo de ~2,6 m a pazada cai entre dois vértices e cavar
+deixa de registrar. Medido: montar essa malha custa 0,64 s uma vez e desenhar
+custa 0,06 ms por quadro — o gargalo é o boot, não o render.
+
+**Apagar um bloco de constantes leva junto o que você não viu.** Reescrevendo
+`WORLD` pro mapa novo sumiram catorze chaves ainda em uso — `COURSE_LENGTH`
+virou `NaN` e o campo de treino inteiro nasceu em coordenada inválida, sem
+erro nenhum no console. Depois de mexer em `config.js`, vale conferir quais
+`WORLD.X` o código usa e a tabela não tem.
+
 **O terreno é um campo de altura, não um plano.** `world/heightfield.js` é a
 fonte de verdade — a malha em `terrain.js` só desenha o que ele diz, e a
 colisão amostra a mesma função. É matemática pura, sem three, justamente pra
@@ -479,6 +500,11 @@ isso que dá a vantagem a quem atirou primeiro.
 são só dado e conta: dá pra jogar o modo inteiro num teste, com postos de
 mentira, sem montar ilha nenhuma. Quem desenha bandeira é `world/outpost.js`,
 e ele lê o estado — nunca o contrário.
+
+**A frente anda em ordem, um ponto por vez.** `activePostFor` diz o único
+ponto em que cada lado pode mexer: o atacante trabalha na frente, o defensor
+no último que perdeu. Sem isso o time todo pularia direto pro último ponto, e
+a partida seria seis brigas soltas em vez de uma linha que anda.
 
 **Uma bandeira arriada já tira o posto de quem era.** Dono é quem tem AS
 QUATRO; com três, o posto não é de ninguém. É o que faz a primeira captura

@@ -1,14 +1,15 @@
 import { WORLD } from '../config.js';
 
 /**
- * Campo de altura da ilha. Matemática pura, sem three: é a fonte de verdade
- * tanto pra malha quanto pra colisão, e assim dá pra inspecionar e testar
- * fora do navegador.
+ * Campo de altura de Sainte-Mère. Matemática pura, sem three: é a fonte de
+ * verdade tanto pra malha quanto pra colisão, e assim dá pra inspecionar e
+ * testar fora do navegador.
  *
- * O perfil é uma parábola suavizada: alta no centro, cruzando o nível da
- * água exatamente em ISLAND_RADIUS, e descendo pro fundo do mar depois
- * disso. Como o smoothstep é quase plano perto da borda, a faixa de praia
- * sai larga e em rampa sem precisar de caso especial.
+ * O terreno é a própria regra do mapa. De norte pra sul: mar, praia de
+ * desembarque, a escarpa que domina essa praia, o planalto onde ficam a vila
+ * e a fazenda, e o rio cortando na diagonal com duas pontes. Cada trecho
+ * existe pra que um ponto de captura seja difícil de um jeito diferente —
+ * a praia é aberta, a escarpa é alta, o rio é gargalo.
  */
 
 // Ruído de valor determinístico. Math.imul mantém a multiplicação em 32 bits,
@@ -60,26 +61,79 @@ function fbm(x, z) {
  *   `height`, e ela volta pro relevo natural ao longo de `blend`.
  */
 export function createHeightfield(flatZones = [], deform = null) {
-  function naturalHeight(x, z) {
-    const distance = Math.hypot(x, z) / WORLD.ISLAND_RADIUS;
-    const inland = 1 - distance;
+  /**
+   * Onde passa o leito do rio, no z, pra um dado x. Diagonal e com uma
+   * ondulação: rio reto lê como vala, não como rio.
+   */
+  function leitoDoRio(x) {
+    return WORLD.RIO_Z + WORLD.RIO_INCLINACAO * x
+      + Math.sin(x * 0.0042) * WORLD.RIO_ONDA;
+  }
 
+  /** Perto de uma ponte o rio não é cavado: é por ali que se atravessa. */
+  function fatorDePonte(x) {
+    let aberto = 0;
+    for (const ponte of WORLD.PONTES) {
+      const perto = 1 - Math.min(1, Math.abs(x - ponte) / WORLD.PONTE_LARGURA);
+      aberto = Math.max(aberto, smoothstep(perto));
+    }
+    return aberto;
+  }
+
+  /**
+   * Onde uma ponte cruza o rio. É a única fonte de verdade sobre isso: quem
+   * põe a ponte, o ponto de captura e a estrada leem daqui.
+   */
+  function pontes() {
+    return WORLD.PONTES.map((x) => ({ x, z: leitoDoRio(x) }));
+  }
+
+  function naturalHeight(x, z) {
+    // ------------------------------------------------------ perfil norte-sul
     let base;
-    if (inland >= 0) {
-      base = WORLD.ISLAND_HEIGHT * smoothstep(inland);
+    if (z <= WORLD.MAR_ATE) {
+      // mar: fundo descendo conforme se afasta da praia
+      const fundo = Math.min(1, (WORLD.MAR_ATE - z) / 260);
+      base = -WORLD.SEA_DEPTH * smoothstep(fundo);
+    } else if (z <= WORLD.PRAIA_ATE) {
+      // praia: rampa suave da linha d'água até o pé da escarpa
+      const t = (z - WORLD.MAR_ATE) / (WORLD.PRAIA_ATE - WORLD.MAR_ATE);
+      base = smoothstep(t) * 3.4;
+    } else if (z <= WORLD.ESCARPA_ATE) {
+      // escarpa: é ela que faz a praia ser um lugar ruim de ficar parado
+      const t = (z - WORLD.PRAIA_ATE) / (WORLD.ESCARPA_ATE - WORLD.PRAIA_ATE);
+      base = 3.4 + smoothstep(t) * (WORLD.ALTURA_PLANALTO - 3.4);
     } else {
-      // fora da ilha: desce pro fundo ao longo de um terço do raio
-      const out = Math.min(1, -inland * 3);
-      base = -WORLD.SEA_DEPTH * smoothstep(out);
+      base = WORLD.ALTURA_PLANALTO;
     }
 
-    // o relevo some perto da água, senão a praia fica encaroçada
-    const reliefMask = Math.max(0, Math.min(1, inland * 3));
-    const relief = fbm(x * WORLD.RELIEF_SCALE, z * WORLD.RELIEF_SCALE)
-      * WORLD.RELIEF * reliefMask;
+    // ------------------------------------------------------------- colinas
+    for (const colina of WORLD.COLINAS) {
+      const d = Math.hypot(x - colina.x, z - colina.z) / colina.raio;
+      if (d < 1) base += colina.altura * smoothstep(1 - d);
+    }
 
-    return base + relief;
+    // ----------------------------------------------------------- ondulação
+    // Some perto da água, senão a praia fica encaroçada, e some no mar.
+    const mascara = Math.max(0, Math.min(1, (z - WORLD.MAR_ATE) / 180));
+    base += fbm(x * WORLD.RELIEF_SCALE, z * WORLD.RELIEF_SCALE)
+      * WORLD.RELIEF * mascara;
+
+    // ---------------------------------------------------------------- rio
+    // Cavado por último, pra que ele corte colina e ondulação em vez de ser
+    // apagado por elas — rio que some numa lombada não é gargalo de nada.
+    const doLeito = Math.abs(z - leitoDoRio(x));
+    if (doLeito < WORLD.RIO_MARGEM) {
+      const dentro = 1 - smoothstep(
+        Math.max(0, doLeito - WORLD.RIO_LARGURA)
+        / (WORLD.RIO_MARGEM - WORLD.RIO_LARGURA));
+      const corte = (base - WORLD.RIO_FUNDO) * dentro * (1 - fatorDePonte(x));
+      base -= Math.max(0, corte);
+    }
+
+    return base;
   }
+
 
   /**
    * Vence a zona de maior influência, não a última da lista.
@@ -120,13 +174,13 @@ export function createHeightfield(flatZones = [], deform = null) {
     return Math.max(0, WORLD.WATER_LEVEL - heightAt(x, z));
   }
 
-  return { heightAt, waterDepthAt, naturalHeight };
+  return { heightAt, waterDepthAt, naturalHeight, riverBedAt: leitoDoRio, bridges: pontes };
 }
 
 /** Cor do terreno pela altura: areia na praia, capim, e topo mais seco. */
 export function colorAt(height) {
   if (height < WORLD.SAND_UNTIL) return WORLD.SAND_COLOR;
-  if (height > WORLD.ISLAND_HEIGHT * 0.62) return WORLD.HIGHLAND_COLOR;
+  if (height > WORLD.ALTURA_PLANALTO * 1.22) return WORLD.HIGHLAND_COLOR;
   return WORLD.GRASS_COLOR;
 }
 

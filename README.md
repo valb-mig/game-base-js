@@ -47,14 +47,32 @@ de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
 de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
 tiros marca o caminho.
 
+## O mapa
+
+**Sainte-Mère**, Normandia, 1944 — dois quilômetros de lado. De norte pra sul:
+o mar, a praia de desembarque, a escarpa que domina essa praia, o planalto com
+a vila e a fazenda, e o rio cortando na diagonal com duas pontes.
+
+O terreno é a regra do mapa: cada ponto é difícil de um jeito diferente porque
+o chão ali é diferente. A praia é aberta e sem cobertura, a colina vê a praia
+e a vila, o rio é gargalo com duas travessias.
+
 ## Modo de jogo
 
 Dois países inventados: **Pacto de Karnia** (norte, vermelho) e **Aliança de
 Vestria** (sul, azul). Inventados de propósito — a ilha e a guerra são ficção,
 e nenhum exército real leva a culpa por nada que aconteça aqui.
 
-Cada lado tem uma base principal e seis postos militares, doze no total. Cada
-posto tem quatro mastros, e o objetivo é dominar todos os postos do inimigo.
+Seis pontos de captura, na ordem em que a frente avança: **01 Praia**,
+**02 Bunker da Colina**, **03 Vila Central**, **04 Fazenda La Haye**,
+**05 Ponte do Rio**, **06 Moinho**.
+
+A frente anda em ordem. Vestria desembarca na praia e empurra; Karnia defende
+e retoma o que perdeu. Cada lado só pode mexer num ponto por vez — o atacante
+no próximo, o defensor no último que caiu. Sem isso a partida seria seis
+brigas soltas em vez de uma linha que anda pelo mapa.
+
+Cada ponto tem quatro mastros.
 
 Pra tomar uma bandeira, chegue no mastro e segure **F**: a bandeira de quem
 era desce até o meio do mastro, o mastro fica vazio, e a sua sobe. São 30

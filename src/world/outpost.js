@@ -45,7 +45,7 @@ const MADEIRA = new THREE.MeshLambertMaterial({
  * malha nenhuma.
  */
 export function createOutpost(scene, colliders, {
-  id, name, x, z, team, terrain, settling = null
+  id, name, numero = 0, nota = '', x, z, team, terrain, settling = null
 }) {
   const group = new THREE.Group();
   group.name = `posto-${id}`;
@@ -112,6 +112,10 @@ export function createOutpost(scene, colliders, {
   return {
     id,
     name,
+    // Número da ordem e o que torna este ponto difícil. Vêm da tabela do mapa
+    // e seguem até a tela: o painel diz "3. Vila Central — urbano".
+    numero,
+    nota,
     x,
     z,
     group,

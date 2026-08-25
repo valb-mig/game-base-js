@@ -1,4 +1,4 @@
-import { TEAMS, tally, winner } from '../game/teams.js';
+import { TEAMS, tally, winner, frontIndex, ATACANTE } from '../game/teams.js';
 import { CAPTURE } from '../game/capture.js';
 
 /**
@@ -18,7 +18,7 @@ export function initObjective(player, capture) {
 
   const titulo = document.createElement('div');
   titulo.className = 'mission-title';
-  titulo.textContent = 'DOMINAR OS POSTOS INIMIGOS';
+  titulo.textContent = player.team === ATACANTE ? 'AVANÇAR A FRENTE' : 'SEGURAR A FRENTE';
 
   const placar = document.createElement('div');
   placar.className = 'placar';
@@ -65,6 +65,15 @@ export function initObjective(player, capture) {
     // Quantas bandeiras faltam no posto em que ele está, ou o que está em
     // disputa no mapa. Texto só troca quando muda: escrever no DOM todo
     // quadro faz o navegador refazer layout à toa.
+    // O ponto da vez tem nome, e é a informação que decide pra onde ir.
+    const ativo = capture.activeFor(player.team);
+    const frente = frontIndex(capture.posts);
+    for (const [id, marca] of Object.entries(marcas)) {
+      marca.textContent = id === ATACANTE
+        ? `${TEAMS[id].short} ${frente}`
+        : `${TEAMS[id].short} ${capture.posts.length - frente}`;
+    }
+
     let texto = '';
     const venceu = winner(capture.posts);
     if (venceu) {
@@ -73,9 +82,9 @@ export function initObjective(player, capture) {
         : `${TEAMS[venceu].short} DOMINOU A ILHA`;
     } else if (alvo) {
       const minhas = alvo.post.flags.filter((f) => f.owner === player.team).length;
-      texto = `Posto ${alvo.post.name} · ${minhas} de 4 bandeiras`;
-    } else if (contagem.disputados > 0) {
-      texto = `${contagem.disputados} posto(s) em disputa`;
+      texto = `${alvo.post.numero}. ${alvo.post.name} · ${minhas} de 4 bandeiras`;
+    } else if (ativo) {
+      texto = `${ativo.numero}. ${ativo.name} — ${ativo.nota}`;
     }
     if (texto !== ultimo) {
       ultimo = texto;

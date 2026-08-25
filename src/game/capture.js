@@ -1,4 +1,4 @@
-import { postOwner, spawnableFor, enemyOf } from './teams.js';
+import { postOwner, spawnableFor, enemyOf, activePostFor } from './teams.js';
 
 /**
  * Captura de posto: arriar a bandeira de quem era e içar a sua.
@@ -31,7 +31,13 @@ export function createCapture(posts) {
     let melhor = null;
     let menor = CAPTURE.REACH;
 
+    // Só o ponto da linha de frente responde. Estar em cima do mastro de um
+    // ponto que ainda não é a vez dele não faz nada: a frente anda em ordem.
+    const ativo = activePostFor(posts, teamId);
+    if (!ativo) return null;
+
     for (const post of posts) {
+      if (post !== ativo) continue;
       // Só chega perto de um posto por vez; o teste barato primeiro.
       if (Math.abs(post.x - x) > 40 || Math.abs(post.z - z) > 40) continue;
 
@@ -123,6 +129,11 @@ export function createCapture(posts) {
     /** Onde o time pode nascer agora. A base principal nunca entra aqui. */
     spawnsFor(teamId) {
       return posts.filter((post) => spawnableFor(post, teamId));
+    },
+
+    /** O ponto que este time pode disputar agora, ou null. */
+    activeFor(teamId) {
+      return activePostFor(posts, teamId);
     },
 
     /** Postos que ainda faltam tomar. */
