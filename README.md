@@ -65,7 +65,10 @@ O posto é o spawn do time, e basta **uma** bandeira mexida pra ele deixar de
 servir: posto dominado, ou sendo dominado, o time perde o spawn ali. A base
 principal continua sempre disponível.
 
-Há um soldado de Karnia no mapa. Ele avança pro posto mais próximo, engaja
+Há nove soldados no mapa: cinco de Karnia e quatro de Vestria, com você
+fechando cinco de cada lado. Eles brigam entre si sem precisar de você — em
+90 segundos de guerra sozinha dá umas dez mortes, e os postos trocam de mão.
+Cada um avança pro posto mais próximo, engaja
 quem vê pela frente, troca de arma quando o carregador acaba (e puxa a faca se
 você colar nele), procura cobertura quando leva tiro, e captura bandeira como
 você. Se você atirar nele pelo flanco, ele para de içar e varre o horizonte
@@ -76,7 +79,10 @@ e para numa parede. Uma vinheta vermelha nas bordas avisa que você está
 levando tiro, porque entre o primeiro tiro doer e você morrer há pouco mais de
 um segundo. Morrer devolve pra tela de deploy.
 
-A mira dele é feita pra ser enfrentável: ele demora a reagir, vira a cabeça
+Eles seguram o tiro quando um companheiro está na linha, e voltam ao combate
+seis segundos depois de cair, num posto que o time ainda domine.
+
+A mira deles é feita pra ser enfrentável: ele demora a reagir, vira a cabeça
 numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
 perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de
 lado sobrevive 7,5. Mexa-se.

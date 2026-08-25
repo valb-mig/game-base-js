@@ -375,6 +375,21 @@ bala do bot nasce na altura do olho, ou seja DENTRO da caixa dele, e sem
 77 tiros, zero acertos, a dez metros de um alvo parado. O jogador nunca viu
 isso porque ele não tem colisor no mundo.
 
+**A bala não distingue farda; quem segura o tiro é quem atira.** Com nove
+bots amontoados num posto, sem checar companheiro na linha eles se abatem
+numa porta e a briga parece quebrada estando correta. `amigoNaFrente` testa um
+cone de 0,16 rad até a distância do alvo.
+
+**Bot morto tem que voltar.** Sem renascer, a frente esvazia: alguns minutos e
+sobra um de cada lado, parados em cantos opostos da ilha. Ele volta num posto
+que o time domina EM PAZ, ou na base principal — que entra sempre, pra que
+perder todos os postos não tranque o time fora da partida.
+
+**Estado de bot se mede ao longo do tempo, não num quadro.** Um instantâneo do
+último quadro mostrou 8 de 9 em cobertura e parecia travamento; o histograma
+dos 90 s mostrou 44% em combate e 19% em cobertura. O instantâneo de um
+sistema com estados curtos não diz nada.
+
 **Combate ganha de captura, e tiro pelas costas ganha das duas.** Bot içando
 bandeira com alguém atirando nele seria bug: o jogador aprenderia a matar bot
 ocupado em vez de disputar posto. E como quem atira do flanco fica fora do
@@ -637,7 +652,13 @@ balística de todo mundo, e morrer devolve pro deploy. Vinheta vermelha nas
 bordas avisa. Medido a 16 m, parado e sem revidar: dói em 1,6 s, morre em
 2,9 s.
 
-Existe UM bot inimigo, e ele é a mecânica inteira: avança pro posto mais
+Nove bots no mapa: cinco de Karnia e quatro de Vestria, com o jogador
+fechando 5 × 5. Eles brigam entre si, seguram o tiro quando um companheiro
+está na linha, e renascem seis segundos depois de cair. Medido em 90 s de
+guerra: 8 a 12 mortes, 44% do tempo em combate, e 0,83 ms por quadro — 5% do
+orçamento a 60 fps.
+
+Cada bot é a mecânica inteira: avança pro posto mais
 perto, engaja quem vê pela frente, troca de arma quando o carregador acaba ou
 quando o inimigo cola, procura cobertura sob fogo, captura bandeira e larga
 tudo pra brigar. Faltam os outros dezenove. Não existe captura de base: elas são sempre do dono. Só a Assault é jogável; as

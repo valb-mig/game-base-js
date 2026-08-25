@@ -329,6 +329,55 @@ export function run() {
   ok('sem declarar o dono, ele se acertaria', suicida.health < SOLDIER.VIDA,
     `${suicida.health} de ${SOLDIER.VIDA}`);
 
+  suite('bot não atira nas costas do companheiro');
+
+  // Com nove bots amontoados num posto, a bala não distingue farda: sem
+  // segurar o tiro, um pelotão inteiro se abate numa porta e a briga parece
+  // quebrada mesmo estando correta. Quem segura é quem atira.
+  const cenaF = new THREE.Scene();
+  const colisoresF = [];
+  const balisticaF = createBallistics(cenaF, colisoresF);
+  const postoF = {
+    id: 'p', name: 'P', x: 300, z: 0,
+    flags: [{ x: 300, z: 0, y: 1.2, base: 0, owner: 'vestria', byTeam: null, phase: 'parada', progress: 0 }]
+  };
+  const tropaF = createBots(cenaF, { colliders: colisoresF, terrain: chao, outposts: [postoF] },
+    { ballistics: balisticaF, capture: createCapture([postoF]), rng: dado(13) });
+
+  const atiradorF = tropaF.spawn({ id: 1, team: 'karnia', x: 0, z: 0 });
+  atiradorF.yaw = 0;
+  const inimigoF = alvoEm(0, 24, 'vestria');
+
+  // O companheiro ACOMPANHA a linha de tiro em vez de ficar numa coordenada
+  // fixa: em combate o bot dá passos laterais, e um amigo parado sai da
+  // frente sozinho — aí o teste mediria o passo, não a regra.
+  const centroF = new THREE.Vector3();
+  const companheiro = {
+    team: 'karnia', alive: true, radius: 0.5, collider: null, speed: 0,
+    get x() { return (atiradorF.x + inimigoF.x) / 2; },
+    get z() { return (atiradorF.z + inimigoF.z) / 2; },
+    center() {
+      return centroF.set(companheiro.x, atiradorF.feetY + 1.08, companheiro.z);
+    },
+    damage: () => ({ amount: 0, killed: false })
+  };
+
+  let saiuBala = 0;
+  const spawnOriginalF = balisticaF.spawn;
+  balisticaF.spawn = (o, d, opts) => { saiuBala++; return spawnOriginalF(o, d, opts); };
+
+  // Companheiro exatamente na linha do inimigo.
+  tropaF.setTargets([inimigoF, companheiro, atiradorF]);
+  for (let i = 0; i < 240; i++) tropaF.update(DT);
+  eq('com companheiro na frente, ele não puxa o gatilho', saiuBala, 0);
+  eq('mas ele continua vendo o inimigo', tropaF.stateOf(atiradorF), 'combate');
+
+  // Sai da frente: agora pode.
+  const deLado = alvoEm(9, 8, 'karnia');
+  tropaF.setTargets([inimigoF, deLado, atiradorF]);
+  for (let i = 0; i < 240; i++) tropaF.update(DT);
+  ok('com a linha livre, ele atira', saiuBala > 0, `${saiuBala} tiros`);
+
   suite('duelo: quanto tempo você tem');
 
   // Este é o teste que impede o bot de virar aimbot por descuido de ajuste.
@@ -498,6 +547,39 @@ export function run() {
 
   // O bot não pode se machucar sozinho no meio disso.
   eq('e o bot sai ileso do próprio tiroteio', atirador.health, SOLDIER.VIDA);
+
+  suite('bot morto volta ao combate');
+
+  // Sem renascer, a frente esvazia: quatro minutos de partida e sobra um bot
+  // vivo de cada lado, parados em cantos opostos da ilha.
+  const cenaV = new THREE.Scene();
+  const postoV = {
+    id: 'v', name: 'V', x: 400, z: 0,
+    flags: [{ x: 400, z: 0, y: 1.2, base: 0, owner: 'karnia', byTeam: null, phase: 'parada', progress: 0 }]
+  };
+  const mundoV = {
+    colliders: [], terrain: chao, outposts: [postoV],
+    spawnZones: [{ id: 'base', name: 'Base', team: 'karnia', base: true, x: 50, z: 50, radius: 10 }]
+  };
+  const tropaV = createBots(cenaV, mundoV, {
+    ballistics: createBallistics(cenaV, []), capture: createCapture([postoV]), rng: dado(31)
+  });
+  const caido = tropaV.spawn({ id: 1, team: 'karnia', x: 0, z: 0 });
+  tropaV.setTargets([caido]);
+
+  caido.damage(1000);
+  ok('ele está caído', !caido.alive);
+  for (let i = 0; i < 60 * 2; i++) tropaV.update(DT);
+  ok('e não volta na hora', !caido.alive, 'ainda caído aos 2 s');
+
+  for (let i = 0; i < 60 * 10; i++) tropaV.update(DT);
+  ok('mas volta depois de um tempo', caido.alive);
+  eq('inteiro', caido.health, SOLDIER.VIDA);
+  ok('e num ponto do time dele, não onde caiu',
+    Math.hypot(caido.x - 50, caido.z - 50) < 12 || Math.hypot(caido.x, caido.z) > 1,
+    `nasceu em ${caido.x.toFixed(0)}, ${caido.z.toFixed(0)}`);
+  eq('com o carregador cheio', caido.weapons[0].ammo.loaded,
+    caido.weapons[0].firearm.magazine);
 
   suite('o bot recarrega');
 

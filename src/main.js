@@ -77,18 +77,40 @@ function boot() {
   const alvoDoJogador = playerAsTarget(player, () => flow.playerDied());
   player.asTarget = alvoDoJogador;
 
+  // Nove bots: cinco do lado de lá, quatro do lado de cá. O jogador é o
+  // décimo do time dele, e é isso que faz os números fecharem em 5 × 5.
   const inimigo = enemyOf(player.team);
-  const postoInimigo = world.outposts.find(
-    (posto) => postOwner(posto) === inimigo);
-  const bot = bots.spawn({
-    id: 1, team: inimigo, x: postoInimigo.x + 6, z: postoInimigo.z + 6
-  });
-  bots.setTargets([alvoDoJogador, bot]);
+  const ESQUADRAS = [
+    { team: inimigo, quantos: 5 },
+    { team: player.team, quantos: 4 }
+  ];
 
-  // Os dois entram na MESMA lista de alvos: bala não distingue quem atirou,
-  // só quem está no caminho. Quem não pode acertar quem é decidido por
-  // `owner` (si mesmo) e por time (a faca).
-  world.targets.push(bot, alvoDoJogador);
+  for (const { team, quantos } of ESQUADRAS) {
+    // Nascem no posto do time mais perto da linha de frente, que é o de menor
+    // distância ao centro da ilha: é lá que a briga começa.
+    const frente = world.outposts
+      .filter((posto) => posto.startTeam === team)
+      .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+
+    for (let i = 0; i < quantos; i++) {
+      // Espalhados em volta do posto: empilhados na mesma coordenada eles
+      // nasceriam dentro uns dos outros e passariam o primeiro segundo se
+      // empurrando pra fora.
+      const angulo = (i / quantos) * Math.PI * 2;
+      bots.spawn({
+        id: i + 1,
+        team,
+        x: frente.x + Math.cos(angulo) * 9,
+        z: frente.z + Math.sin(angulo) * 9
+      });
+    }
+  }
+
+  // Uma lista só: bot mira em quem é do outro time, e a bala não distingue
+  // farda nenhuma — quem segura o tiro por causa de companheiro é quem atira.
+  const alvos = [alvoDoJogador, ...bots.soldiers];
+  bots.setTargets(alvos);
+  world.targets.push(...bots.soldiers, alvoDoJogador);
 
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);

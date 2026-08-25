@@ -18,6 +18,16 @@ import { enemyOf } from '../game/teams.js';
 const olho = new THREE.Vector3();
 const direcao = new THREE.Vector3();
 const scratch = new THREE.Vector3();
+const paraAmigo = new THREE.Vector3();
+
+// Tempo caído antes de voltar. Curto o bastante pra que a frente não esvazie,
+// longo o bastante pra que matar alguém signifique alguma coisa.
+const RENASCE_APOS = 6;
+
+// Meio-ângulo em que um companheiro na frente segura o tiro. Sem isto, nove
+// bots amontoados num posto passam a partida atirando nas costas uns dos
+// outros, e a briga parece quebrada mesmo estando correta.
+const CONE_AMIGO = 0.16;
 
 /** Arsenal próprio por bot: munição é objeto, e dois bots não podem dividi-la. */
 function arsenal() {
@@ -61,6 +71,20 @@ export function playerAsTarget(player, onDeath) {
 }
 
 export function createBots(scene, world, { ballistics, capture, rng = Math.random }) {
+  /**
+   * Onde um time pode renascer: os postos que ele domina em paz, e a base
+   * principal, que é sempre dele. A base entra sempre pra que perder todos os
+   * postos não trave o time fora da partida.
+   */
+  function pontoDeNascimento(team) {
+    const postos = capture.spawnsFor(team);
+    const zonas = world.spawnZones.filter((z) => z.base && z.team === team);
+    const opcoes = [...postos, ...zonas];
+    if (opcoes.length === 0) return null;
+    const escolha = opcoes[Math.floor(rng() * opcoes.length)];
+    return { x: escolha.x + (rng() - 0.5) * 6, z: escolha.z + (rng() - 0.5) * 6 };
+  }
+
   const soldiers = [];
   const brains = new Map();
   let alvos = [];
@@ -77,6 +101,27 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
     return !ballistics.blocked(de, para, cegos);
   }
 
+  /**
+   * Tem companheiro na linha de tiro?
+   *
+   * A bala não distingue farda, e é isso que faz um pelotão inteiro se abater
+   * numa porta. Quem segura o tiro é quem atira, não a bala.
+   */
+  function amigoNaFrente(bot, distanciaDoAlvo) {
+    bot.eye(olho);
+    for (const outro of alvos) {
+      if (outro === bot || !outro.alive || outro.team !== bot.team) continue;
+
+      paraAmigo.copy(outro.center()).sub(olho);
+      const distancia = paraAmigo.length();
+      if (distancia > distanciaDoAlvo || distancia < 1e-3) continue;
+
+      paraAmigo.divideScalar(distancia);
+      if (paraAmigo.dot(direcao) > Math.cos(CONE_AMIGO)) return true;
+    }
+    return false;
+  }
+
   /** O bot puxa o gatilho. A abertura sai da mira dele, não de mira perfeita. */
   function atirar(bot, alvo, aim, desvioDoCano, distancia) {
     const arma = bot.weapon;
@@ -90,6 +135,7 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
 
     bot.eye(olho);
     direcao.copy(alvo.center()).sub(olho).normalize();
+    if (amigoNaFrente(bot, distancia)) return;
 
     // Erro de mira: um cone em volta da direção certa. É o que separa "bot
     // difícil" de "bot impossível" — e ele nunca fecha de todo.
@@ -174,6 +220,10 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
 
         if (!bot.alive) {
           bot.downFor += delta;
+          if (bot.downFor >= RENASCE_APOS) {
+            const onde = pontoDeNascimento(bot.team);
+            if (onde) bot.respawn(onde.x, onde.z);
+          }
           bot.update(delta);
           continue;
         }
@@ -191,6 +241,16 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
         });
         bot.update(delta);
       }
+    },
+
+    /** Quantos de cada lado estão de pé agora. Pro HUD e pra depuração. */
+    aliveByTeam() {
+      const contagem = {};
+      for (const bot of soldiers) {
+        if (!bot.alive) continue;
+        contagem[bot.team] = (contagem[bot.team] ?? 0) + 1;
+      }
+      return contagem;
     },
 
     /** Estado de um bot, pra depuração e pra teste. */
