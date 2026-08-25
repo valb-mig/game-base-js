@@ -15,7 +15,9 @@ import { teamOf } from '../game/teams.js';
  * espera se um dia isto virar malha com esqueleto de verdade.
  */
 
-const CAMINHO = './assets/models/soldado-tpose.glb';
+// Resolvido contra ESTE módulo, não contra a página: a suíte mora em
+// tests/ e um caminho relativo à página buscava tests/assets/ e dava 404.
+const CAMINHO = new URL('../../assets/models/soldado-tpose.glb', import.meta.url).href;
 
 // O modelo tem 1,80 m e o jogo trata o soldado como 1,75. A escala mora aqui
 // porque a hitbox e a locomoção já falam em 1,75 — mudar o número do jogo pra

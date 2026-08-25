@@ -93,6 +93,9 @@ case "${1:-check}" in
     echo "$out"
     # falha de verdade também derruba o comando, pra CI ou pra encadear
     grep -q '^TUDO VERDE$' <<<"$out" || exit 1
+    # E suíte que ESTOURA não conta como asserção falhada: o veredito das
+    # asserções saía verde com "HOUVE FALHA" impresso logo abaixo dele.
+    grep -q '^HOUVE FALHA$' <<<"$out" && exit 1
     # O quadro com o jogador VIVO só existe depois do desembarque, e é lá que
     # sistema sem dono no laço aparece: um digging.update sem digging passou
     # pela suíte inteira e só estourava depois de clicar em Desembarcar.
