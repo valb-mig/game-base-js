@@ -158,6 +158,18 @@ as caixas de colisão e o rótulo sobre a cabeça dos bots leem `debug.on`: uma
 tecla acende tudo e nada sai de sincronia. O painel nasce DESLIGADO — aceso
 por padrão ele vira parte do HUD sem ninguém decidir isso.
 
+**A trajetória prevista sai da BOCA DO CANO, não do olho.** É a arma que
+atira, e com ela fora de posição o arco tem que sair torto na depuração
+também — senão a previsão mente exatamente no caso em que se quer usá-la. E a
+integração é a mesma trapezoidal da bala de verdade: previsão com outra conta
+mostra um arco que a bala não faz.
+
+**Queda se mede contra a PARÁBOLA, e ao longo da MIRA.** Dois jeitos de errar
+isso, e eu acertei os dois: medir contra o ponto já grudado no chão dá queda
+NEGATIVA (a reta de referência já está enterrada e o ponto subiu até o
+terreno), e usar o comprimento do ARCO em vez da distância ao longo da mira
+adianta a referência. Queda negativa é bala subindo.
+
 **Caixa de colisão e esfera de acerto são coisas diferentes.** A caixa é por
 onde o corpo não passa; a esfera é onde a bala pega. Elas erram por motivos
 diferentes, e ver as duas juntas é metade do valor da depuração. Verde é
@@ -593,6 +605,12 @@ cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
 
+**Buffer de tamanho zero nunca cria o atributo.** `desenharVoo` só monta o
+atributo de posição quando o tamanho muda, e zero balas no ar é o caso
+COMUM: apertar F2 sem ninguém atirando estourava o quadro. O `errors` não
+pegava porque a depuração nasce desligada — mesma família do sistema no laço
+sem dono, logo abaixo.
+
 **Sistema no laço sem dono só aparece depois do desembarque.** Um
 `digging.update(delta)` ficou no `frame()` sem que `digging` existisse: a
 abertura abria limpa, a suíte inteira passava, e o quadro estourava a cada
@@ -647,7 +665,9 @@ o slot do item estar livre.
 
 F2 (ou crase) liga a depuração: painel com teclas acesas e o estado do
 jogador, caixa de colisão de tudo desenhada na cena, esfera de acerto de cada
-alvo, e o que cada bot está pensando escrito sobre a cabeça dele.
+alvo, e o que cada bot está pensando escrito sobre a cabeça dele. Mais a
+trajetória prevista da bala — o arco, a reta que ela faria sem gravidade, e a
+distância, queda e desvio do cano escritos no painel.
 
 Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
 na tela de deploy — barra de equipamento em cima (classes e os itens que

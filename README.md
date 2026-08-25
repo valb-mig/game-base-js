@@ -98,7 +98,10 @@ lado sobrevive 7,5. Mexa-se.
 - a esfera de acerto de cada alvo, em vermelho: é onde a bala pega, que não é
   o mesmo lugar por onde o corpo não passa;
 - o que cada bot está pensando, escrito sobre a cabeça dele, com vida e
-  munição no carregador.
+  munição no carregador;
+- a trajetória do próximo tiro: o arco que a bala vai fazer, a reta que ela
+  faria sem gravidade, e no painel a distância até o impacto, a queda no
+  caminho e quanto o cano está desviado da mira.
 
 ## Atirar
 

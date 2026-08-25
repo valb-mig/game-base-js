@@ -26,7 +26,7 @@ const KEYS = [
  * Nasce desligado. Painel de depuração aceso por padrão vira parte do HUD
  * sem ninguém decidir isso.
  */
-export function initDebug(player) {
+export function initDebug(player, tiro = () => null) {
   const panel = document.getElementById('debug');
   const keyRow = KEYS.map(() => document.createElement('span'));
 
@@ -49,6 +49,16 @@ export function initDebug(player) {
   let accumulator = 0;
   let frames = 0;
   let fps = 0;
+
+  /** O que a bala do próximo tiro vai fazer, se houver arma na mão. */
+  function linhaDoTiro() {
+    const t = tiro();
+    if (!t) return '';
+    return `tiro <b>${t.distancia.toFixed(0)}</b> m` +
+      ` · cai <b>${(t.queda * 100).toFixed(0)}</b> cm` +
+      ` · cano <b>${t.desvio.toFixed(2)}°</b> da mira` +
+      (t.bateu ? '' : ' · <b>sem bater</b>');
+  }
 
   function updateDebug(delta) {
     if (consumePress('Backquote', 'F2')) {
@@ -88,8 +98,9 @@ export function initDebug(player) {
       `mira <b>${player.gun.aim.toFixed(2)}</b>` +
         ` · dispersão <b>${abertura.toFixed(2)}°</b> (×${spreadFactor(player)})`,
       `xz <b>${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}</b>` +
-        ` · pés <b>${player.feetY.toFixed(2)}</b> · ${fps} fps`
-    ].map((line) => `<div>${line}</div>`).join('');
+        ` · pés <b>${player.feetY.toFixed(2)}</b> · ${fps} fps`,
+      linhaDoTiro()
+    ].filter(Boolean).map((line) => `<div>${line}</div>`).join('');
 
     KEYS.forEach((key, i) => {
       keyRow[i].classList.toggle('on', isDown(...key.codes));

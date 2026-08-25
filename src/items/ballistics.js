@@ -194,6 +194,11 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
       const bullet = {
         position: origin.clone(),
         velocity: direction.clone().multiplyScalar(BULLET.SPEED),
+        // De onde saiu e pra onde apontava. Só a depuração usa, e é o que
+        // permite reconstruir o arco inteiro sem guardar rastro nenhum: com
+        // origem, direção e tempo decorrido, a parábola sai de conta.
+        origin: origin.clone(),
+        aim: direction.clone(),
         damage,
         range,
         dig,

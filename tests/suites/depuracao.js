@@ -4,7 +4,9 @@ import { initDebug } from '../../src/ui/debug.js';
 import { initDebugView } from '../../src/ui/debugview.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { getClass } from '../../src/items/classes.js';
-import { suite, ok, eq, between, note } from '../assert.js';
+import { createBallistics } from '../../src/items/ballistics.js';
+import { BULLET } from '../../src/config.js';
+import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
 const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
@@ -86,7 +88,8 @@ export function run() {
   const tropa = { soldiers: [], stateOf: () => null };
 
   const antes = cena.children.length;
-  const desenhar = initDebugView(cena, mundo, tropa);
+  const vista = initDebugView(cena, mundo, tropa);
+  const desenhar = (ligado) => vista.update(ligado);
 
   // Um helper por colisor seriam oitocentos objetos na cena, e o custo de
   // desenhar isso esconderia justamente o que se quer investigar.
@@ -98,7 +101,12 @@ export function run() {
   ok('ligado, ele aparece', grupo.visible);
 
   const linhas = grupo.children.filter((o) => o.isLineSegments);
-  eq('com duas malhas de linha: caixas e esferas', linhas.length, 2);
+  eq('três malhas de segmentos: caixas, esferas e balas no ar', linhas.length, 3);
+
+  // Arco e reta de referência são Line, não LineSegments: são um caminho
+  // contínuo, e não pares soltos.
+  eq('e duas linhas contínuas: o arco e a reta sem gravidade',
+    grupo.children.filter((o) => o.isLine && !o.isLineSegments).length, 2);
 
   // 3 caixas × 12 arestas × 2 pontas
   const pontos = linhas[0].geometry.getAttribute('position').count;
@@ -124,6 +132,50 @@ export function run() {
 
   desenhar(true);
   eq('e ligado ele é reescrito', buffer.array[0], marcador);
+
+  suite('a trajetória prevista da bala');
+
+  // Chão plano bem abaixo, pra a bala voar sem bater em nada e a queda poder
+  // ser conferida contra a fórmula.
+  const fundo = { heightAt: () => -50, waterDepthAt: () => 0 };
+  const cenaT = new THREE.Scene();
+  const mundoT = { colliders: [], targets: [], terrain: fundo };
+  const atirador = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400),
+    document.body, { colliders: [], terrain: fundo, spawn: new THREE.Vector3(0, 0, 0) });
+  atirador.setClass(getClass('assault'));
+  atirador.respawn();
+  atirador.object.position.set(0, 0, 0);
+  atirador.object.rotation.set(0, 0, 0);   // olhando pro -Z, no horizonte
+
+  const balisticaT = createBallistics(cenaT, []);
+  const vistaT = initDebugView(cenaT, mundoT, { soldiers: [], stateOf: () => null },
+    { player: atirador, viewmodel: null, ballistics: balisticaT });
+
+  ok('desligada, não há tiro previsto', vistaT.shot === null);
+
+  vistaT.update(true);
+  const tiro = vistaT.shot;
+  ok('ligada, ela calcula o tiro', Boolean(tiro));
+
+  // A queda tem que ser POSITIVA. Já saiu negativa: a conta media contra o
+  // ponto grudado no chão em vez da parábola, e a reta de referência já
+  // estava enterrada. Queda negativa é bala subindo.
+  ok('a bala cai, não sobe', tiro.queda > 0, `${(tiro.queda * 100).toFixed(1)} cm`);
+
+  // E bate com a fórmula: metade da gravidade pelo tempo de voo ao quadrado.
+  const voo = tiro.distancia / BULLET.SPEED;
+  const esperado = 0.5 * BULLET.GRAVITY * voo * voo;
+  near('e cai o que a gravidade manda', tiro.queda, esperado, esperado * 0.12,
+    `${(tiro.queda * 100).toFixed(1)} cm contra ${(esperado * 100).toFixed(1)} previstos`);
+  note('tiro no horizonte',
+    `${tiro.distancia.toFixed(0)} m · cai ${(tiro.queda * 100).toFixed(0)} cm`);
+
+  // Com a arma parada e sem viewmodel, o tiro sai exatamente na linha do
+  // olhar: desvio de cano só existe com a arma fora de posição.
+  near('cano parado não desvia da mira', tiro.desvio, 0, 1e-6);
+
+  vistaT.update(false);
+  ok('desligando, o tiro previsto some', vistaT.shot === null);
 
   holder.remove();
 }

@@ -113,6 +113,10 @@ function boot() {
   bots.setTargets(alvos);
   world.targets.push(...bots.soldiers, alvoDoJogador);
 
+  // A trajetória prevista sai da boca do cano, como o tiro de verdade: com a
+  // arma fora de posição o arco tem que sair torto aqui também.
+  const debugView = initDebugView(scene, world, bots, { player, viewmodel, ballistics });
+
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
@@ -122,7 +126,7 @@ function boot() {
     capture, bots,
     updateObjective: initObjective(player, capture),
     updateFlagPrompt: initFlagPrompt(player, capture),
-    debug: initDebug(player),
+
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
     updateCrosshair: initCrosshair(player, camera),
@@ -130,7 +134,9 @@ function boot() {
     updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics),
     // Caixas de colisão e o que cada bot está pensando. Quem manda no
     // interruptor é o painel: uma tecla acende tudo junto.
-    updateDebugView: initDebugView(scene, world, bots)
+    debugView,
+    // O painel lê os números da trajetória, então a vista nasce antes dele.
+    debug: initDebug(player, () => debugView.shot)
   };
 
   clock.getDelta();   // descarta o tempo que a abertura ficou na tela
@@ -224,8 +230,9 @@ function frame() {
   world.water.update(clock.elapsedTime);
   applyUnderwater(scene, player.headUnderwater);
 
+  // A vista desenha primeiro: é ela que calcula os números que o painel lê.
+  game.debugView.update(game.debug.on);
   game.debug.update(delta);
-  game.updateDebugView(game.debug.on);
   game.updateStatus(delta);
   game.updateCompass();
   game.updateCrosshair();
