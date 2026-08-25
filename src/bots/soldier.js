@@ -1,0 +1,230 @@
+import * as THREE from 'three';
+import { PLAYER } from '../config.js';
+import { collides, groundHeightAt } from '../player/collision.js';
+import { teamOf } from '../game/teams.js';
+import { createItemModel } from '../items/models.js';
+
+/**
+ * O corpo de um bot: modelo, colisor, vida e o andar dele.
+ *
+ * Ele é ALVO com o mesmo contrato do boneco de treino (`alive`, `center()`,
+ * `radius`, `damage()`), então a balística já sabe acertá-lo sem saber que
+ * existe bot. E é atirador pelo mesmo caminho do jogador, o que faz a bala
+ * dele viajar, cair e poder bater numa parede no meio.
+ *
+ * O andar é simples de propósito: amostra o campo de altura, tenta o passo,
+ * e escorrega por um eixo quando o outro esbarra. Não é a locomoção do
+ * jogador — bot não pula, não nada e não se agacha por conta própria — mas
+ * usa o MESMO `RADIUS` e o MESMO `STEP_HEIGHT`, senão ele passaria por vãos
+ * que o jogador não passa.
+ */
+
+const VIDA = 100;
+const RAIO_ALVO = 0.5;       // esfera de acerto, do quadril à cabeça
+const ALTURA = 1.75;
+const ALTURA_AGACHADO = 1.15;
+
+const CAPACETE = 0x4a5340;
+const PELE = 0xa8825f;
+const BOTA = 0x2e2a24;
+
+function fosco(color) {
+  return new THREE.MeshLambertMaterial({ color, emissive: 0x0a0a0a, flatShading: true });
+}
+
+/** Soldado low poly: capacete, tronco, pernas. Sem braço, como a faca. */
+function construirCorpo(cor) {
+  const grupo = new THREE.Group();
+
+  const farda = fosco(cor);
+  const pernas = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.82, 0.3), fosco(BOTA));
+  pernas.position.y = 0.41;
+  grupo.add(pernas);
+
+  const tronco = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.62, 0.32), farda);
+  tronco.position.y = 1.14;
+  grupo.add(tronco);
+
+  const cabeca = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), fosco(PELE));
+  cabeca.position.y = 1.58;
+  grupo.add(cabeca);
+
+  // O capacete leva a cor do time: é o que se enxerga primeiro num tiroteio,
+  // e confundir amigo com inimigo a 40 m não pode depender da farda.
+  const capacete = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.32), fosco(CAPACETE));
+  capacete.position.y = 1.72;
+  grupo.add(capacete);
+
+  const faixa = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.05, 0.33), farda);
+  faixa.position.y = 1.665;
+  grupo.add(faixa);
+
+  return { grupo, painted: [tronco, faixa] };
+}
+
+export function createSoldier(scene, colliders, {
+  id, team, x, z, terrain, weapons
+}) {
+  const cor = teamOf(team).color;
+  const { grupo, painted } = construirCorpo(cor);
+  scene.add(grupo);
+
+  // materiais próprios: piscar de dano num não pode acender os outros
+  for (const mesh of painted) mesh.material = mesh.material.clone();
+
+  // Arma na mão, do lado direito e na altura do peito. Os modelos nascem com
+  // o cano no -Z, que é a frente do soldado — o mesmo que vale pro viewmodel.
+  //
+  // Um modelo por arma, criado uma vez e escondido: trocar de arma é ligar e
+  // desligar visibilidade. Criar e destruir a cada troca daria churn de GPU
+  // num bot que troca de arma no meio do tiroteio.
+  const maos = new THREE.Group();
+  maos.position.set(0.26, 1.24, 0.12);
+  grupo.add(maos);
+
+  const modelos = new Map();
+  for (const arma of weapons) {
+    const modelo = createItemModel(arma);
+    if (!modelo) continue;
+    modelo.visible = false;
+    maos.add(modelo);
+    modelos.set(arma.id, modelo);
+  }
+
+  const meio = new THREE.Vector3();
+  const caixa = new THREE.Box3();
+  const collider = { box: caixa, standable: false };
+  colliders.push(collider);
+
+  const soldier = {
+    id,
+    team,
+    name: `${teamOf(team).short} ${id}`,
+    group: grupo,
+    collider,
+    radius: RAIO_ALVO,
+
+    x,
+    z,
+    feetY: terrain.heightAt(x, z),
+    height: ALTURA,
+    yaw: 0,
+    speed: 0,          // m/s andados no último quadro, lido pela mira do outro
+    crouching: false,
+
+    maxHealth: VIDA,
+    health: VIDA,
+    alive: true,
+    flash: 0,
+
+    // arsenal: o cérebro troca entre eles
+    weapons,
+    slot: 0,
+    get weapon() { return soldier.weapons[soldier.slot] ?? null; },
+
+    /** Centro do tronco: é onde a bala do outro tem que passar. */
+    center() {
+      return meio.set(soldier.x, soldier.feetY + soldier.height * 0.62, soldier.z);
+    },
+
+    /** De onde ELE atira: altura do olho. */
+    eye(out) {
+      return out.set(soldier.x, soldier.feetY + soldier.height - 0.14, soldier.z);
+    },
+
+    damage(amount) {
+      if (!soldier.alive) return { target: soldier, amount: 0, killed: false };
+
+      soldier.health = Math.max(0, soldier.health - amount);
+      soldier.flash = 1;
+      soldier.hurtFor = 0;
+
+      const killed = soldier.health === 0;
+      if (killed) {
+        soldier.alive = false;
+        soldier.downFor = 0;
+        caixa.max.y = soldier.feetY + 0.25;   // caído não barra passagem
+      }
+      return { target: soldier, amount, killed };
+    },
+
+    /**
+     * Tenta andar `dx, dz`. Devolve quanto realmente andou.
+     *
+     * Escorrega por eixo como a locomoção do jogador: esbarrar numa parede
+     * de frente não pode travar o bot no lugar, senão ele fica se enfiando
+     * nela pra sempre — foi assim que os primeiros ficaram vibrando na quina
+     * do posto.
+     */
+    step(dx, dz) {
+      const antesX = soldier.x;
+      const antesZ = soldier.z;
+      const altura = soldier.crouching ? ALTURA_AGACHADO : ALTURA;
+
+      // Já dentro de geometria: sair é mais importante que ser barrado.
+      const preso = collides(colliders, soldier.x, soldier.z, soldier.feetY, altura);
+
+      if (preso || !collides(colliders, soldier.x + dx, soldier.z, soldier.feetY, altura)) {
+        soldier.x += dx;
+      }
+      if (preso || !collides(colliders, soldier.x, soldier.z + dz, soldier.feetY, altura)) {
+        soldier.z += dz;
+      }
+
+      const piso = groundHeightAt(colliders, soldier.x, soldier.z,
+        soldier.feetY + PLAYER.STEP_HEIGHT, terrain.heightAt(soldier.x, soldier.z));
+      soldier.feetY = piso;
+
+      return Math.hypot(soldier.x - antesX, soldier.z - antesZ);
+    },
+
+    update(delta) {
+      soldier.height = soldier.crouching ? ALTURA_AGACHADO : ALTURA;
+
+      // só a arma do slot atual aparece
+      const naMao = soldier.weapon?.id ?? null;
+      for (const [id, modelo] of modelos) modelo.visible = soldier.alive && id === naMao;
+
+      grupo.position.set(soldier.x, soldier.feetY, soldier.z);
+      grupo.rotation.y = soldier.yaw;
+      grupo.scale.y = soldier.height / ALTURA;
+
+      caixa.min.set(soldier.x - PLAYER.RADIUS, soldier.feetY, soldier.z - PLAYER.RADIUS);
+      caixa.max.set(
+        soldier.x + PLAYER.RADIUS,
+        soldier.feetY + (soldier.alive ? soldier.height : 0.25),
+        soldier.z + PLAYER.RADIUS
+      );
+
+      if (soldier.flash > 0) {
+        soldier.flash = Math.max(0, soldier.flash - delta * 7);
+        const calor = soldier.flash * 0.34;
+        for (const mesh of painted) {
+          mesh.material.emissive.setRGB(calor, calor * 0.06, calor * 0.04);
+        }
+      }
+
+      grupo.visible = soldier.alive;
+    },
+
+    /** Volta ao combate num lugar novo. */
+    respawn(nx, nz) {
+      soldier.x = nx;
+      soldier.z = nz;
+      soldier.feetY = terrain.heightAt(nx, nz);
+      soldier.health = VIDA;
+      soldier.alive = true;
+      soldier.crouching = false;
+      soldier.downFor = 0;
+      for (const arma of soldier.weapons) {
+        if (arma.ammo) arma.ammo.loaded = arma.firearm.magazine;
+      }
+    }
+  };
+
+  soldier.downFor = 0;
+  soldier.hurtFor = 99;
+  return soldier;
+}
+
+export const SOLDIER = { ALTURA, ALTURA_AGACHADO, RAIO_ALVO, VIDA };

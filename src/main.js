@@ -23,6 +23,8 @@ import { drawFlags } from './world/outpost.js';
 import { initObjective, initFlagPrompt } from './ui/objective.js';
 import { isDown } from './core/input.js';
 import { FLAG_KEYS } from './player/constants.js';
+import { createBots, playerAsTarget } from './bots/bots.js';
+import { enemyOf, postOwner } from './game/teams.js';
 
 /**
  * Fiação e laço de render.
@@ -65,13 +67,29 @@ function boot() {
   // é do jogador; de quem é cada posto é da partida.
   const capture = createCapture(world.outposts);
 
+  // Um bot, por enquanto. Toda a mecânica dele já é a de muitos: o gerente
+  // atualiza uma lista, e a lista tem um.
+  const bots = createBots(scene, world, { ballistics, capture });
+  const alvoDoJogador = playerAsTarget(player, () => flow.playerDied());
+
+  const inimigo = enemyOf(player.team);
+  const postoInimigo = world.outposts.find(
+    (posto) => postOwner(posto) === inimigo);
+  const bot = bots.spawn({
+    id: 1, team: inimigo, x: postoInimigo.x + 6, z: postoInimigo.z + 6
+  });
+  bots.setTargets([alvoDoJogador, bot]);
+
+  // Ele é alvo da bala do jogador pelo mesmo caminho dos bonecos de treino.
+  world.targets.push(bot);
+
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
 
   game = {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog,
-    capture,
+    capture, bots,
     updateObjective: initObjective(player, capture),
     updateFlagPrompt: initFlagPrompt(player, capture),
     updateDebug: initDebug(player),
@@ -119,7 +137,7 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
-    watchdog, capture
+    watchdog, capture, bots
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -149,6 +167,10 @@ function frame() {
     });
   }
   drawFlags(world.outposts);
+
+  // Bot depois da captura do jogador: os dois mexem nas mesmas bandeiras, e
+  // o último a falar no quadro não pode ser sempre o mesmo.
+  bots.update(delta);
 
   // tecla de teste enquanto nada causa dano de verdade ao jogador
   if (player.isLocked && !player.spectating && consumePress('KeyK')) {

@@ -65,8 +65,16 @@ O posto é o spawn do time, e basta **uma** bandeira mexida pra ele deixar de
 servir: posto dominado, ou sendo dominado, o time perde o spawn ali. A base
 principal continua sempre disponível.
 
-Ainda não há adversário no mapa: Karnia não retoma nada, porque não existe
-soldado dela pra fazer isso.
+Há um soldado de Karnia no mapa. Ele avança pro posto mais próximo, engaja
+quem vê pela frente, troca de arma quando o carregador acaba (e puxa a faca se
+você colar nele), procura cobertura quando leva tiro, e captura bandeira como
+você. Se você atirar nele pelo flanco, ele para de içar e varre o horizonte
+sem saber de onde veio — quem atirou primeiro leva vantagem.
+
+A mira dele é feita pra ser enfrentável: ele demora a reagir, vira a cabeça
+numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
+perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de
+lado sobrevive 7,5. Mexa-se.
 
 MP40 no slot 1 da Assault: 9×19mm, automática de 500 tiros por minuto, 32 no
 carregador. Segurar o gatilho despeja rajada — é a primeira arma do jogo que

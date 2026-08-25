@@ -31,6 +31,9 @@ src/
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
   game/    teams.js  os dois lados e a regra de quem domina o quê
            capture.js  arriar e içar bandeira, sem three
+  bots/    aiming.js  atraso e erro de mira, sem three
+           soldier.js  corpo, colisor, vida e o andar
+           brain.js  o que ele decide fazer · bots.js  gerente e fiação
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
   player/  player.js estado + ordem dos sistemas
            locomotion.js  stance.js  swim.js  spectator.js
@@ -307,6 +310,32 @@ slot COM item, então a Thompson da Assault não aparece — nem no HUD nem na
 tira da tela de deploy. Prometer na tela de deploy e entregar outra coisa no
 mapa é pior que não prometer.
 
+**Bot que aponta o vetor exato e atira não é difícil, é impossível.** Tudo em
+`bots/aiming.js` é atraso e erro de propósito: tempo de reação antes do
+primeiro tiro, velocidade finita pra virar a cabeça, mira que nasce aberta e
+fecha sem nunca chegar a zero, e abertura extra por alvo em movimento e por
+distância. Ele também não atira com o cano torto, e a rajada tem fim — o
+respiro entre elas é a janela de avanço do jogador.
+
+**O número que importa é o duelo, não o ângulo.** Medido a 25 m: parado você
+morre em 2,6 s, andando de lado em 7,5 s, com o primeiro tiro doendo depois de
+1,2 s. Há teste que roda o duelo inteiro e trava essa faixa — apertar a mira
+sem querer quebra a suíte antes de matar alguém sem explicação.
+
+**A bala de quem atira não pode morrer no colisor dele.** Quinta vez que este
+invariante aparece nesta base, e a primeira em que a vítima não é o alvo: a
+bala do bot nasce na altura do olho, ou seja DENTRO da caixa dele, e sem
+`shooter` em `ballistics.spawn` todo tiro morria no quadro em que saía. Medido:
+77 tiros, zero acertos, a dez metros de um alvo parado. O jogador nunca viu
+isso porque ele não tem colisor no mundo.
+
+**Combate ganha de captura, e tiro pelas costas ganha das duas.** Bot içando
+bandeira com alguém atirando nele seria bug: o jogador aprenderia a matar bot
+ocupado em vez de disputar posto. E como quem atira do flanco fica fora do
+campo de visão dele, levar dano sem ver ninguém tem estado próprio (`alerta`):
+ele para, agacha e varre o horizonte. Ele não sabe DE ONDE veio o tiro — é
+isso que dá a vantagem a quem atirou primeiro.
+
 **Regra de partida não conhece three.** `game/teams.js` e `game/capture.js`
 são só dado e conta: dá pra jogar o modo inteiro num teste, com postos de
 mentira, sem montar ilha nenhuma. Quem desenha bandeira é `world/outpost.js`,
@@ -556,8 +585,9 @@ ou seja dois minutos de posto com um soldado só. Posto é o spawn do time, e
 uma bandeira mexida já basta pra tirar o spawn de quem era. Vence quem dominar
 os doze.
 
-Ainda não existe: adversário. Não há soldado de Karnia no mapa, então ela
-nunca retoma nada — o modo está inteiro do lado do jogador e a metade que
-reage falta. Também não existe dano ao jogador que não seja a tecla de teste,
+Existe UM bot inimigo, e ele é a mecânica inteira: avança pro posto mais
+perto, engaja quem vê pela frente, troca de arma quando o carregador acaba ou
+quando o inimigo cola, procura cobertura sob fogo, captura bandeira e larga
+tudo pra brigar. Faltam os outros dezenove. Também não existe dano ao jogador que não seja a tecla de teste,
 nem captura de base (as bases são sempre do dono). Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.

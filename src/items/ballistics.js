@@ -56,8 +56,14 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
    * Colisor de alvo é pulado: quem resolve alvo é a esfera dele, logo
    * adiante. Sem isso a caixa do boneco vira parede e a bala morre alguns
    * centímetros antes do centro — o tiro "acerta" e não causa dano nenhum.
+   *
+   * E o colisor de QUEM ATIROU também, por `doAtirador`. A bala de um bot
+   * nasce na altura do olho dele, ou seja dentro da caixa dele: sem pular
+   * essa caixa, todo tiro de bot morria no quadro em que saía. Medido: 77
+   * tiros, zero acertos, a dez metros de um alvo parado. O jogador nunca
+   * viu isso porque ele não tem colisor no mundo.
    */
-  function wallHit(start, delta, ignore) {
+  function wallHit(start, delta, ignore, doAtirador = null) {
     const length = delta.length();
     if (length < 1e-9) return null;
 
@@ -66,7 +72,7 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
 
     let nearest = null;
     for (const collider of colliders) {
-      if (ignore.has(collider)) continue;
+      if (ignore.has(collider) || collider === doAtirador) continue;
       const point = ray.intersectBox(collider.box, hitPoint);
       if (!point) continue;
       const distance = start.distanceTo(point);
@@ -95,7 +101,7 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
 
     segment.copy(to).sub(from);
 
-    let closest = wallHit(from, segment, ignore);
+    let closest = wallHit(from, segment, ignore, bullet.shooter);
     let struck = null;
 
     for (const target of targets) {
@@ -160,20 +166,29 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
      * Quem atira da boca do cano precisa saber: a boca fica meio metro à
      * frente do olho, e com a arma encostada numa quina isso põe a origem do
      * tiro do outro lado dela — a bala nasceria atravessada.
+     *
+     * `ignore` é um Set de colisores a pular, e quem pergunta por linha de
+     * visão precisa dele: o bot tem colisor próprio, e o raio saindo de
+     * dentro dele acusaria parede em todo olhar. Vale também pro colisor do
+     * alvo, senão a caixa dele barra a mira até ele mesmo — este é o quarto
+     * lugar desta base onde isso apareceu.
      */
-    blocked(from, to) {
+    blocked(from, to, ignore = NOTHING) {
       probe.copy(to).sub(from);
-      return wallHit(from, probe, NOTHING) !== null;
+      return wallHit(from, probe, ignore) !== null;
     },
 
     /** Dispara uma bala. `tracer` decide se ela deixa risco. */
-    spawn(origin, direction, { damage, range, tracer = false, dig = 0 }) {
+    spawn(origin, direction, {
+      damage, range, tracer = false, dig = 0, shooter = null
+    }) {
       const bullet = {
         position: origin.clone(),
         velocity: direction.clone().multiplyScalar(BULLET.SPEED),
         damage,
         range,
         dig,
+        shooter,
         travelled: 0,
         life: BULLET.LIFE,
         spent: false,
