@@ -1,3 +1,4 @@
+import { STAMINA } from '../config.js';
 /**
  * Vitais (canto inferior esquerdo) e cinto (canto inferior direito).
  *
@@ -64,7 +65,14 @@ export function initStatus(player) {
   const fill = document.createElement('span');
   bar.appendChild(fill);
 
-  vitals.append(className, healthRow, bar);
+  // Barra de fôlego abaixo da vida. Ela SÓ aparece quando não está cheia:
+  // uma barra cheia permanente é ruído, e o que interessa é quanto falta.
+  const folego = document.createElement('div');
+  folego.className = 'stamina-bar';
+  const folegoFill = document.createElement('span');
+  folego.appendChild(folegoFill);
+
+  vitals.append(className, healthRow, bar, folego);
 
   // ícone das balas guardadas, clonado por linha que tiver munição
   const reserveIcon = document.createElement('span');
@@ -143,6 +151,16 @@ export function initStatus(player) {
     if (aviso) {
       player.hurtFlash = Math.max(0, (player.hurtFlash ?? 0) - delta * 2.2);
       aviso.style.opacity = `${player.hurtFlash.toFixed(2)}`;
+    }
+
+    const cheio = player.stamina >= STAMINA.MAX - 0.5;
+    folego.classList.toggle('visivel', !cheio);
+    if (!cheio) {
+      const parte = Math.max(0, Math.min(1, player.stamina / STAMINA.MAX));
+      folegoFill.style.width = `${parte * 100}%`;
+      // Vermelho quando não dá mais pra arrancar: é a informação que muda o
+      // que ele pode fazer, e ela não pode depender de estimar a barra.
+      folego.classList.toggle('seco', player.stamina < STAMINA.MINIMO_PRA_CORRER);
     }
 
     const health = Math.round(player.health);

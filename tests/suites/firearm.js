@@ -11,6 +11,19 @@ import { suite, ok, eq, near, between, note } from '../assert.js';
 const DT = 1 / 60;
 const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -73,7 +86,7 @@ export function run() {
     new MouseEvent(down ? 'mousedown' : 'mouseup', { button: 0 }));
 
   const rajada = (id, quadros) => {
-    player.selectSlot(player.carried.findIndex((item) => item?.id === id));
+    empunhar(player, player.carried.findIndex((item) => item?.id === id));
     player.equipped.ammo.loaded = player.equipped.firearm.magazine;
     player.gun.cooldown = 0;
     tiros.length = 0;
@@ -93,7 +106,7 @@ export function run() {
   eq('segurando o gatilho, a Colt dá um tiro só', daColt, 1);
 
   // E o carregador acaba: automática sem fim de munição é cheat.
-  player.selectSlot(player.carried.findIndex((item) => item?.id === 'mp40'));
+  empunhar(player, player.carried.findIndex((item) => item?.id === 'mp40'));
   player.equipped.ammo.loaded = 3;
   player.gun.cooldown = 0;
   tiros.length = 0;
@@ -136,11 +149,11 @@ export function run() {
   player.carried[0] = guardada;
 
   const indicePistola = player.carried.indexOf(PISTOL);
-  player.selectSlot(indicePistola);
+  empunhar(player, indicePistola);
   eq('dá pra empunhar a pistola', player.equipped.id, PISTOL.id);
-  player.selectSlot(player.carried.indexOf(KNIFE));
+  empunhar(player, player.carried.indexOf(KNIFE));
   eq('e voltar pra faca', player.equipped.id, KNIFE.id);
-  player.selectSlot(indicePistola);
+  empunhar(player, indicePistola);
 
   suite('tiro e munição');
 
@@ -148,7 +161,7 @@ export function run() {
   PISTOL.ammo.reserve = 21;
   // Explícito: desde que a MP40 existe, `setClass` põe a PRIMÁRIA na mão, e
   // este trecho é sobre a cadência da pistola.
-  player.selectSlot(player.carried.indexOf(PISTOL));
+  empunhar(player, player.carried.indexOf(PISTOL));
   player.object.position.set(0, 1.25, 0);
   camera.quaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ'));   // mirando o alvo
 
@@ -260,7 +273,7 @@ export function run() {
 
   suite('faca na mão não atira');
 
-  player.selectSlot(player.carried.indexOf(KNIFE));
+  empunhar(player, player.carried.indexOf(KNIFE));
   const municao = PISTOL.ammo.loaded;
   clicar(); passo(2);
   eq('sem arma de fogo, o clique não gasta bala', PISTOL.ammo.loaded, municao);

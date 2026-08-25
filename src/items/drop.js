@@ -168,11 +168,13 @@ export function initDrop(scene, player, viewmodel, world) {
     reachable,
 
     update(delta) {
+      // A troca leva tempo: a tecla só a AGENDA, e o modelo só muda no
+      // quadro em que o item chega na mão, no fundo do movimento.
+      if (player.advanceSwap(delta)) viewmodel.setItem(player.equipped);
+
       if (player.isLocked) {
         for (let i = 0; i < SLOT_KEYS.length; i++) {
-          if (consumePress(SLOT_KEYS[i]) && player.selectSlot(i)) {
-            viewmodel.setItem(player.equipped);
-          }
+          if (consumePress(SLOT_KEYS[i])) player.selectSlot(i);
         }
         if (consumePress(...DROP_KEYS)) dropEquipped();
         if (consumePress(...PICK_KEYS)) pickUp();

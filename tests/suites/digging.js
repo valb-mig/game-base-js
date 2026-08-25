@@ -31,6 +31,19 @@ function mundoPlano() {
   };
 }
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -78,7 +91,7 @@ export function run() {
 
   const slotPa = player.carried.findIndex((item) => item?.id === 'm1943');
   eq('a pá ocupa o slot 4', slotPa, 3);
-  player.selectSlot(slotPa);
+  empunhar(player, slotPa);
   eq('e dá pra empunhá-la', player.equipped?.id, 'm1943');
 
   suite('cavar não é imediato');
@@ -154,7 +167,7 @@ export function run() {
   suite('sem a pá na mão');
 
   plantar();
-  player.selectSlot(player.carried.findIndex((i) => i?.id === 'kabar'));
+  empunhar(player, player.carried.findIndex((i) => i?.id === 'kabar'));
   const semPa = pazadas.length;
   clicar(0);
   passo(6);

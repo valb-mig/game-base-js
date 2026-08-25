@@ -133,7 +133,8 @@ export function initAttack(player, world) {
       // botão. Quem não está com o seu tipo de item na mão não pode nem
       // tocar nele — antes desta guarda, o corpo a corpo engolia o clique
       // com a pistola empunhada e o tiro nunca acontecia.
-      if (!player.isLocked || !player.equipped?.melee) {
+      // Trocando de item a mão está ocupada guardando a outra arma.
+      if (!player.isLocked || player.swapping || !player.equipped?.melee) {
         swing.buffered = 0;
         return;
       }

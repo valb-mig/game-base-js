@@ -109,6 +109,21 @@ mapa tem. O nome do arquivo leva a posição junto (`bf45-154658-x-12z38.png`),
 então dá pra achar o lugar sem abrir a foto. Ligue o F2 antes se o que você
 quer mostrar for uma caixa de colisão.
 
+## Fôlego e peso
+
+Correr e pular gastam fôlego, e a arma na mão decide quanto. A MP40 pesa
+4,7 kg carregada e a faca 320 g — medido, a corrida rende **10,4 segundos com
+a faca e 5,3 com a MP40**. Um fôlego cheio dá cinco pulos com a MP40.
+
+Sem fôlego você não corre e não pula, mas continua andando: jogador parado sem
+poder fazer nada é punição, não mecânica. Recuperar custa parar de verdade —
+soltar o Shift por um instante não devolve nada.
+
+Trocar de item leva tempo: guardar o que está na mão e sacar o outro. Da MP40
+pra faca são **0,78 segundo**, e a faca só chega na mão aos 0,48 — no fundo do
+movimento. Enquanto isso não se atira, não se golpeia e não se cava. Os bots
+pagam o mesmo tempo.
+
 ## Atirar
 
 Parado, a bala vai exatamente onde a mira aponta — sem dispersão nenhuma.

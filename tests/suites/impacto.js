@@ -44,6 +44,19 @@ function bancada() {
   };
 }
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   suite('a escala de quem cava mais');
 
@@ -79,7 +92,7 @@ export function run() {
     { colliders: [], terrain: chao, spawn: new THREE.Vector3(0, 0, 0) });
   jogador.controls.isLocked = true;
   jogador.setClass(getClass('assault'));
-  jogador.selectSlot(jogador.carried.findIndex((item) => item?.firearm));
+  empunhar(jogador, jogador.carried.findIndex((item) => item?.firearm));
 
   const disparadas = [];
   const espiao = createBallistics(cena, []);
@@ -93,7 +106,7 @@ export function run() {
 
   const dispararCom = (id) => {
     disparadas.length = 0;
-    jogador.selectSlot(jogador.carried.findIndex((item) => item?.id === id));
+    empunhar(jogador, jogador.carried.findIndex((item) => item?.id === id));
     jogador.equipped.ammo.loaded = jogador.equipped.firearm.magazine;
     jogador.gun.cooldown = 0;
     jogador.gun.reloading = 0;

@@ -154,6 +154,13 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
 
       if (!player.isLocked) return;
 
+      // Trocando de arma não se atira nem se recarrega: a arma está na
+      // metade do caminho, e o clique fica pro fim da troca.
+      if (player.swapping) {
+        consumeClick();
+        return;
+      }
+
       if (consumePress(...RELOAD_KEYS)) {
         startReload(firearm);
         return;

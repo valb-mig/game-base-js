@@ -129,6 +129,7 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
 
     bot.cooldown = Math.max(0, (bot.cooldown ?? 0) - bot.delta);
     if (bot.cooldown > 0) return;
+    if (bot.swapping > 0) return;   // arma na metade do caminho
     if (!aim.canFire(desvioDoCano)) return;
     if (arma.ammo && arma.ammo.loaded <= 0) return;
     if (bot.reloading > 0) return;

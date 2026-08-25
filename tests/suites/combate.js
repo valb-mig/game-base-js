@@ -18,6 +18,19 @@ const DT = 1 / 60;
  * exatamente o que dá errado: o primeiro a rodar consumia o clique mesmo com
  * o item do outro na mão, e o tiro simplesmente não saía.
  */
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -51,8 +64,10 @@ export function run() {
     dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
     dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
   };
-  const empunhar = (item) => {
-    player.selectSlot(player.carried.indexOf(item));
+  // Nome próprio: `empunhar` já é o ajudante do arquivo, e um local com o
+  // mesmo nome sombreava o de fora e chamava a si mesmo.
+  const usar = (item) => {
+    empunhar(player, player.carried.indexOf(item));
     passo(2);
   };
   const reporAlvo = () => {
@@ -68,7 +83,7 @@ export function run() {
 
   // Regressão: o corpo a corpo consumia o clique antes de olhar o que estava
   // na mão, então com a pistola empunhada o tiro nunca saía.
-  empunhar(PISTOL);
+  usar(PISTOL);
   PISTOL.ammo.loaded = 8;
   clicar(); passo(1);
 
@@ -76,7 +91,7 @@ export function run() {
   eq('e não vira golpe', player.swing.active, false);
   eq('nem fica guardado no buffer do golpe', player.swing.buffered, 0);
 
-  empunhar(KNIFE);
+  usar(KNIFE);
   const municao = PISTOL.ammo.loaded;
   clicar(); passo(1);
 
@@ -87,14 +102,14 @@ export function run() {
   suite('trocar de item no meio da briga');
 
   reporAlvo();
-  empunhar(PISTOL);
+  usar(PISTOL);
   PISTOL.ammo.loaded = 8;
 
   // dispara, troca pra faca antes do intervalo acabar, e golpeia
   clicar(); passo(1);
   eq('atirou', PISTOL.ammo.loaded, 7);
 
-  empunhar(KNIFE);
+  usar(KNIFE);
   eq('trocar cancela a mira', player.gun.aim, 0);
   clicar(); passo(1);
   ok('e o golpe sai normal', player.swing.active);
@@ -103,7 +118,7 @@ export function run() {
   // trocar no meio de um golpe não deixa golpe pendurado
   clicar(); passo(3);
   ok('golpe em andamento', player.swing.active);
-  empunhar(PISTOL);
+  usar(PISTOL);
   eq('trocar de item corta o golpe', player.swing.active, false);
   note('ordem no main.js', 'player, drops, attack, firearm');
 

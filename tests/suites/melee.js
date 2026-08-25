@@ -10,6 +10,19 @@ import { suite, ok, eq, near, between, note } from '../assert.js';
 const DT = 1 / 60;
 const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -21,7 +34,7 @@ export function run() {
   });
   player.controls.isLocked = true;
   // a Assault nasce com a pistola na mão; este suite é sobre a faca
-  player.selectSlot(player.carried.indexOf(KNIFE));
+  empunhar(player, player.carried.indexOf(KNIFE));
 
   // boneco 1,4 m à frente (o -Z é a frente com yaw zero)
   const alvo = createDummy(scene, colliders, { x: 0, z: -1.4, ground: 0, name: 'alvo' });

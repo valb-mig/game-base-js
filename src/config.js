@@ -139,6 +139,51 @@ export const SPREAD = {
   PARADO_ATE: 0.35   // m/s
 };
 
+/**
+ * Fôlego.
+ *
+ * Correr e pular gastam; parar recupera, depois de um respiro. O peso da arma
+ * na mão entra em tudo, e é o que dá sentido a guardar a MP40 pra atravessar
+ * um campo aberto: com a faca na mão a corrida rende quase o dobro.
+ *
+ * A escolha de projeto é que fôlego zerado NÃO trava o jogador — ele só perde
+ * a corrida e o pulo. Jogador parado sem poder fazer nada é punição, não
+ * mecânica.
+ */
+/**
+ * Trocar de item leva tempo: guardar o que está na mão, e sacar o outro.
+ *
+ * Instantâneo, o cinto vira um botão de "arma certa pra cada situação" sem
+ * custo nenhum — e a escolha de com o que andar deixa de existir. Aqui ela
+ * custa segundos, e o peso decide quantos.
+ */
+export const SWAP = {
+  GUARDAR: 0.22,          // base pra abaixar o que está na mão
+  GUARDAR_POR_KG: 0.055,
+  SACAR: 0.26,            // base pra erguer o novo
+  SACAR_POR_KG: 0.075     // sacar custa mais que guardar: é o que se apronta
+};
+
+export const STAMINA = {
+  MAX: 100,
+
+  // Por segundo correndo, mais o que o peso da arma cobra por quilo.
+  CORRIDA: 9,
+  CORRIDA_POR_KG: 2.1,
+
+  // Por pulo, mais o peso. Pular custa caro de propósito: pular pra frente é
+  // atalho barato demais em jogo de tiro.
+  PULO: 11,
+  PULO_POR_KG: 1.8,
+
+  RECUPERA: 17,        // por segundo, parado ou andando
+  ESPERA: 0.9,         // segundos sem gastar antes de começar a recuperar
+
+  // Abaixo disso ele não consegue arrancar de novo, pra não ficar piscando
+  // entre correr e andar com o fôlego raspando.
+  MINIMO_PRA_CORRER: 12
+};
+
 export const BULLET = {
   // Velocidade de boca real da .45 ACP. Com ela, 55 m levam 0,22 s — pouco,
   // mas o bastante pra queda aparecer e pra alvo em movimento exigir avanço.

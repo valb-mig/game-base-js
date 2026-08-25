@@ -530,3 +530,30 @@ body.aiming #crosshair {
     rgba(150, 20, 14, 0.5) 100%
   );
 }
+
+/* -------------------------------------------------------------- fôlego */
+
+/* Só aparece quando falta: barra cheia permanente é ruído, e o que interessa
+   é quanto sobrou. */
+.stamina-bar {
+  display: none;
+  height: 4px;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.stamina-bar.visivel {
+  display: block;
+}
+
+.stamina-bar span {
+  display: block;
+  height: 100%;
+  background: #cfd8b4;
+  transition: width 80ms linear;
+}
+
+/* Sem fôlego pra arrancar: a cor diz o que ele NÃO pode fazer. */
+.stamina-bar.seco span {
+  background: #c46a3a;
+}

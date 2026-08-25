@@ -3,6 +3,7 @@ import { PLAYER } from '../config.js';
 import { collides, groundHeightAt } from '../player/collision.js';
 import { teamOf } from '../game/teams.js';
 import { createItemModel } from '../items/models.js';
+import { SWAP } from '../config.js';
 
 /**
  * O corpo de um bot: modelo, colisor, vida e o andar dele.
@@ -120,7 +121,23 @@ export function createSoldier(scene, colliders, {
     // arsenal: o cérebro troca entre eles
     weapons,
     slot: 0,
+    swapping: 0,      // segundos que faltam pra arma nova chegar na mão
+    swapPara: -1,
     get weapon() { return soldier.weapons[soldier.slot] ?? null; },
+
+    /**
+     * Pede a troca de arma. Ela leva o mesmo tempo que a do jogador.
+     *
+     * Bot que troca instantâneo enquanto o jogador leva quase um segundo é
+     * vantagem escondida — o mesmo tipo de coisa que a mira com atraso
+     * existe pra evitar.
+     */
+    trocarPara(indice) {
+      if (indice < 0 || indice === soldier.slot || indice === soldier.swapPara) return;
+      soldier.swapPara = indice;
+      soldier.swapping = SWAP.GUARDAR + (soldier.weapon?.weight ?? 0) * SWAP.GUARDAR_POR_KG
+        + SWAP.SACAR + (soldier.weapons[indice]?.weight ?? 0) * SWAP.SACAR_POR_KG;
+    },
 
     /** Centro do tronco: é onde a bala do outro tem que passar. */
     center() {
@@ -181,6 +198,15 @@ export function createSoldier(scene, colliders, {
     update(delta) {
       soldier.height = soldier.crouching ? ALTURA_AGACHADO : ALTURA;
 
+      if (soldier.swapping > 0) {
+        soldier.swapping -= delta;
+        if (soldier.swapping <= 0) {
+          soldier.slot = soldier.swapPara;
+          soldier.swapPara = -1;
+          soldier.swapping = 0;
+        }
+      }
+
       // só a arma do slot atual aparece
       const naMao = soldier.weapon?.id ?? null;
       for (const [id, modelo] of modelos) modelo.visible = soldier.alive && id === naMao;
@@ -216,6 +242,8 @@ export function createSoldier(scene, colliders, {
       soldier.alive = true;
       soldier.crouching = false;
       soldier.downFor = 0;
+      soldier.swapping = 0;
+      soldier.swapPara = -1;
       for (const arma of soldier.weapons) {
         if (arma.ammo) arma.ammo.loaded = arma.firearm.magazine;
       }

@@ -13,6 +13,19 @@ const DT = 1 / 60;
 const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
 const GRAUS = 180 / Math.PI;
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -26,7 +39,7 @@ export function run() {
   player.setClass(getClass('assault'));
   // A geometria medida aqui é a da pistola, e `setClass` passou a entregar a
   // primária na mão quando a MP40 entrou.
-  player.selectSlot(player.carried.indexOf(PISTOL));
+  empunhar(player, player.carried.indexOf(PISTOL));
 
   const viewmodel = new Viewmodel(camera, 1);
   viewmodel.setItem(player.equipped);

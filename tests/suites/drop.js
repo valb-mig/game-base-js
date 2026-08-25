@@ -16,6 +16,19 @@ const relevo = {
   waterDepthAt: (x, z) => Math.max(0, WORLD.WATER_LEVEL - relevo.heightAt(x, z))
 };
 
+/**
+ * Põe o item na mão e ESPERA a troca terminar.
+ *
+ * Trocar de item leva tempo desde que guardar e sacar viraram animação: ler
+ * `equipped` no mesmo quadro do `selectSlot` lê o item ANTIGO, porque a troca
+ * acontece no fundo do movimento.
+ */
+function empunhar(player, indice) {
+  player.selectSlot(indice);
+  for (let i = 0; i < 600 && player.swapping; i++) player.advanceSwap(1 / 60);
+  return player.equipped;
+}
+
 export async function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
@@ -32,7 +45,7 @@ export async function run() {
     spawn: new THREE.Vector3(0, 0, 0)
   });
   // a Assault nasce com a pistola; este suite exercita a faca
-  player.selectSlot(player.carried.indexOf(KNIFE));
+  empunhar(player, player.carried.indexOf(KNIFE));
   const viewmodel = new Viewmodel(camera, 1);
   viewmodel.setItem(player.equipped);
   const drops = initDrop(scene, player, viewmodel, { terrain: relevo });
@@ -60,7 +73,7 @@ export async function run() {
   eq('e o slot da faca fica vazio', player.carried[2], null);
   eq('a pistola continua no slot dela', player.carried[1]?.id, 'm1911');
 
-  player.selectSlot(1);
+  empunhar(player, 1);
   eq('a tecla 2 volta pra pistola', player.equipped?.id, 'm1911');
   ok('a faca saiu do inventário', !player.carried.includes(KNIFE));
   eq('a faca virou objeto do mundo', drops.items.length, 1);
@@ -77,7 +90,7 @@ export async function run() {
   eq('e os dois slots largados ficam vazios',
     [player.carried[1], player.carried[2]].filter(Boolean).length, 0);
   player.carried = [KNIFE, drops.items[0].item];
-  player.selectSlot(0);
+  empunhar(player, 0);
   drops.items.length = 1;
 
   suite('queda e repouso');
@@ -202,7 +215,7 @@ export async function run() {
   viewmodel.setItem(player.equipped);
 
   const largar = (slot) => {
-    player.selectSlot(slot);
+    empunhar(player, slot);
     viewmodel.setItem(player.equipped);
     press('KeyG');
     step(60);   // um segundo: tempo de cair de 1,7 m e assentar
@@ -215,7 +228,7 @@ export async function run() {
   largar(slotDaPistola);
   eq('a pistola foi pro chão', drops.items.length, 1);
   eq('e é a pistola mesmo', drops.items[0]?.item?.id, PISTOL.id);
-  player.selectSlot(slotDaFaca);
+  empunhar(player, slotDaFaca);
   viewmodel.setItem(player.equipped);
   eq('e a faca está na mão', player.equipped?.id, KNIFE.id);
 

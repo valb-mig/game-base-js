@@ -263,17 +263,43 @@ export function run() {
   const cerebro6 = createBrain(trocador, { colliders: [], outposts: [posto], terrain: chao }, dado(6));
   const oponente = alvoEm(0, 20);
 
+  // A troca do bot leva o mesmo tempo que a do jogador: ler a arma no quadro
+  // seguinte lê a ANTIGA, porque ela ainda está na mão.
+  const deixarTrocar = (cerebro, bot, contexto) => {
+    for (let i = 0; i < 200; i++) {
+      cerebro.update(DT, contexto);
+      bot.update(DT);
+      if (bot.swapping <= 0 && bot.swapPara < 0) break;
+    }
+  };
+
   eq('começa na primária', trocador.weapon.id, 'mp40');
   trocador.weapons[0].ammo.loaded = 0;
-  cerebro6.update(DT, {
+  const semBala = {
     inimigos: [oponente], temLinha: () => true, atirar: () => {}, capturar: () => {}
-  });
+  };
+  cerebro6.update(DT, semBala);
+  ok('a troca é pedida na hora, mas a arma ainda é a antiga',
+    trocador.swapping > 0 && trocador.weapon.id === 'mp40');
+  deixarTrocar(cerebro6, trocador, semBala);
   eq('carregador vazio, ele saca a secundária', trocador.weapon.id, 'm1911');
 
   // Colado, a faca ganha da arma comprida.
   trocador.weapons[0].ammo.loaded = 32;
-  const colado = alvoEm(trocador.x, trocador.z + BRAIN.PERTO_DEMAIS - 1);
-  cerebro6.update(DT, {
+
+  // O alvo ACOMPANHA o bot: em combate ele anda, e um alvo parado deixaria de
+  // estar colado no meio da troca — aí o teste mediria o passo, não a regra.
+  const centroColado = new THREE.Vector3();
+  const colado = {
+    team: 'vestria', alive: true, radius: 0.5, collider: null, speed: 0,
+    get x() { return trocador.x; },
+    get z() { return trocador.z + BRAIN.PERTO_DEMAIS - 1.5; },
+    center() {
+      return centroColado.set(colado.x, trocador.feetY + 1.08, colado.z);
+    },
+    damage: (amount) => ({ target: colado, amount, killed: false })
+  };
+  deixarTrocar(cerebro6, trocador, {
     inimigos: [colado], temLinha: () => true, atirar: () => {}, capturar: () => {}
   });
   eq('colado no inimigo, ele puxa a faca', trocador.weapon.id, 'kabar');

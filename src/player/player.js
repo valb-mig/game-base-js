@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { PLAYER } from '../config.js';
+import { PLAYER, STAMINA, SWAP } from '../config.js';
 import { hasModel } from '../items/models.js';
 import { getClass, DEFAULT_CLASS_ID, SLOT_ORDER } from '../items/classes.js';
 import { PLAYER_TEAM } from '../game/teams.js';
 import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
+import { updateStamina } from './stamina.js';
 import { moveHorizontal, moveVertical } from './locomotion.js';
 import { updateView, describeState } from './view.js';
 import { lookPitch } from './heading.js';
@@ -102,6 +103,9 @@ export class Player {
     this.maxHealth = classDef.health;
     this.health = classDef.health;
     this.hurtFlash = 0;
+    this.stamina = STAMINA.MAX;
+    this.staminaRest = 0;
+    this.swap = { fase: 'nenhuma', paraSlot: -1, restante: 0, total: 0 };
     this.carried = this.carriedOf(classDef);
     this.slot = this.firstSlot();
     this.equipped = this.carried[this.slot] ?? null;
@@ -127,20 +131,93 @@ export class Player {
     return index < 0 ? 0 : index;
   }
 
-  /** Troca o item na mão pelo do índice pedido. */
+  /**
+   * Pede a troca do item na mão. Ela NÃO acontece agora.
+   *
+   * Guardar o que está na mão leva tempo, e sacar o outro leva mais. Trocar
+   * instantâneo faz do cinto um botão de "arma certa pra cada situação" sem
+   * custo nenhum, e a escolha de com o que andar deixa de existir.
+   *
+   * Devolve true quando a troca FOI ACEITA, não quando terminou — quem
+   * precisa saber o que está na mão olha `equipped`, que só muda no meio do
+   * caminho.
+   */
   selectSlot(index) {
     if (index < 0 || index >= this.carried.length) return false;
     if (!this.carried[index]) return false;   // slot vazio não responde
-    if (this.slot === index) return false;
+    if (this.slot === index && this.swap.fase === 'nenhuma') return false;
+    if (index === this.swap.paraSlot) return false;   // já é essa a troca
 
-    this.slot = index;
-    this.equipped = this.carried[index];
+    // Troca no meio de outra troca recomeça do zero, guardando o que estiver
+    // na mão agora: dá pra corrigir a tecla errada sem esperar o fim.
+    this.swap.fase = 'guardando';
+    this.swap.paraSlot = index;
+    this.swap.restante = SWAP.GUARDAR
+      + (this.equipped?.weight ?? 0) * SWAP.GUARDAR_POR_KG;
+    this.swap.total = this.swap.restante;
+
     this.swing.active = false;
     this.gun.reloading = 0;
     this.gun.aim = 0;
     this.dig.modo = null;
     this.dig.progresso = 0;
     return true;
+  }
+
+  /** Troca em curso? Quem atira, golpeia ou cava tem que respeitar isto. */
+  get swapping() {
+    return this.swap.fase !== 'nenhuma';
+  }
+
+  /** Põe o item na mão de uma vez. Só pra nascer e pra apanhar do chão. */
+  forceSlot(index) {
+    this.slot = index;
+    this.equipped = this.carried[index] ?? null;
+    this.swap.fase = 'nenhuma';
+    this.swap.paraSlot = -1;
+    this.swap.restante = 0;
+    this.swap.total = 0;
+  }
+
+  /**
+   * Um quadro da troca. Devolve true no quadro em que o item muda de mão,
+   * pra que o viewmodel troque o modelo exatamente ali.
+   *
+   * Booleano e não o item: mão vazia é `null` legítimo, e devolver o item
+   * faria "trocou pra mão vazia" ser indistinguível de "não trocou".
+   */
+  advanceSwap(delta) {
+    if (this.swap.fase === 'nenhuma') return false;
+
+    this.swap.restante -= delta;
+    if (this.swap.restante > 0) return false;
+
+    if (this.swap.fase === 'guardando') {
+      // O item muda de mão AQUI, no fundo do movimento.
+      this.slot = this.swap.paraSlot;
+      this.equipped = this.carried[this.slot] ?? null;
+
+      this.swap.fase = 'sacando';
+      this.swap.restante = SWAP.SACAR
+        + (this.equipped?.weight ?? 0) * SWAP.SACAR_POR_KG;
+      this.swap.total = this.swap.restante;
+      return true;
+    }
+
+    this.swap.fase = 'nenhuma';
+    this.swap.paraSlot = -1;
+    this.swap.restante = 0;
+    return false;
+  }
+
+  /**
+   * O quanto a arma está guardada, de 0 (na mão) a 1 (no fundo do
+   * movimento). Quem desenha a troca lê isto.
+   */
+  get swapHidden() {
+    if (this.swap.fase === 'nenhuma' || this.swap.total <= 0) return 0;
+    const andado = 1 - this.swap.restante / this.swap.total;
+    return this.swap.fase === 'guardando' ? andado : 1 - andado;
   }
 
   /**
@@ -226,8 +303,9 @@ export class Player {
     this.dig.carga = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.carried = this.carriedOf(this.classDef);
-    this.slot = this.firstSlot();
-    this.equipped = this.carried[this.slot] ?? null;
+    this.forceSlot(this.firstSlot());   // nascer não guarda arma nenhuma
+    this.stamina = STAMINA.MAX;
+    this.staminaRest = 0;
     this.object.position.set(this.spawn.x, this.eyeY, this.spawn.z);
   }
 
@@ -289,6 +367,9 @@ export class Player {
       this.height = this.stats.HEIGHT;
       swim(this, delta);
     } else {
+      // O fôlego vem ANTES da locomoção: é ela que pergunta se dá pra correr
+      // e pra pular, e a resposta tem que ser a deste quadro.
+      updateStamina(this, delta);
       updateStance(this, delta);
       moveHorizontal(this, delta);
       moveVertical(this, delta);

@@ -121,6 +121,8 @@ export function initDigging(player, world) {
 
       if (!player.isLocked) return;
 
+      if (player.swapping) return;
+
       // Só quem tem a pá na mão pode consumir o clique. É a mesma regra do
       // golpe e do tiro: dois sistemas lendo o mesmo botão fizeram o tiro
       // sumir uma vez, e não pode acontecer de novo.

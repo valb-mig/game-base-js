@@ -36,6 +36,7 @@ src/
            brain.js  o que ele decide fazer · bots.js  gerente e fiação
   core/    input.js  teclado bruto · stage.js  renderer, cena, luz
   player/  player.js estado + ordem dos sistemas
+           stamina.js  fôlego de correr e pular, pesado pela arma
            locomotion.js  stance.js  swim.js  spectator.js
            collision.js  view.js  heading.js
   world/   heightfield.js  altura da ilha (matemática pura, sem three)
@@ -100,6 +101,29 @@ entre a velocidade antes e depois. Há teste pra isso em três framerates.
 
 **`endFrame()` roda todo frame do loop**, inclusive com o jogo pausado. Sem
 isso `consumePress` fica com tecla pendurada e dispara no frame errado.
+
+**Peso de arma amarra três coisas.** `PESOS` em `items/classes.js` decide
+quanto tempo custa guardar e sacar, quanto de fôlego a corrida come e quanto o
+pulo cobra. É o que faz trocar pra faca antes de atravessar campo aberto ser
+uma decisão: medido, a corrida rende 10,4 s com a faca e 5,3 s com a MP40.
+
+**Trocar de item NÃO é instantâneo, e `selectSlot` só AGENDA.** O item muda de
+mão no fundo do movimento, no meio da troca — quem lê `equipped` no mesmo
+quadro do `selectSlot` lê o item ANTIGO. Foi isso que quebrou vinte asserções
+quando a troca virou animação. `forceSlot` existe pro que é instantâneo de
+verdade: nascer e apanhar do chão.
+
+**Fôlego zerado não trava ninguém.** Tira a corrida e o pulo, e devolve os
+dois assim que respirar. Jogador parado sem poder fazer nada é punição, não
+mecânica. E quem já está correndo continua até raspar: cair pra andando por
+causa de um limiar no meio da fuga é pior que ficar sem.
+
+**Recuperar custa parar de verdade.** Sem o respiro de `ESPERA`, largar o
+Shift por um instante devolveria fôlego, e a corrida viraria dedilhado.
+
+**Bot troca de arma no mesmo tempo que o jogador.** Instantâneo pra ele
+enquanto o jogador leva 0,78 s é vantagem escondida — o mesmo tipo de coisa
+que a mira com atraso existe pra evitar.
 
 **`RADIUS` e `STEP_HEIGHT` são globais.** Vivem em `collision.js` e valem pro
 mundo inteiro. Classe nenhuma deve sobrescrever — só velocidade, pulo, alturas
@@ -686,7 +710,8 @@ headless. Simule num `for` síncrono e deixe o loop só desenhando.
 ## Estado atual
 
 Funciona: movimento (andar, correr como alternância no Shift, agachar em C,
-deitar em Z, pulo com coyote time e buffer), natação, mapa de ilha com praia,
+deitar em Z, pulo com coyote time e buffer) com fôlego que a corrida e o pulo
+gastam e a arma na mão encarece, natação, mapa de ilha com praia,
 floresta e duas bases militares opostas, campo de treino, seleção de classe,
 faca KA-BAR como modelo e viewmodel, e o HUD (bússola, situação, vitais, item).
 

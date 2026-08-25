@@ -3,6 +3,7 @@ import { WORLD } from '../config.js';
 import { axis, isDown, consumePress } from '../core/input.js';
 import { collides, groundHeightAt, terrainUnder, ceilingAbove } from './collision.js';
 import { horizontalRight, forwardX, forwardZ } from './heading.js';
+import { canRun, canJump, spendJump } from './stamina.js';
 import {
   STAND, CROUCH, PRONE,
   FORWARD_KEYS, BACK_KEYS, RIGHT_KEYS, LEFT_KEYS, JUMP_KEYS, RUN_KEYS
@@ -69,7 +70,10 @@ export function moveHorizontal(player, delta) {
   }
   if (player.stance !== STAND) player.runLatched = false;
 
-  player.running = player.runLatched && hasInput && player.stance === STAND;
+  // Fôlego entra aqui: sem ele a corrida não arranca, e a que estava em
+  // curso cai sozinha quando ele zera (quem zera é updateStamina).
+  player.running = player.runLatched && hasInput && player.stance === STAND
+    && canRun(player);
 
   let maxSpeed = stats.WALK_SPEED;
   if (player.stance === PRONE) maxSpeed = stats.PRONE_SPEED;
@@ -144,13 +148,14 @@ export function moveVertical(player, delta) {
     ? stats.JUMP_BUFFER
     : Math.max(0, player.jumpBuffer - delta);
 
-  if (player.jumpBuffer > 0 && player.coyote > 0) {
+  if (player.jumpBuffer > 0 && player.coyote > 0 && canJump(player)) {
     player.verticalVelocity = stats.JUMP_SPEED;
     player.onGround = false;
     player.jumpBuffer = 0;
     player.coyote = 0;
     player.jumpCutPending = true;
     jumpedNow = true;
+    spendJump(player);
   }
 
   // Soltar o espaço no meio da subida encurta o pulo — mas nunca no frame

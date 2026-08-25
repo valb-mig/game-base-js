@@ -189,7 +189,7 @@ export function createBrain(bot, mundo, rng = Math.random) {
         const escolha = bot.weapons.findIndex((a) => (querFaca
           ? !a.firearm
           : a.firearm && (!a.ammo || a.ammo.loaded > 0)));
-        if (escolha >= 0) bot.slot = escolha;
+        if (escolha >= 0) bot.trocarPara(escolha);
       }
 
       // ------------------------------------------------------- e o que fazer

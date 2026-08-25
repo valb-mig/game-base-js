@@ -362,6 +362,16 @@ export class Viewmodel {
       this.group.position.z += kick * 0.02;
       this.group.rotation.x += kick * 0.09;
     }
+
+    // Troca de item: a arma desce pra fora do quadro e a outra sobe. É o
+    // movimento que conta que o tempo está passando — sem ele o item some e
+    // aparece, e a espera parece travamento em vez de mecânica.
+    const guardado = player.swapHidden ?? 0;
+    if (guardado > 0.001) {
+      this.group.position.y -= guardado * 0.42;
+      this.group.position.z += guardado * 0.06;
+      this.group.rotation.x -= guardado * 0.9;
+    }
   }
 
   /**

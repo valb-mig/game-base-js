@@ -32,6 +32,20 @@ export const SLOT_ORDER = ['Primária', 'Secundária', 'Corpo a corpo', 'Ferrame
  * corpo não mexe em nada. Ficam juntos aqui pra que a relação entre eles
  * seja legível de uma vez, em vez de espalhada por quatro arquivos.
  */
+/**
+ * Peso em quilos, o de verdade e carregado.
+ *
+ * Ele não é enfeite: decide quanto tempo custa guardar e sacar, quanto de
+ * fôlego a corrida come e quanto o pulo cobra. É o que faz trocar pra faca
+ * antes de correr ser uma decisão, e não um detalhe.
+ */
+export const PESOS = {
+  mp40: 4.7,      // 4,0 vazia, e o carregador de 32 pesa
+  m1911: 1.1,
+  m1943: 0.95,    // a pá de trincheira é leve pro que faz
+  kabar: 0.32
+};
+
 export const TERRAIN_BITE = {
   SHOVEL: 0.9,        // uma pazada inteira, definida em world/deform.js
   PRIMARY: 0.085,
@@ -41,6 +55,7 @@ export const TERRAIN_BITE = {
 
 export const KNIFE = {
   id: 'kabar',
+  weight: PESOS.kabar,
   slot: 'Corpo a corpo',
   name: 'Faca KA-BAR',
   note: 'Padrão do Corpo de Fuzileiros, comum a todas as classes',
@@ -60,6 +75,7 @@ export const KNIFE = {
  */
 export const PISTOL = {
   id: 'm1911',
+  weight: PESOS.m1911,
   slot: 'Secundária',
   name: 'Colt M1911A1',
   note: '.45 ACP · sete no carregador e uma na câmara',
@@ -86,6 +102,7 @@ export const PISTOL = {
  */
 export const SHOVEL = {
   id: 'm1943',
+  weight: PESOS.m1943,
   slot: 'Ferramenta',
   name: 'Pá M1943',
   note: 'Cava e aterra · comum a todas as classes',
@@ -111,6 +128,7 @@ export const SHOVEL = {
  */
 export const MP40 = {
   id: 'mp40',
+  weight: PESOS.mp40,
   slot: 'Primária',
   name: 'MP40',
   note: '9×19mm, automática, 32 tiros',
