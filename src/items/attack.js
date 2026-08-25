@@ -14,10 +14,15 @@ import { consumeClick } from '../core/input.js';
  * mira de precisão numa facada de perto é frustrante. Mas o cone respeita
  * parede — bater através de um saco de areia seria pior que errar.
  */
+// Meio-ângulo do cone das costas. Noventa graus: de lado não é pelas costas,
+// e chegar exatamente atrás não pode exigir precisão de milímetro.
+const COSTAS = Math.PI / 2;
+
 export function initAttack(player, world) {
   const origin = new THREE.Vector3();
   const forward = new THREE.Vector3();
   const toTarget = new THREE.Vector3();
+  const ponta = new THREE.Vector3();
   const probe = new THREE.Vector3();
 
   let listeners = [];
@@ -92,15 +97,58 @@ export function initAttack(player, world) {
     return best;
   }
 
+  /**
+   * O alvo está de costas pro golpe?
+   *
+   * Compara pra onde ele OLHA com a direção do golpe: olhando pro mesmo lado
+   * que a lâmina viaja, ele está de costas. Alvo sem direção — boneco de
+   * palha, poste — nunca está de costas: ele não tem frente.
+   */
+  function pelasCostas(target) {
+    if (typeof target.yaw !== 'number') return false;
+
+    const centro = target.center();
+    const paraAlvo = Math.atan2(centro.x - origin.x, centro.z - origin.z);
+
+    let diferenca = Math.abs(paraAlvo - target.yaw) % (Math.PI * 2);
+    if (diferenca > Math.PI) diferenca = Math.PI * 2 - diferenca;
+    return diferenca < COSTAS;
+  }
+
+  /**
+   * O mato à frente vem abaixo junto com o golpe.
+   *
+   * Não disputa com o alvo: a lâmina passa pelo arbusto de qualquer jeito, e
+   * mato intacto depois da facada lê como golpe que não saiu. Um arbusto
+   * também não tem vida — folha não aguenta lâmina, cai no primeiro.
+   */
+  function cortarMato(reach) {
+    if (!world.bushes) return;
+    origin.copy(player.object.position);
+    forward.set(0, 0, -1).applyQuaternion(player.object.quaternion);
+    ponta.copy(origin).addScaledVector(forward, reach);
+    world.bushes.slash(origin, ponta, 0.35);
+  }
+
   function resolve() {
     const melee = player.equipped?.melee;
     if (!melee) return;
 
+    cortarMato(melee.reach);
+
     const target = findTarget(melee);
     if (!target) return;
 
-    const result = target.damage(melee.damage);
-    for (const listener of listeners) listener(result);
+    // Facada pelas costas mata de uma vez. O que decide é a direção pra onde
+    // o ALVO está virado, não onde ele está: chegar por trás é a manobra, e
+    // ela vale independente de de onde o golpe partiu.
+    const porTras = pelasCostas(target);
+    const dano = melee.damage * (porTras ? (melee.costas ?? 1) : 1);
+
+    const result = target.damage(dano);
+    for (const listener of listeners) {
+      listener({ ...result, costas: porTras, corpoACorpo: true });
+    }
   }
 
   return {

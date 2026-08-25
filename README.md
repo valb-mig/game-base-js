@@ -159,6 +159,27 @@ pra faca são **0,78 segundo**, e a faca só chega na mão aos 0,48 — no fundo
 movimento. Enquanto isso não se atira, não se golpeia e não se cava. Os bots
 pagam o mesmo tempo.
 
+## Onde a bala pega
+
+O corpo é dividido em regiões, e a promessa é em **tiros**, não em pontos:
+
+| onde | com a MP40 |
+| --- | --- |
+| cabeça | **1 tiro** |
+| capacete | **2** |
+| tronco | 5 |
+| braço ou perna | 7 |
+
+Os números são calibrados pela arma mais fraca do jogo — com as outras a
+promessa vale com folga. O capacete cobre a parte de cima da cabeça de
+propósito: acertar ali é quase acertar, e não é.
+
+A faca mata em **dois golpes**, ou num só **pelas costas** — o que decide é
+pra onde o alvo está virado, não de onde veio a lâmina.
+
+O kill feed no canto direito diz quem matou quem, com que arma e em que
+região. As linhas que envolvem você ficam destacadas.
+
 ## Atirar
 
 Parado, a bala vai exatamente onde a mira aponta — sem dispersão nenhuma.

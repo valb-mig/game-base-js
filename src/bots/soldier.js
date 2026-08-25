@@ -4,6 +4,7 @@ import { collides, groundHeightAt } from '../player/collision.js';
 import { teamOf } from '../game/teams.js';
 import { createItemModel } from '../items/models.js';
 import { SWAP } from '../config.js';
+import { corpoDe } from '../game/hitboxes.js';
 
 /**
  * O corpo de um bot: modelo, colisor, vida e o andar dele.
@@ -190,6 +191,15 @@ export function createSoldier(scene, colliders, {
         + SWAP.SACAR + (soldier.weapons[indice]?.weight ?? 0) * SWAP.SACAR_POR_KG;
     },
 
+    /**
+     * As esferas do corpo, região por região. Quem resolve acerto usa isto
+     * em vez de `center()`: acertar a cabeça e acertar a canela não podem
+     * valer o mesmo.
+     */
+    body(saida) {
+      return corpoDe(soldier.x, soldier.feetY, soldier.z, soldier.height, saida);
+    },
+
     /** Centro do tronco: é onde a bala do outro tem que passar. */
     center() {
       return meio.set(soldier.x, soldier.feetY + soldier.height * 0.62, soldier.z);
@@ -200,10 +210,12 @@ export function createSoldier(scene, colliders, {
       return out.set(soldier.x, soldier.feetY + soldier.height - 0.14, soldier.z);
     },
 
-    damage(amount) {
+    damage(amount, regiao = null) {
       if (!soldier.alive) return { target: soldier, amount: 0, killed: false };
 
-      soldier.health = Math.max(0, soldier.health - amount);
+      // O multiplicador é da REGIÃO, e é o que faz mirar valer a pena.
+      const dano = amount * (regiao?.multiplicador ?? 1);
+      soldier.health = Math.max(0, soldier.health - dano);
       soldier.flash = 1;
       soldier.hurtFor = 0;
 
@@ -213,7 +225,7 @@ export function createSoldier(scene, colliders, {
         soldier.downFor = 0;
         caixa.max.y = soldier.feetY + 0.25;   // caído não barra passagem
       }
-      return { target: soldier, amount, killed };
+      return { target: soldier, amount: dano, killed, regiao };
     },
 
     /**

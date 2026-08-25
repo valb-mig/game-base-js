@@ -30,6 +30,7 @@ src/
   main.js            fiação e loop de render
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
   game/    teams.js  os dois lados e a regra de quem domina o quê
+           hitboxes.js  regiões do corpo e o que cada acerto vale
            capture.js  arriar e içar bandeira, sem three
   bots/    aiming.js  atraso e erro de mira, sem three
            soldier.js  corpo, colisor, vida e o andar
@@ -59,6 +60,7 @@ src/
            classcards.js  tacticalmap.js  session.js
            compass.js  objective.js  status.js  prompt.js  hitmarker.js
            crosshair.js  a mira abre com a dispersão
+           killfeed.js  quem matou quem, e como
            debug.js  painel e o interruptor do F2
            debugview.js  caixas de colisão e estado dos bots na cena
            snapshot.js  P grava a tela com o estado escrito nela
@@ -193,6 +195,12 @@ e a câmera passava 100 quadros seguidos atrasada.
 **O atraso do degrau só vale pra degrau.** Com terreno inclinado o jogador sobe
 alguns centímetros todo frame; o limiar antigo de 1 cm deixava a câmera
 permanentemente atrasada em qualquer ladeira. Hoje é `STEP_VIEW_MIN`.
+
+**Falso incompleto quebra onde ninguém procura.** O terreno de mentira da
+suíte de fluxo não tinha `declividadeAt` depois que o chão passou a ser
+classificado por inclinação: o mapa tático estourava na montagem, a tela
+ficava na abertura, e sete asserções caíam a três camadas de distância da
+causa. Dublê tem que ter o contrato inteiro.
 
 **Levar tiro tem que ser visto antes de matar.** Medido: a 16 m, o primeiro
 tiro dói em 1,6 s e a morte vem em 2,9 s — sobra pouco mais de um segundo, e
@@ -470,6 +478,22 @@ respiro entre elas é a janela de avanço do jogador.
 morre em 2,6 s, andando de lado em 7,5 s, com o primeiro tiro doendo depois de
 1,2 s. Há teste que roda o duelo inteiro e trava essa faixa — apertar a mira
 sem querer quebra a suíte antes de matar alguém sem explicação.
+
+**A promessa de dano é em TIROS, não em pontos.** O jogador conta tiros:
+cabeça um, capacete dois, tronco o normal, braço e perna mais. Os
+multiplicadores são calibrados pela arma mais FRACA que existe — com ela a
+promessa vale, com as outras vale com folga. Calibrar pela mais forte deixaria
+a promessa falsa justamente na arma que a maioria carrega, e há teste que
+CONTA os tiros em vez de conferir o multiplicador.
+
+**O capacete cobre a parte de cima da cabeça, e essa ordem é a regra.** Se ele
+descesse sobre ela, o tiro na cabeça viraria tiro no capacete e a promessa de
+um tiro sumiria. As regiões não podem se sobrepor no lugar errado.
+
+**Facada pelas costas olha pra onde o ALVO está virado**, não de onde o golpe
+partiu. Chegar por trás é a manobra, e ela vale independente do ângulo da
+lâmina. Alvo sem direção — boneco de palha, poste — nunca está de costas: ele
+não tem frente.
 
 **Ninguém acerta a si mesmo, e isso é `owner`, não sorte.** A bala nasce na
 altura do OLHO e a esfera de acerto fica no peito: em pé sobram 53 cm, que é
@@ -803,6 +827,11 @@ desembarque. Enquanto escolhe, o jogador é fantasma que voa, não colide e não
 é atingido. ESC no jogo abre a pausa, e dela dá pra rever o equipamento e
 voltar sem renascer. Morrer volta pro deploy. `K` mata o jogador, tecla de
 teste enquanto nada causa dano de verdade.
+
+Dano por região: cabeça mata num tiro, capacete em dois, tronco é o normal, e
+braço e perna demoram mais. A faca mata em dois golpes, ou num só pelas
+costas. O kill feed no canto conta quem matou quem e com o quê, destacando as
+linhas que envolvem o jogador.
 
 Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. MP40 no slot 1 da Assault: automática de verdade (500 tiros por minuto,

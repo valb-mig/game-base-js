@@ -63,7 +63,10 @@ export const KNIFE = {
   // precisão pra uma facada de perto é frustrante — mas 34° também não
   // deixa acertar o que está claramente ao lado.
   melee: {
+    // Dois golpes de frente, um pelas costas. O número é o que sustenta a
+    // promessa: 55 mata em dois, e dobrado mata em um.
     damage: 55,
+    costas: 2,
     reach: 1.9,
     arc: 34
   }

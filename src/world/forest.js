@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
-import { material, CONE, CYLINDER, ROCK } from './props.js';
+import { espalhar, material, CONE, CYLINDER, ROCK } from './props.js';
+import { GRAMA, TERRA } from './ground.js';
 
 /**
  * Floresta e pedras.
@@ -10,31 +11,13 @@ import { material, CONE, CYLINDER, ROCK } from './props.js';
  * lista de colisores como AABB — a copa não, senão o jogador bate no ar.
  */
 
-// espalha com rejeição: sorteia, e descarta o que cai em água, praia ou área ocupada
-function scatter(count, { heightAt, minHeight, blocked, rng }) {
-  const spots = [];
-  const limit = WORLD.ISLAND_RADIUS * 0.99;
-  let attempts = 0;
-
-  while (spots.length < count && attempts < count * 40) {
-    attempts++;
-    const angle = rng() * Math.PI * 2;
-    // raiz da uniforme espalha por área, não por raio — senão amontoa no centro
-    const radius = Math.sqrt(rng()) * limit;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-
-    const y = heightAt(x, z);
-    if (y < minHeight) continue;
-    if (blocked(x, z)) continue;
-    spots.push({ x, y, z, rng: rng() });
-  }
-  return spots;
-}
-
-export function addForest(scene, colliders, { heightAt, blocked, rng, settling = null }) {
-  const trees = scatter(WORLD.TREE_COUNT, { heightAt, minHeight: WORLD.TREE_LINE, blocked, rng });
-  const rocks = scatter(WORLD.ROCK_COUNT, { heightAt, minHeight: 0.2, blocked, rng });
+export function addForest(scene, colliders, { heightAt, tipoAt, blocked, rng, settling = null }) {
+  // Árvore só em grama. Pedra também em terra: barranco pelado com pedra
+  // solta é o que barranco parece, e ela é a única cobertura que existe ali.
+  const trees = espalhar(WORLD.TREE_COUNT,
+    { heightAt, tipoAt, tipos: [GRAMA], blocked, rng });
+  const rocks = espalhar(WORLD.ROCK_COUNT,
+    { heightAt, tipoAt, tipos: [GRAMA, TERRA], blocked, rng });
 
   const trunks = new THREE.InstancedMesh(CYLINDER, material(WORLD.TRUNK_COLOR), trees.length);
   const lower = new THREE.InstancedMesh(CONE, material(WORLD.TREE_COLOR), trees.length);

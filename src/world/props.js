@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WORLD } from '../config.js';
 
 // Geometrias compartilhadas: todo prop do mundo sai daqui, uma alocação só.
 export const BOX = new THREE.BoxGeometry(1, 1, 1);
@@ -6,6 +7,38 @@ export const CONE = new THREE.ConeGeometry(1, 1, 6);
 export const PYRAMID = new THREE.ConeGeometry(1, 1, 4);
 export const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 8);
 export const ROCK = new THREE.IcosahedronGeometry(1, 0);
+
+/**
+ * Espalha `count` pontos pela ilha com rejeição: sorteia, e descarta o que cai
+ * fora dos tipos de chão pedidos ou em área ocupada.
+ *
+ * Quem decide é o TIPO do chão, não a altura. Areia é deserta de propósito —
+ * a praia de desembarque é o lugar mais aberto do mapa, e é isso que a faz
+ * difícil. Com um limiar de altura, uma pedra pousava na areia e devolvia de
+ * graça a cobertura que ela não tem.
+ *
+ * Mora aqui e não na floresta porque árvore, pedra e arbusto espalham do
+ * mesmo jeito: duas cópias do laço se separariam no primeiro ajuste.
+ */
+export function espalhar(count, { heightAt, tipoAt, tipos, blocked, rng }) {
+  const spots = [];
+  const limite = WORLD.ISLAND_RADIUS * 0.99;
+  let tentativas = 0;
+
+  while (spots.length < count && tentativas < count * 40) {
+    tentativas++;
+    const angulo = rng() * Math.PI * 2;
+    // raiz da uniforme espalha por área, não por raio — senão amontoa no centro
+    const raio = Math.sqrt(rng()) * limite;
+    const x = Math.cos(angulo) * raio;
+    const z = Math.sin(angulo) * raio;
+
+    if (!tipos.includes(tipoAt(x, z))) continue;
+    if (blocked(x, z)) continue;
+    spots.push({ x, y: heightAt(x, z), z, rng: rng() });
+  }
+  return spots;
+}
 
 const materials = new Map();
 

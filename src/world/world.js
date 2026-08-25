@@ -8,6 +8,7 @@ import { PLAYER } from '../config.js';
 import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
 import { addForest } from './forest.js';
+import { addBushes } from './bushes.js';
 import { addBase } from './base.js';
 import { addOutposts } from './outposts.js';
 import { TEAMS } from '../game/teams.js';
@@ -125,9 +126,19 @@ export function buildWorld(scene) {
 
   const counts = addForest(scene, colliders, {
     heightAt: terrain.heightAt,
+    tipoAt: terrain.tipoAt,
     blocked,
     rng: seededRandom(20250824),
     settling
+  });
+
+  // Arbusto não entra em `colliders` nem em `settling`: ele não barra
+  // ninguém, e descalçado ele vem abaixo em vez de tombar.
+  const bushes = addBushes(scene, {
+    heightAt: terrain.heightAt,
+    tipoAt: terrain.tipoAt,
+    blocked,
+    rng: seededRandom(20250825)
   });
 
   assertSpawnZones(spawnZones, colliders, terrain);
@@ -149,10 +160,12 @@ export function buildWorld(scene) {
       chao.applyEdit(tocados);
       // o que ficou sem chão em volta começa a desabar
       settling.disturb(x, z, radius);
+      bushes.disturb(x, z, radius);
       return true;
     },
 
     water,
+    bushes,
     targets,
     outposts,
     spawnZones,
@@ -162,7 +175,8 @@ export function buildWorld(scene) {
     ],
     spawn: new THREE.Vector3(north.x, northGround, north.z + 12),
     stats: {
-      ...counts, alvos: targets.length, postos: outposts.length,
+      ...counts, arbustos: bushes.count,
+      alvos: targets.length, postos: outposts.length,
       colliders: colliders.length
     }
   };

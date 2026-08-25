@@ -12,7 +12,9 @@ import { BULLET } from '../config.js';
  * posição final. A 253 m/s uma bala anda 4,2 m por quadro a 60 fps: testar só
  * onde ela parou faria ela atravessar qualquer parede e qualquer alvo.
  */
-export function createBallistics(scene, colliders, { onTerrainImpact = null } = {}) {
+export function createBallistics(scene, colliders, {
+  onTerrainImpact = null, onFoliage = null
+} = {}) {
   const bullets = [];
   const listeners = [];
 
@@ -23,7 +25,13 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
   const ray = new THREE.Ray();
   const hitPoint = new THREE.Vector3();
   const probe = new THREE.Vector3();
+  const folhagem = new THREE.Vector3();
   const NOTHING = new Set();
+
+  // Reaproveitados: resolver acerto é coisa de todo quadro, e alocar uma
+  // lista de regiões por bala por alvo seria lixo por quadro.
+  const corpo = [];
+  const pedaco = new THREE.Vector3();
 
   function makeTracer() {
     const mesh = new THREE.Mesh(
@@ -104,17 +112,37 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
     let closest = wallHit(from, segment, ignore, bullet.shooter);
     let struck = null;
 
+    let regiaoAtingida = null;
     for (const target of targets) {
       if (!target.alive) continue;
       // Ninguém atira em si mesmo. A bala nasce na altura do OLHO e a esfera
       // de acerto está no peito: agachado, os dois ficam a 30 cm um do outro,
       // e sem isto o bot se mata no primeiro tiro.
       if (target === bullet.owner) continue;
+
+      // Corpo dividido em regiões, quando o alvo tem: cabeça, capacete,
+      // tronco, braços e pernas. Uma esfera só faria o tiro na cabeça valer
+      // o mesmo que o tiro na canela, e mirar deixaria de ser habilidade.
+      const partes = target.body?.(corpo);
+      if (partes) {
+        for (const parte of partes) {
+          pedaco.set(parte.x, parte.y, parte.z);
+          const t = sphereHit(from, segment, pedaco, parte.raio);
+          if (t === null) continue;
+          if (closest !== null && t > closest) continue;
+          closest = t;
+          struck = target;
+          regiaoAtingida = parte.regiao;
+        }
+        continue;
+      }
+
       const t = sphereHit(from, segment, target.center(), target.radius);
       if (t === null) continue;
       if (closest !== null && t > closest) continue;
       closest = t;
       struck = target;
+      regiaoAtingida = null;
     }
 
     // terreno: amostra ao longo do trecho, porque ele é curvo e a bala é reta
@@ -132,6 +160,15 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
       }
     }
 
+    // Mato atravessado vem abaixo, e a bala segue: arbusto é cobertura
+    // visual, não blindagem. Quem sabe o que é mato é o mundo — a balística
+    // só diz por onde a bala passou, como já faz com o terreno.
+    if (onFoliage) {
+      if (closest !== null) folhagem.copy(from).addScaledVector(segment, closest);
+      else folhagem.copy(to);
+      onFoliage(from, folhagem);
+    }
+
     if (closest !== null) {
       hitPoint.copy(from).addScaledVector(segment, closest);
       retire(bullet, hitPoint);
@@ -143,14 +180,15 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
       }
 
       const result = struck
-        ? struck.damage(bullet.damage)
+        ? struck.damage(bullet.damage, regiaoAtingida)
         : { target: null, amount: 0, killed: false };
       // `owner` vai junto: sem ele, quem escuta acerto não tem como saber se
       // a bala era dele. Era assim que o acerto de um bot a sessenta metros
       // acendia a marca na mira do jogador.
       for (const listener of listeners) {
         listener({
-          ...result, point: hitPoint.clone(), terreno: noChao, owner: bullet.owner
+          ...result, point: hitPoint.clone(), terreno: noChao,
+          owner: bullet.owner, regiao: regiaoAtingida
         });
       }
       return;

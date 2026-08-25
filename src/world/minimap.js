@@ -1,5 +1,5 @@
 import { WORLD } from '../config.js';
-import { colorAt } from './heightfield.js';
+import { colorAt } from './ground.js';
 
 /**
  * Mapa tático: a ilha vista de cima, desenhada amostrando o mesmo campo de
@@ -48,9 +48,14 @@ export function renderIsland(terrain) {
 
       let rgb;
       if (height >= WORLD.WATER_LEVEL) {
-        // sombreado pela inclinação: sem isso a ilha vira uma mancha chapada
-        const slope = terrain.heightAt(x + step, z) - height;
-        rgb = shade(colorAt(height), 1 + Math.max(-0.35, Math.min(0.35, slope * 0.5)));
+        // Duas medidas de inclinação, e elas são coisas diferentes: a cor sai
+        // da declividade do TERRENO, medida no passo da malha, senão o mapa
+        // tático discordaria dela sobre onde acaba a grama. O sombreado sai
+        // da diferença entre pixels vizinhos, que é o que dá relevo à imagem
+        // — sem ele a ilha vira uma mancha chapada.
+        const rampa = terrain.heightAt(x + step, z) - height;
+        rgb = shade(colorAt(height, terrain.declividadeAt(x, z)),
+          1 + Math.max(-0.35, Math.min(0.35, rampa * 0.5)));
       } else {
         const depth = Math.min(1, -height / WORLD.SEA_DEPTH);
         rgb = [

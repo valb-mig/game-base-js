@@ -3,6 +3,7 @@ import { createSoldier } from './soldier.js';
 import { createBrain } from './brain.js';
 import { MP40, PISTOL, KNIFE } from '../items/classes.js';
 import { enemyOf } from '../game/teams.js';
+import { corpoDe } from '../game/hitboxes.js';
 
 /**
  * Manda nos bots: cria, atualiza, e liga cada um ao resto do jogo.
@@ -46,6 +47,7 @@ function arsenal() {
  */
 export function playerAsTarget(player, onDeath) {
   const centro = new THREE.Vector3();
+  const olhar = new THREE.Vector3();
   return {
     name: 'jogador',
     team: player.team,
@@ -58,14 +60,32 @@ export function playerAsTarget(player, onDeath) {
       const p = player.object.position;
       return centro.set(p.x, player.feetY + player.height * 0.62, p.z);
     },
+
+    /** Pra onde ele está virado. A facada pelas costas precisa saber. */
+    get yaw() {
+      player.object.getWorldDirection(olhar);
+      return Math.atan2(-olhar.x, -olhar.z);
+    },
+
+    /**
+     * O jogador tem as MESMAS regiões que o bot.
+     *
+     * Sem isso, o bot levaria um tiro na cabeça e o jogador não — e a
+     * assimetria estaria escondida no código, que é o pior lugar pra ela.
+     */
+    body(saida) {
+      const p = player.object.position;
+      return corpoDe(p.x, player.feetY, p.z, player.height, saida);
+    },
     // A lista de alvos do mundo chama update em todo mundo. O jogador se
     // atualiza sozinho no laço; aqui é só pra ele caber na lista.
     update() {},
 
-    damage(amount) {
-      const morreu = player.damage(amount);
+    damage(amount, regiao = null) {
+      const dano = amount * (regiao?.multiplicador ?? 1);
+      const morreu = player.damage(dano);
       if (morreu) onDeath?.();
-      return { target: this, amount, killed: Boolean(morreu) };
+      return { target: this, amount: dano, killed: Boolean(morreu), regiao };
     }
   };
 }

@@ -19,6 +19,7 @@ import { initCompass } from './ui/compass.js';
 import { initCrosshair } from './ui/crosshair.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
+import { initKillFeed } from './ui/killfeed.js';
 import { initWatchdog } from './ui/watchdog.js';
 import { initSnapshot } from './ui/snapshot.js';
 import { createCapture } from './game/capture.js';
@@ -69,7 +70,9 @@ function boot(modo = 'batalha') {
   const attack = initAttack(player, world);
   const ballistics = createBallistics(scene, world.colliders, {
     // tiro no chão marca o terreno; quanto afunda sai da arma
-    onTerrainImpact: (x, z, fundo) => world.reshape(x, z, -fundo)
+    onTerrainImpact: (x, z, fundo) => world.reshape(x, z, -fundo),
+    // e tiro no mato derruba o mato, sem parar a bala
+    onFoliage: (de, para) => world.bushes?.slash(de, para)
   });
   const firearm = initFirearm(player, world, ballistics, viewmodel);
   const digging = initDigging(player, world);
@@ -139,6 +142,24 @@ function boot(modo = 'batalha') {
   // P grava a tela com o estado escrito nela, pra virar contexto de relato.
   const snapshot = initSnapshot(renderer, player, { world, bots, capture });
 
+  // Kill feed: quem matou quem, e como. Ele escuta a balística e o corpo a
+  // corpo, que são os dois lugares onde alguém morre.
+  const killfeed = initKillFeed(player);
+  ballistics.onHit((r) => {
+    if (!r.killed) return;
+    killfeed.register({
+      matador: r.owner, vitima: r.target, regiao: r.regiao,
+      arma: r.owner?.weapon?.name ?? player.equipped?.name ?? null
+    });
+  });
+  attack.onHit((r) => {
+    if (!r.killed) return;
+    killfeed.register({
+      matador: alvoDoJogador, vitima: r.target,
+      costas: r.costas, arma: player.equipped?.name ?? null
+    });
+  });
+
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
@@ -154,6 +175,7 @@ function boot(modo = 'batalha') {
     updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops),
     updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics),
+    killfeed,
     // Caixas de colisão e o que cada bot está pensando. Quem manda no
     // interruptor é o painel: uma tecla acende tudo junto.
     debugView,
@@ -215,7 +237,7 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
-    watchdog, capture, bots, snapshot
+    watchdog, capture, bots, snapshot, killfeed
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -239,6 +261,7 @@ function frame() {
   }
   ballistics.update(delta, world.targets, world.terrain);
   world.settling.update(delta);
+  world.bushes?.update(delta);
 
   // Bandeira só anda com alguém trabalhando nela, e espectador não trabalha.
   if (!player.spectating) {
@@ -280,6 +303,7 @@ function frame() {
   game.updateCrosshair();
   game.updatePrompt();
   game.updateHitmarker(delta);
+  killfeed.update(delta);
   game.updateObjective();
   game.updateFlagPrompt();
   watchdog.update();

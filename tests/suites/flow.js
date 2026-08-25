@@ -33,7 +33,19 @@ function mountScreens() {
   return holder;
 }
 
-const terreno = { heightAt: () => 4, waterDepthAt: () => 0 };
+/**
+ * Terreno de mentira, com o contrato INTEIRO.
+ *
+ * `declividadeAt` entrou quando o chão passou a ser classificado por
+ * inclinação, e sem ele o mapa tático estourava na montagem — a tela ficava
+ * na abertura e sete asserções caíam longe da causa. Falso incompleto
+ * quebra onde ninguém procura.
+ */
+const terreno = {
+  heightAt: () => 4,
+  waterDepthAt: () => 0,
+  declividadeAt: () => 0
+};
 
 export function run() {
   const holder = mountScreens();
