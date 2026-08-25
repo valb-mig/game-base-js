@@ -517,3 +517,20 @@ body.aiming #crosshair {
   height: 100%;
   width: 0;
 }
+
+/* --------------------------------------------------------- aviso de dano */
+
+/* Vinheta vermelha nas bordas. Nas bordas de propósito: no centro ela taparia
+   justamente o que o jogador precisa ver pra revidar. */
+#hurt {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(150, 20, 14, 0) 42%,
+    rgba(150, 20, 14, 0.5) 100%
+  );
+}

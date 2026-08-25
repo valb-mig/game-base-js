@@ -69,6 +69,7 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
       damage: firearm.damage,
       range: firearm.range,
       dig: firearm.dig ?? 0,   // quanto esta arma marca o chão onde a bala cair
+      owner: player.asTarget ?? null,   // pra não se acertar olhando pra baixo
       tracer: rounds % BULLET.TRACER_EVERY === 0
     });
 

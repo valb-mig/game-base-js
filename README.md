@@ -71,6 +71,11 @@ você colar nele), procura cobertura quando leva tiro, e captura bandeira como
 você. Se você atirar nele pelo flanco, ele para de içar e varre o horizonte
 sem saber de onde veio — quem atirou primeiro leva vantagem.
 
+A bala dele machuca de verdade — mesma balística da sua, então ela viaja, cai
+e para numa parede. Uma vinheta vermelha nas bordas avisa que você está
+levando tiro, porque entre o primeiro tiro doer e você morrer há pouco mais de
+um segundo. Morrer devolve pra tela de deploy.
+
 A mira dele é feita pra ser enfrentável: ele demora a reagir, vira a cabeça
 numa velocidade finita, e a pontaria nasce aberta e fecha sem nunca ficar
 perfeita. Medido a 25 metros: parado você morre em 2,6 segundos, andando de

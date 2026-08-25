@@ -87,7 +87,11 @@ export function initStatus(player) {
     shownSlot = -1;
   }
 
-  return function updateStatus() {
+  // Vinheta vermelha de dano: some sozinha, e não é número — o HUD continua
+  // não inventando informação que o jogo não tem.
+  const aviso = document.getElementById('hurt');
+
+  return function updateStatus(delta = 0) {
     const classDef = player.classDef;
     if (!classDef) return;
 
@@ -134,6 +138,11 @@ export function initStatus(player) {
       row.loaded.textContent = `${ammo.loaded}`;
       row.reserve.replaceChildren(reserveIcon.cloneNode(true), `${ammo.reserve}`);
       row.loaded.classList.toggle('empty', ammo.loaded === 0);
+    }
+
+    if (aviso) {
+      player.hurtFlash = Math.max(0, (player.hurtFlash ?? 0) - delta * 2.2);
+      aviso.style.opacity = `${player.hurtFlash.toFixed(2)}`;
     }
 
     const health = Math.round(player.health);

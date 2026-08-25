@@ -70,7 +70,11 @@ function boot() {
   // Um bot, por enquanto. Toda a mecânica dele já é a de muitos: o gerente
   // atualiza uma lista, e a lista tem um.
   const bots = createBots(scene, world, { ballistics, capture });
+  // O jogador como alvo: é isto que faz a bala de bot machucar de verdade,
+  // pela mesma balística de todo mundo. Ele fica no `player` porque quem
+  // atira precisa dele pra não se acertar mirando pro chão.
   const alvoDoJogador = playerAsTarget(player, () => flow.playerDied());
+  player.asTarget = alvoDoJogador;
 
   const inimigo = enemyOf(player.team);
   const postoInimigo = world.outposts.find(
@@ -80,8 +84,10 @@ function boot() {
   });
   bots.setTargets([alvoDoJogador, bot]);
 
-  // Ele é alvo da bala do jogador pelo mesmo caminho dos bonecos de treino.
-  world.targets.push(bot);
+  // Os dois entram na MESMA lista de alvos: bala não distingue quem atirou,
+  // só quem está no caminho. Quem não pode acertar quem é decidido por
+  // `owner` (si mesmo) e por time (a faca).
+  world.targets.push(bot, alvoDoJogador);
 
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
@@ -191,7 +197,7 @@ function frame() {
   applyUnderwater(scene, player.headUnderwater);
 
   game.updateDebug(delta);
-  game.updateStatus();
+  game.updateStatus(delta);
   game.updateCompass();
   game.updatePrompt();
   game.updateHitmarker(delta);

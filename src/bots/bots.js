@@ -48,6 +48,10 @@ export function playerAsTarget(player, onDeath) {
       const p = player.object.position;
       return centro.set(p.x, player.feetY + player.height * 0.62, p.z);
     },
+    // A lista de alvos do mundo chama update em todo mundo. O jogador se
+    // atualiza sozinho no laço; aqui é só pra ele caber na lista.
+    update() {},
+
     damage(amount) {
       const morreu = player.damage(amount);
       if (morreu) onDeath?.();
@@ -82,6 +86,7 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
     if (bot.cooldown > 0) return;
     if (!aim.canFire(desvioDoCano)) return;
     if (arma.ammo && arma.ammo.loaded <= 0) return;
+    if (bot.reloading > 0) return;
 
     bot.eye(olho);
     direcao.copy(alvo.center()).sub(olho).normalize();
@@ -100,12 +105,40 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
       range: arma.firearm.range,
       dig: arma.firearm.dig ?? 0,
       tracer: true,   // o traçante do bot é aviso: dá pra saber de onde vem
-      shooter: bot.collider   // a bala nasce dentro da caixa dele
+      shooter: bot.collider,  // a bala nasce dentro da caixa dele
+      owner: bot              // e a esfera de acerto dele é logo abaixo
     });
 
     if (arma.ammo) arma.ammo.loaded--;
     bot.cooldown = arma.firearm.fireInterval;
     aim.shot();
+  }
+
+  /**
+   * Recarga do bot, correndo em qualquer estado.
+   *
+   * Fora daqui ela só andaria em combate, e o bot que se escondeu pra
+   * recarregar ficaria escondido pra sempre — foi exatamente o que aconteceu:
+   * ele gastava o carregador em cinco segundos e passava o resto da partida
+   * agachado atrás de uma caixa.
+   */
+  function recarregar(bot, delta) {
+    if (bot.reloading > 0) {
+      bot.reloading -= delta;
+      if (bot.reloading > 0) return;
+      const arma = bot.weapon;
+      if (arma?.ammo) {
+        const quer = Math.min(arma.firearm.magazine - arma.ammo.loaded, arma.ammo.reserve);
+        arma.ammo.loaded += quer;
+        arma.ammo.reserve -= quer;
+      }
+      return;
+    }
+
+    const arma = bot.weapon;
+    if (!arma?.firearm || !arma.ammo) return;
+    if (arma.ammo.loaded > 0 || arma.ammo.reserve <= 0) return;
+    bot.reloading = arma.firearm.reloadTime ?? 2.4;
   }
 
   /** O bot trabalha na bandeira, pelo mesmo caminho do jogador. */
@@ -129,6 +162,7 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
       });
       bot.cooldown = 0;
       bot.delta = 0;
+      bot.reloading = 0;
       soldiers.push(bot);
       brains.set(bot, createBrain(bot, world, rng));
       return bot;
@@ -143,6 +177,8 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
           bot.update(delta);
           continue;
         }
+
+        recarregar(bot, delta);
 
         const inimigo = enemyOf(bot.team);
         const inimigos = alvos.filter((a) => a.team === inimigo);

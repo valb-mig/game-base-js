@@ -106,6 +106,10 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
 
     for (const target of targets) {
       if (!target.alive) continue;
+      // Ninguém atira em si mesmo. A bala nasce na altura do OLHO e a esfera
+      // de acerto está no peito: agachado, os dois ficam a 30 cm um do outro,
+      // e sem isto o bot se mata no primeiro tiro.
+      if (target === bullet.owner) continue;
       const t = sphereHit(from, segment, target.center(), target.radius);
       if (t === null) continue;
       if (closest !== null && t > closest) continue;
@@ -180,7 +184,7 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
 
     /** Dispara uma bala. `tracer` decide se ela deixa risco. */
     spawn(origin, direction, {
-      damage, range, tracer = false, dig = 0, shooter = null
+      damage, range, tracer = false, dig = 0, shooter = null, owner = null
     }) {
       const bullet = {
         position: origin.clone(),
@@ -189,6 +193,7 @@ export function createBallistics(scene, colliders, { onTerrainImpact = null } = 
         range,
         dig,
         shooter,
+        owner,
         travelled: 0,
         life: BULLET.LIFE,
         spent: false,

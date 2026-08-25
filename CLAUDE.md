@@ -144,6 +144,12 @@ e a câmera passava 100 quadros seguidos atrasada.
 alguns centímetros todo frame; o limiar antigo de 1 cm deixava a câmera
 permanentemente atrasada em qualquer ladeira. Hoje é `STEP_VIEW_MIN`.
 
+**Levar tiro tem que ser visto antes de matar.** Medido: a 16 m, o primeiro
+tiro dói em 1,6 s e a morte vem em 2,9 s — sobra pouco mais de um segundo, e
+a barra de vida no canto não ganha esse olhar no meio de um tiroteio. A
+vinheta vermelha fica nas BORDAS de propósito: no centro taparia justamente o
+que ele precisa ver pra revidar.
+
 **O HUD não inventa número.** Munição e objetivo não existem como sistema, e
 por isso não aparecem: o canto do item mostra o rótulo do slot quando o item
 não tem munição. Se aparecer contador, é porque o dado existe.
@@ -321,6 +327,27 @@ respiro entre elas é a janela de avanço do jogador.
 morre em 2,6 s, andando de lado em 7,5 s, com o primeiro tiro doendo depois de
 1,2 s. Há teste que roda o duelo inteiro e trava essa faixa — apertar a mira
 sem querer quebra a suíte antes de matar alguém sem explicação.
+
+**Ninguém acerta a si mesmo, e isso é `owner`, não sorte.** A bala nasce na
+altura do OLHO e a esfera de acerto fica no peito: em pé sobram 53 cm, que é
+mais que o raio de 50 — passava raspando. Agachado sobram 30, e o bot se
+matava no primeiro tiro. `ballistics.spawn` recebe `owner` e pula esse alvo.
+Há teste que dispara SEM declarar o dono só pra provar que a proteção é a
+linha, e não a geometria.
+
+**O jogador só toma dano se estiver na lista de alvos da BALÍSTICA.** Estar na
+lista que o bot enxerga faz ele te mirar e atirar; a bala continua
+atravessando. Medido antes de corrigir: doze segundos de tiroteio a 16 m,
+cem de vida intactos. São duas listas com nomes parecidos e propósitos
+diferentes.
+
+**Faca não acerta o próprio time.** Assim que o jogador entrou na lista de
+alvos, o primeiro golpe acertava ele mesmo — que está a distância zero de si.
+
+**Bot sem recarga é bot de um carregador.** Ele gastava os 32 tiros em cinco
+segundos, entrava em cobertura por falta de munição e ficava agachado o resto
+da partida. A recarga corre no `bots.update`, fora do estado: dentro do
+combate, quem se escondeu pra recarregar nunca recarregaria.
 
 **A bala de quem atira não pode morrer no colisor dele.** Quinta vez que este
 invariante aparece nesta base, e a primeira em que a vítima não é o alvo: a
@@ -585,9 +612,13 @@ ou seja dois minutos de posto com um soldado só. Posto é o spawn do time, e
 uma bandeira mexida já basta pra tirar o spawn de quem era. Vence quem dominar
 os doze.
 
+O jogador toma dano de verdade: a bala do bot é testada contra ele pela mesma
+balística de todo mundo, e morrer devolve pro deploy. Vinheta vermelha nas
+bordas avisa. Medido a 16 m, parado e sem revidar: dói em 1,6 s, morre em
+2,9 s.
+
 Existe UM bot inimigo, e ele é a mecânica inteira: avança pro posto mais
 perto, engaja quem vê pela frente, troca de arma quando o carregador acaba ou
 quando o inimigo cola, procura cobertura sob fogo, captura bandeira e larga
-tudo pra brigar. Faltam os outros dezenove. Também não existe dano ao jogador que não seja a tecla de teste,
-nem captura de base (as bases são sempre do dono). Só a Assault é jogável; as
+tudo pra brigar. Faltam os outros dezenove. Não existe captura de base: elas são sempre do dono. Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.

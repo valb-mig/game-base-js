@@ -66,6 +66,10 @@ export function initAttack(player, world) {
 
     for (const target of world.targets ?? []) {
       if (!target.alive) continue;
+      // Ninguém esfaqueia o próprio time, e o jogador está nesta lista desde
+      // que a bala de bot passou a poder acertá-lo: sem isto, o primeiro
+      // golpe de faca acertava ele mesmo, que está a distância zero.
+      if (target.team && target.team === player.team) continue;
 
       const center = target.center();
       const dx = center.x - origin.x;

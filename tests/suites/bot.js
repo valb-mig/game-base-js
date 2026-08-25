@@ -3,6 +3,10 @@ import { AIM, aimError, turnToward, angleGap, createAim } from '../../src/bots/a
 import { createSoldier, SOLDIER } from '../../src/bots/soldier.js';
 import { createBrain, BRAIN } from '../../src/bots/brain.js';
 import { createBallistics } from '../../src/items/ballistics.js';
+import { createBots, playerAsTarget } from '../../src/bots/bots.js';
+import { createCapture } from '../../src/game/capture.js';
+import { Player } from '../../src/player/player.js';
+import { getClass } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -295,6 +299,36 @@ export function run() {
   });
   eq('com inimigo à vista, ele larga a bandeira', cerebro7.state, 'combate');
 
+  suite('ninguém acerta a si mesmo');
+
+  // A bala nasce na altura do OLHO e a esfera de acerto está no peito.
+  // Agachado, os dois ficam a 30 cm um do outro — sem pular o próprio dono,
+  // o bot se matava no primeiro tiro que desse.
+  const cenaS = new THREE.Scene();
+  const colisoresS = [];
+  const balisticaS = createBallistics(cenaS, colisoresS);
+  const suicida = soldado(cenaS, colisoresS, 'karnia', 0, 0);
+  suicida.crouching = true;
+  suicida.update(DT);
+
+  const olhoS = new THREE.Vector3();
+  suicida.eye(olhoS);
+  balisticaS.spawn(olhoS, new THREE.Vector3(0, 0, -1), {
+    damage: 24, range: 95, shooter: suicida.collider, owner: suicida
+  });
+  for (let i = 0; i < 20; i++) balisticaS.update(DT, [suicida], null);
+  eq('agachado, o próprio tiro não o acerta', suicida.health, SOLDIER.VIDA);
+
+  // E sem o dono declarado, ele se acerta — é a prova de que a proteção é
+  // esta linha, e não sorte de geometria.
+  suicida.eye(olhoS);
+  balisticaS.spawn(olhoS, new THREE.Vector3(0, 0, -1), {
+    damage: 24, range: 95, shooter: suicida.collider
+  });
+  for (let i = 0; i < 20; i++) balisticaS.update(DT, [suicida], null);
+  ok('sem declarar o dono, ele se acertaria', suicida.health < SOLDIER.VIDA,
+    `${suicida.health} de ${SOLDIER.VIDA}`);
+
   suite('duelo: quanto tempo você tem');
 
   // Este é o teste que impede o bot de virar aimbot por descuido de ajuste.
@@ -396,6 +430,84 @@ export function run() {
   note('duelo a 25 m',
     `parado morre em ${media(mortesParado).toFixed(1)}s, andando ` +
     (mortesAndando.length ? `${media(mortesAndando).toFixed(1)}s` : 'sobrevive'));
+
+  suite('o bot machuca o jogador de verdade');
+
+  // O pedido inteiro: bot mirando em você não vale nada se a bala atravessa.
+  // Este caso monta a fiação do jogo — jogador, balística, bots — e confere
+  // que a vida cai. Ele existe porque a primeira versão fazia o bot te VER e
+  // ATIRAR, mas o alvo do jogador nunca entrava na lista da balística: doze
+  // segundos de tiroteio e cem de vida intactos.
+  const cenaJ = new THREE.Scene();
+  const colisoresJ = [];
+  const relevoJ = { heightAt: () => 0, waterDepthAt: () => 0 };
+  const camaraJ = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
+
+  const jogador = new Player(camaraJ, document.body, {
+    colliders: colisoresJ, terrain: relevoJ, spawn: new THREE.Vector3(0, 0, 0)
+  });
+  jogador.setClass(getClass('assault'));
+  jogador.respawn();
+
+  const postoJ = {
+    id: 'p', name: 'P', x: 200, z: 0,
+    flags: [{ x: 200, z: 0, y: 1.2, base: 0, owner: 'vestria', byTeam: null, phase: 'parada', progress: 0 }]
+  };
+  const mundoJ = { colliders: colisoresJ, terrain: relevoJ, outposts: [postoJ] };
+  const balisticaJ = createBallistics(cenaJ, colisoresJ);
+  const tropa = createBots(cenaJ, mundoJ, {
+    ballistics: balisticaJ, capture: createCapture([postoJ]), rng: dado(21)
+  });
+
+  let morreu = 0;
+  const euComoAlvo = playerAsTarget(jogador, () => { morreu++; });
+  jogador.asTarget = euComoAlvo;
+
+  const atirador = tropa.spawn({ id: 1, team: 'karnia', x: 0, z: -16 });
+  atirador.yaw = 0;
+  tropa.setTargets([euComoAlvo, atirador]);
+  const alvosDeBala = [atirador, euComoAlvo];
+
+  eq('o jogador começa inteiro', jogador.health, jogador.maxHealth);
+
+  let primeiraDor = null;
+  let morteEm = null;
+  let vidaAntes = jogador.health;
+  let tempo = 0;
+  for (let i = 0; i < 60 * 14 && jogador.health > 0; i++) {
+    tempo += DT;
+    tropa.update(DT);
+    balisticaJ.update(DT, alvosDeBala, null);
+    if (jogador.health < vidaAntes) {
+      if (primeiraDor === null) primeiraDor = tempo;
+      vidaAntes = jogador.health;
+    }
+    if (morteEm === null && jogador.health <= 0) morteEm = tempo;
+  }
+
+  ok('a bala do bot machuca', jogador.health < jogador.maxHealth,
+    `${jogador.health} de ${jogador.maxHealth}`);
+  between('e o primeiro tiro dói só depois de ele reagir e mirar',
+    primeiraDor ?? 99, 0.5, 6, `${(primeiraDor ?? 0).toFixed(2)}s`);
+  ok('parado a 16 m sem revidar, o jogador morre', morteEm !== null,
+    morteEm ? `${morteEm.toFixed(2)}s` : 'sobreviveu');
+  eq('e a morte é avisada uma vez', morreu, 1);
+  ok('o aviso de dano na tela acende', (jogador.hurtFlash ?? 0) > 0);
+  note('bot contra jogador parado a 16 m',
+    `dói em ${(primeiraDor ?? 0).toFixed(2)}s, morre em ${(morteEm ?? 0).toFixed(2)}s`);
+
+  // O bot não pode se machucar sozinho no meio disso.
+  eq('e o bot sai ileso do próprio tiroteio', atirador.health, SOLDIER.VIDA);
+
+  suite('o bot recarrega');
+
+  // Sem isto ele gastava o carregador em cinco segundos e passava o resto da
+  // partida agachado atrás de uma caixa, sem munição e sem recarregar.
+  const gastou = atirador.weapons[0].ammo;
+  ok('ele gastou munição no tiroteio', gastou.reserve < 96 || gastou.loaded < 32,
+    `${gastou.loaded} no carregador, ${gastou.reserve} de reserva`);
+  ok('mas continua com bala pra atirar', gastou.loaded > 0 || gastou.reserve > 0,
+    'não ficou seco');
 
   suite('tiro pelas costas tira ele da bandeira');
 

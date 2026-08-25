@@ -101,6 +101,7 @@ export class Player {
     this.stats = { ...PLAYER, ...classDef.movement };
     this.maxHealth = classDef.health;
     this.health = classDef.health;
+    this.hurtFlash = 0;
     this.carried = this.carriedOf(classDef);
     this.slot = this.firstSlot();
     this.equipped = this.carried[this.slot] ?? null;
@@ -255,6 +256,13 @@ export class Player {
     if (!this.alive || this.spectating) return false;
 
     this.health = Math.max(0, this.health - amount);
+
+    // Quanto o aviso de dano na tela deve piscar. Levar tiro tem que ser
+    // percebido ANTES de morrer: medido, sobra meio segundo entre o primeiro
+    // tiro que dói e o último, e a barra de vida no canto não ganha esse
+    // olhar no meio de um tiroteio.
+    this.hurtFlash = 1;
+
     if (this.health > 0) return false;
 
     this.alive = false;
