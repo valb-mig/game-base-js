@@ -36,6 +36,26 @@ export const HAND_POSES = {
     reloadIn: { position: [0.112, -0.14, -0.36], rotation: [0.2, -0.34, 0.44] }
   },
 
+  mp40: {
+    // Arma longa, e isso muda tudo em relação à pistola. Ela fica mais
+    // afastada do olho: o modelo tem 616 mm e a origem no meio da caixa, então
+    // pose de pistola deixava o tubo da culatra dentro da câmera.
+    //
+    // E os ÂNGULOS da corrida são bem menores que os da pistola, porque num
+    // cano de 61 cm o ângulo é alavanca: os 0,45 rad de caimento da pistola
+    // baixam a boca dela 7 cm e baixariam a desta 18, jogando a ponta pra
+    // fora da borda de baixo. Medido projetando a boca na tela do viewmodel,
+    // que tem 42° e só ±11 cm de altura a 30 cm do olho.
+    rest: { position: [0.135, -0.125, -0.29], rotation: [0.045, -0.12, 0.05] },
+    sprint: { position: [0.16, -0.15, -0.3], rotation: [-0.12, 0.3, 0.36] },
+    // Mira de ferro: translação pura, altura tirada da linha de mira do
+    // modelo. Mais recuada que a pistola porque a alça fica sobre a caixa.
+    ads: { position: [0, -0.031, -0.44], rotation: [0, 0, 0] },
+    // Recarga: inclina o poço pra dentro, que é onde a outra mão troca o
+    // carregador. O de 32 é longo, então ela desce mais que a da pistola.
+    reloadOut: { position: [0.17, -0.3, -0.3], rotation: [0.3, -0.42, 0.5] },
+    reloadIn: { position: [0.155, -0.23, -0.31], rotation: [0.18, -0.3, 0.36] }
+  },
 
   m1943: {
     // cabo já aponta pra frente; a pá fica baixa e cruzada, como quem carrega

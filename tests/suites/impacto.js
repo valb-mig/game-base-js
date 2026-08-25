@@ -6,7 +6,7 @@ import { createBallistics } from '../../src/items/ballistics.js';
 import { createDeform, DEFORM } from '../../src/world/deform.js';
 import { turnedSoil } from '../../src/world/heightfield.js';
 import {
-  TERRAIN_BITE, PISTOL, THOMPSON, KNIFE, SHOVEL, getClass
+  TERRAIN_BITE, PISTOL, MP40, KNIFE, SHOVEL, getClass
 } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
@@ -58,7 +58,7 @@ export function run() {
   eq('e o corpo a corpo não cava nada', TERRAIN_BITE.MELEE, 0);
 
   eq('a pazada da pá usa a mesma escala', DEFORM.FUNDO, TERRAIN_BITE.SHOVEL);
-  eq('a Thompson é a primária', THOMPSON.firearm.dig, TERRAIN_BITE.PRIMARY);
+  eq('a MP40 é a primária', MP40.firearm.dig, TERRAIN_BITE.PRIMARY);
   eq('a Colt é a secundária', PISTOL.firearm.dig, TERRAIN_BITE.SECONDARY);
   eq('a faca não tem mordida de terreno', KNIFE.melee.dig ?? 0, 0);
   eq('e nem é arma de fogo', KNIFE.firearm ?? null, null);
@@ -90,17 +90,33 @@ export function run() {
   };
 
   const arma = initFirearm(jogador, { targets: [] }, espiao);
+
+  const dispararCom = (id) => {
+    disparadas.length = 0;
+    jogador.selectSlot(jogador.carried.findIndex((item) => item?.id === id));
+    jogador.equipped.ammo.loaded = jogador.equipped.firearm.magazine;
+    jogador.gun.cooldown = 0;
+    jogador.gun.reloading = 0;
+    dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+    dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    arma.update(DT);
+    endFrame();
+    return disparadas[0];
+  };
+
+  const daMao = dispararCom('m1911');
   eq('a pistola está na mão', jogador.equipped?.name, PISTOL.name);
-
-  dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
-  dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
-  arma.update(DT);
-  endFrame();
-
   eq('um clique dispara uma bala', disparadas.length, 1);
-  eq('e a bala leva a mordida da arma que a disparou',
-    disparadas[0]?.dig, PISTOL.firearm.dig);
-  ok('não zero', disparadas[0]?.dig > 0, `${disparadas[0]?.dig}`);
+  eq('e a bala leva a mordida da arma que a disparou', daMao?.dig, PISTOL.firearm.dig);
+  ok('não zero', daMao?.dig > 0, `${daMao?.dig}`);
+
+  // A escala não vale só nos números do catálogo: ela tem que chegar na bala
+  // trocando de arma na mão, que é como o jogador a percebe.
+  const daPrimaria = dispararCom('mp40');
+  eq('trocando pra primária, a bala leva a mordida dela',
+    daPrimaria?.dig, MP40.firearm.dig);
+  ok('e a primária marca mais que a secundária',
+    daPrimaria.dig > daMao.dig, `${daPrimaria.dig} > ${daMao.dig}`);
 
   suite('tiro no chão marca o terreno');
 
@@ -119,14 +135,14 @@ export function run() {
   c.tiro(-40, -40, PISTOL.firearm.dig);
   const daColt = -c.terrain.heightAt(-40, -40);
 
-  c.tiro(40, 40, THOMPSON.firearm.dig);
-  const daThompson = -c.terrain.heightAt(40, 40);
+  c.tiro(40, 40, MP40.firearm.dig);
+  const daMP40 = -c.terrain.heightAt(40, 40);
 
   ok('um tiro de primária cava mais fundo que um de secundária',
-    daThompson > daColt, `${daThompson.toFixed(3)} contra ${daColt.toFixed(3)}`);
+    daMP40 > daColt, `${daMP40.toFixed(3)} contra ${daColt.toFixed(3)}`);
   near('e na mesma proporção dos números',
-    daThompson / daColt, TERRAIN_BITE.PRIMARY / TERRAIN_BITE.SECONDARY, 0.02);
-  note('um tiro', `Colt ${(daColt * 100).toFixed(1)} cm · Thompson ${(daThompson * 100).toFixed(1)} cm`);
+    daMP40 / daColt, TERRAIN_BITE.PRIMARY / TERRAIN_BITE.SECONDARY, 0.02);
+  note('um tiro', `Colt ${(daColt * 100).toFixed(1)} cm · MP40 ${(daMP40 * 100).toFixed(1)} cm`);
 
   suite('bala sem mordida não marca');
 

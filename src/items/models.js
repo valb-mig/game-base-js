@@ -1,5 +1,6 @@
 import { createKnife } from './knife.js';
 import { createPistol } from './pistol.js';
+import { createMP40 } from './mp40.js';
 import { createShovel } from './shovel.js';
 
 /**
@@ -12,6 +13,7 @@ import { createShovel } from './shovel.js';
 export const FACTORIES = {
   kabar: createKnife,
   m1911: createPistol,
+  mp40: createMP40,
   m1943: createShovel
 };
 
@@ -32,6 +34,7 @@ export function createItemModel(item) {
 export function restingRotation(item) {
   if (item?.id === 'kabar') return { x: Math.PI / 2, z: 0 };
   if (item?.id === 'm1911') return { x: 0, z: Math.PI / 2 };   // deita de lado
+  if (item?.id === 'mp40') return { x: 0, z: Math.PI / 2 };    // idem, sobre o carregador
   if (item?.id === 'm1943') return { x: 0, z: 0 };             // já deita reta
   return { x: 0, z: 0 };
 }

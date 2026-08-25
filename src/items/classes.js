@@ -101,28 +101,31 @@ export const SHOVEL = {
 };
 
 /**
- * Submetralhadora da Assault. Ainda não tem modelo, então não é empunhável —
- * mas os números existem, e é deles que sai a regra de que a primária marca
- * o terreno mais do que a secundária.
+ * MP40, a submetralhadora alemã de 9 mm. Primária da Assault.
+ *
+ * Automática de verdade: 500 tiros por minuto, que é cadência baixa pro tipo
+ * e foi justamente o que deu fama de controlável a ela. Segurar o gatilho
+ * dispara; as outras armas do jogo continuam sendo um tiro por clique.
  */
-export const THOMPSON = {
-  id: 'thompson',
+export const MP40 = {
+  id: 'mp40',
   slot: 'Primária',
-  name: 'Thompson M1A1',
-  note: '.45 ACP, devastadora de perto',
+  name: 'MP40',
+  note: '9×19mm, automática, 32 tiros',
   firearm: {
-    damage: 26,
-    range: 90,
-    magazine: 30,
-    reloadTime: 2.6,
-    fireInterval: 0.09,
-    hipSpread: 3.4,
-    adsSpread: 0.9,
+    damage: 24,
+    range: 95,
+    magazine: 32,
+    reloadTime: 2.4,
+    auto: true,
+    fireInterval: 0.12,   // 500 tiros por minuto
+    hipSpread: 3.0,
+    adsSpread: 0.62,
     adsTime: 0.2,
-    recoil: 1.1,
+    recoil: 1.05,         // recuo contido: é a fama da arma
     dig: TERRAIN_BITE.PRIMARY
   },
-  ammo: { loaded: 30, reserve: 90 }
+  ammo: { loaded: 32, reserve: 96 }
 };
 
 export const CLASSES = [
@@ -139,7 +142,7 @@ export const CLASSES = [
     health: 100,
     movement: {},
     loadout: [
-      THOMPSON,
+      MP40,
       PISTOL,
       { slot: 'Gadget 1', name: 'Granada Mk 2', note: 'Fragmentação, 4 a 5 segundos' },
       { slot: 'Gadget 2', name: 'Bolsa de curativos', note: 'Estanca sangramento em campo' },

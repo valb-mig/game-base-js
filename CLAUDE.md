@@ -42,7 +42,7 @@ src/
            base.js  base militar · course.js  campo de treino
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
-           knife.js  pistol.js    modelos
+           knife.js  pistol.js  mp40.js  shovel.js   modelos
            attack.js  firearm.js  ballistics.js  digging.js
            muzzle.js  de onde a bala sai e pra onde ela vai
            poses.js  como cada item é segurado
@@ -191,6 +191,21 @@ translação pura, sem rotação pra "acertar" o alinhamento — girar a arma pr
 encaixar a mira é o que deixa mira de ferro torta. `SIGHT_HEIGHT` é exportado
 pelo modelo justamente pra que o viewmodel não adivinhe a altura da linha.
 
+**Automática é da ficha da arma, não do sistema.** `firearm.auto` decide
+entre segurar o gatilho e um tiro por clique. O clique é consumido nos dois
+casos — sobrando no buffer ele dispararia sozinho num quadro seguinte — e na
+automática ele ainda vale, pra que um toque rápido no fim do respiro não se
+perca.
+
+**`ammo` é objeto de módulo, compartilhado entre as suítes.** Uma rajada de
+teste esvaziou o carregador da MP40 e quebrou três suítes seguintes, que nem
+falavam de munição. Quem gasta munição num teste devolve como encontrou — e o
+mesmo vale pro boneco de treino, que uma rajada derruba.
+
+**`setClass` põe a PRIMÁRIA na mão.** Enquanto a primária não existia, ela
+punha a pistola, e vários testes passaram a depender disso sem dizer. Teste
+que fala de uma arma específica escolhe o slot dela.
+
 **A distância da arma na mira não é escolha estética.** Perto demais, o
 ferrolho fica mais largo na tela que o alvo e tapa exatamente o que se quer
 acertar. A 0,5 m ele ocupa ~6% da largura, contra ~5,4% de um boneco a 9 m.
@@ -199,6 +214,19 @@ acertar. A 0,5 m ele ocupa ~6% da largura, contra ~5,4% de um boneco a 9 m.
 acha o alvo primeiro e só então pergunta se há parede mais perto, ignorando o
 colisor dele. Antes disso o acerto dependia de a abertura do tiro escapar pela
 lateral da caixa — era sorte, e o teste falhava de forma intermitente.
+
+**Arma comprida não usa os ângulos de arma curta.** Num cano de 61 cm o
+ângulo é alavanca: os 0,45 rad de caimento da pose de corrida da pistola
+baixam a boca dela 7 cm e baixariam a da MP40 18, jogando a ponta pra fora da
+tela. A câmera do viewmodel tem 42°, ou seja ±11 cm de altura a 30 cm do olho
+— pouca margem. Projetar a boca com `Vector3.project` diz na hora se a pose
+cabe; adivinhar custou três tentativas.
+
+**Modelo de arma comprida tem a origem no punho.** Montada em volta do meio
+da caixa da culatra, a pose posicionava o MEIO da arma: a culatra caía atrás
+do olho e o que aparecia era um cano solto, sem nada atrás. Com a origem na
+mão, o número da pose quer dizer "onde está a mão", que é o que dá pra ajustar
+olhando.
 
 **Pose de mão é do item, não do viewmodel.** A faca é modelada com a lâmina
 no +X e precisa de um giro de 90°; a pistola nasce com o cano no -Z e o mesmo
@@ -467,10 +495,14 @@ voltar sem renascer. Morrer volta pro deploy. `K` mata o jogador, tecla de
 teste enquanto nada causa dano de verdade.
 
 Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
-treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
+treino no estande. MP40 no slot 1 da Assault: automática de verdade (500 tiros por minuto,
+segurar o gatilho despeja rajada), 32 no carregador e 96 de reserva, mira de
+ferro e recarga. É a primeira arma do jogo que dispara segurando — as outras
+continuam sendo um tiro por clique.
+
+Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
-direito. Cinto em três teclas — 1 primária (ainda vazia), 2 secundária,
-3 faca. A bala viaja e cai; um traçante a cada
+direito. Cinto em quatro teclas — 1 MP40, 2 Colt, 3 faca, 4 pá. A bala viaja e cai; um traçante a cada
 quatro tiros. Ela sai da boca do cano e segue o cano: andando a arma fica reta
 e atira reto, correndo com ela baixada o tiro sai 34° pra esquerda, e atirar
 cancela a pose de corrida.
@@ -481,8 +513,7 @@ de árvore, pedra ou construção derruba o que ficou sem chão.
 
 Tiro no chão também marca o terreno, na escala `TERRAIN_BITE`: a pá cava 90 cm
 por pazada, um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e a
-faca não mexe em nada. A Thompson ainda não tem modelo, então os números dela
-existem sem ser empunháveis.
+faca não mexe em nada.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

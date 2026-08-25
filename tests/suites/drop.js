@@ -311,14 +311,24 @@ export async function run() {
 
   eq('uma linha por item que existe, e nenhuma a mais',
     linhas().length, comCinto.carried.filter(Boolean).length);
-  ok('a primária não existe e não vira linha', comCinto.carried[0] === null);
-  eq('a tecla da pistola é a 2', tecla(0), '2');
-  eq('e a da faca é a 3', tecla(1), '3');
+  ok('a primária existe e vira a primeira linha', comCinto.carried[0]?.id === 'mp40');
+  eq('a tecla da primária é a 1', tecla(0), '1');
+  eq('a da pistola é a 2', tecla(1), '2');
+  eq('e a da faca é a 3', tecla(2), '3');
   ok('a linha do item na mão está marcada', linhas()[0].classList.contains('active'));
-  ok('a pistola mostra munição',
+  ok('arma de fogo mostra munição',
     linhas()[0].querySelector('.slot-ammo b').textContent !== '');
   eq('a faca não mostra número',
-    linhas()[1].querySelector('.slot-ammo b').textContent, '');
+    linhas()[2].querySelector('.slot-ammo b').textContent, '');
+
+  // A regra continua sendo "uma linha por item que existe", e não "uma por
+  // tecla": esvaziar um slot tem que tirar a linha dele.
+  comCinto.carried[0] = null;
+  atualizarHud();
+  eq('slot esvaziado perde a linha', linhas().length, 3);
+  eq('e a numeração continua sendo a do slot, não a da lista', tecla(0), '2');
+  comCinto.setClass(getClass('assault'));
+  atualizarHud();
 
   // Regressão: o sentinela do HUD era `null`, igual ao valor de mão vazia, e
   // o primeiro quadro sem item não desenhava nada.
@@ -335,7 +345,7 @@ export async function run() {
   eq('G de mão vazia não larga nada', drops.items.length, antes);
 
   player.respawn();
-  eq('renascer devolve o equipamento da classe', player.equipped?.id, 'm1911');
+  eq('renascer devolve o equipamento da classe', player.equipped?.id, 'mp40');
   ok('inclusive a faca', player.carried.includes(KNIFE));
   eq('mas o que caiu continua no chão', drops.items.length, antes);
 

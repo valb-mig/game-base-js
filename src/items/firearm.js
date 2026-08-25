@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { isMouseDown, consumeClick, consumePress, MOUSE_RIGHT } from '../core/input.js';
+import {
+  isMouseDown, consumeClick, consumePress, MOUSE_LEFT, MOUSE_RIGHT
+} from '../core/input.js';
 import { RELOAD_KEYS } from '../player/constants.js';
 import { BULLET } from '../config.js';
 import { muzzleShot, createShot, createMuzzle } from './muzzle.js';
@@ -139,8 +141,15 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
         return;
       }
 
-      // ação simples: um tiro por clique, sem automático
-      if (!consumeClick()) return;
+      // O clique é sempre consumido, mesmo quando não vira tiro: sobrando no
+      // buffer, ele dispararia sozinho num quadro seguinte.
+      const clicou = consumeClick();
+
+      // Automática segura o gatilho; semiautomática é um tiro por clique. O
+      // clique ainda vale na automática pra que um toque rápido no fim do
+      // respiro não se perca — é o mesmo buffer que o pulo tem.
+      const puxando = firearm.auto ? isMouseDown(MOUSE_LEFT) || clicou : clicou;
+      if (!puxando) return;
       if (state.cooldown > 0) return;
 
       if (item.ammo.loaded <= 0) {

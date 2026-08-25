@@ -148,7 +148,7 @@ export function run() {
   eq('e sai do modo fantasma', player.spectating, false);
   eq('vivo', player.alive, true);
   eq('com a vida cheia', player.health, player.maxHealth);
-  eq('e com o equipamento da classe', player.equipped?.id, PISTOL.id);
+  eq('e com o equipamento da classe', player.equipped?.id, 'mp40');
   ok('a faca vem no slot 3', player.carried[2] === KNIFE);
   near('assenta na altura do terreno', player.eyeY, 4 + PLAYER.HEIGHT, 0.01);
 

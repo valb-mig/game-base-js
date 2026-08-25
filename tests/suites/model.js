@@ -1,6 +1,18 @@
 import * as THREE from 'three';
+import { createMP40 } from '../../src/items/mp40.js';
 import { createKnife } from '../../src/items/knife.js';
-import { suite, ok, eq, between, note } from '../assert.js';
+import { suite, ok, eq, near, between, note } from '../assert.js';
+
+/** Triângulos de um modelo inteiro, somando as malhas. */
+function triangulos(model) {
+  let total = 0;
+  model.traverse((object) => {
+    const attribute = object.geometry?.attributes?.position;
+    if (!attribute) return;
+    total += object.geometry.index ? object.geometry.index.count / 3 : attribute.count / 3;
+  });
+  return total;
+}
 
 /**
  * Malha da faca. Um render sozinho não pega triângulo de área zero nem
@@ -62,6 +74,37 @@ export async function run() {
   const size = new THREE.Box3().setFromObject(knife).getSize(new THREE.Vector3());
   between('comprimento na medida da KA-BAR real', size.x * 100, 30, 33);
   note('dimensões', `${(size.x * 100).toFixed(1)} x ${(size.y * 100).toFixed(1)} x ${(size.z * 100).toFixed(1)} cm`);
+
+  suite('modelo da MP40');
+
+  const mp40 = createMP40();
+  const caixaMP40 = new THREE.Box3().setFromObject(mp40);
+  const tamanho = caixaMP40.getSize(new THREE.Vector3());
+
+  between('tem o comprimento da arma com a coronha dobrada',
+    tamanho.z, 0.58, 0.66, `${(tamanho.z * 1000).toFixed(0)} mm`);
+  between('e a altura do corpo com o carregador', tamanho.y, 0.24, 0.34,
+    `${(tamanho.y * 1000).toFixed(0)} mm`);
+  between('sem virar um modelo caro', triangulos(mp40), 200, 900,
+    `${triangulos(mp40)} triângulos`);
+
+  // O -Z é a frente: sem isso, mirar pelo ferro precisaria de rotação pra
+  // "acertar" o alinhamento, e é assim que mira de ferro fica torta.
+  const bocaMP40 = mp40.getObjectByName('boca');
+  ok('tem marcador de boca', Boolean(bocaMP40));
+  ok('e ele está na ponta da frente, no -Z',
+    bocaMP40.position.z < caixaMP40.min.z + 0.02,
+    `boca em ${bocaMP40.position.z.toFixed(3)}, ponta em ${caixaMP40.min.z.toFixed(3)}`);
+  near('e centrado no eixo do cano', bocaMP40.position.x, 0, 1e-9);
+
+  // Regressão de enquadramento: com a origem no meio da caixa, a pose punha
+  // o MEIO da arma na mão, a culatra caía atrás do olho e só o cano aparecia.
+  ok('a origem fica junto do punho, não no meio da arma',
+    caixaMP40.max.z < 0.06, `traseira em ${caixaMP40.max.z.toFixed(3)}`);
+
+  const claraoMP40 = mp40.getObjectByName('clarao');
+  ok('tem clarão de boca', Boolean(claraoMP40));
+  eq('apagado até o disparo', claraoMP40.visible, false);
 
   suite('item na mão nasce na guarda');
 

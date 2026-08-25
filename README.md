@@ -47,6 +47,11 @@ de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
 de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
 tiros marca o caminho.
 
+MP40 no slot 1 da Assault: 9×19mm, automática de 500 tiros por minuto, 32 no
+carregador. Segurar o gatilho despeja rajada — é a primeira arma do jogo que
+faz isso. Aço estampado, baquelite marrom no punho e no guarda-mão, carregador
+reto pendurado e a coronha tubular dobrada por baixo do corpo.
+
 Pá M1943 no slot 4, comum a todas as classes: o botão esquerdo cava e enche a
 pá, o direito despeja a terra. O terreno é escavável de verdade — trincheira e
 parapeito ficam gravados no relevo, e a colisão os enxerga. Cavar embaixo de

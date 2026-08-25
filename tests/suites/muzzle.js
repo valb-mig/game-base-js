@@ -5,7 +5,7 @@ import { initFirearm } from '../../src/items/firearm.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { muzzleShot, createShot, createMuzzle } from '../../src/items/muzzle.js';
 import { initInput, endFrame } from '../../src/core/input.js';
-import { getClass } from '../../src/items/classes.js';
+import { getClass, PISTOL } from '../../src/items/classes.js';
 import { BULLET } from '../../src/config.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
@@ -24,6 +24,9 @@ export function run() {
   });
   player.controls.isLocked = true;
   player.setClass(getClass('assault'));
+  // A geometria medida aqui é a da pistola, e `setClass` passou a entregar a
+  // primária na mão quando a MP40 entrou.
+  player.selectSlot(player.carried.indexOf(PISTOL));
 
   const viewmodel = new Viewmodel(camera, 1);
   viewmodel.setItem(player.equipped);
