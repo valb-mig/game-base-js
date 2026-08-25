@@ -9,8 +9,8 @@ import { createHeightfield, colorAt, turnedSoil } from './heightfield.js';
  */
 const SOIL = new THREE.Color(WORLD.SOIL_COLOR);
 
-export function createTerrain(flatZones = [], deform = null) {
-  const field = createHeightfield(flatZones, deform);
+export function createTerrain(flatZones = [], deform = null, perfil = 'sainte-mere') {
+  const field = createHeightfield(flatZones, deform, perfil);
 
   /** Pinta o vértice pela altura, escurecendo pra terra onde foi mexido. */
   function paint(color, x, z, altura) {

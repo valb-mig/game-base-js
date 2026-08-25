@@ -27,6 +27,7 @@ import { initObjective, initFlagPrompt } from './ui/objective.js';
 import { isDown } from './core/input.js';
 import { FLAG_KEYS } from './player/constants.js';
 import { createBots, playerAsTarget } from './bots/bots.js';
+import { buildTrainingWorld } from './world/training-world.js';
 import { enemyOf, postOwner } from './game/teams.js';
 
 /**
@@ -45,9 +46,16 @@ initInput();
 // Preenchido por boot(). Nada abaixo pode assumir que já existe.
 let game = null;
 
-/** Constrói mundo, jogador e sistemas, e liga o laço. Roda uma vez. */
-function boot() {
-  const world = buildWorld(scene);
+/**
+ * Constrói mundo, jogador e sistemas, e liga o laço. Roda uma vez.
+ *
+ * `modo` decide QUAL mundo: Sainte-Mère ou o campo de treinamento. São mapas
+ * diferentes de propósito — treinar mira tem que ser plano, medido e sem nada
+ * acontecendo em volta, e o mapa de combate é o contrário disso.
+ */
+function boot(modo = 'batalha') {
+  const treino = modo === 'treino';
+  const world = treino ? buildTrainingWorld(scene) : buildWorld(scene);
 
   const player = new Player(camera, renderer.domElement, world);
   scene.add(player.object);
@@ -79,6 +87,16 @@ function boot() {
   const alvoDoJogador = playerAsTarget(player, () => flow.playerDied());
   player.asTarget = alvoDoJogador;
 
+  // No treino não há times nem inimigo: só alvos parados.
+  if (treino) {
+    player.infiniteAmmo = true;
+    for (const arma of world.arsenal) {
+      const i = world.arsenal.indexOf(arma);
+      drops.place({ ...arma, ammo: arma.ammo ? { ...arma.ammo } : undefined },
+        world.spawn.x + 3 + i * 1.7, world.spawn.z + 2.5, Math.PI / 2);
+    }
+  }
+
   // Nove bots: cinco do lado de lá, quatro do lado de cá. O jogador é o
   // décimo do time dele, e é isso que faz os números fecharem em 5 × 5.
   const inimigo = enemyOf(player.team);
@@ -87,7 +105,7 @@ function boot() {
     { team: player.team, quantos: 4 }
   ];
 
-  for (const { team, quantos } of ESQUADRAS) {
+  for (const { team, quantos } of (treino ? [] : ESQUADRAS)) {
     // Nascem no posto do time mais perto da linha de frente, que é o de menor
     // distância ao centro da ilha: é lá que a briga começa.
     const frente = world.outposts
@@ -156,8 +174,17 @@ const flow = initFlow({
   // desembarcar: nasce na zona escolhida, com o equipamento da classe
   onDeploy(classDef, zone) {
     const { player, viewmodel } = game;
+    player.infiniteAmmo = false;   // munição infinita é só do treino
     player.spawn.set(zone.x, 0, zone.z);
     player.setClass(classDef);
+    player.respawn();
+    viewmodel.setItem(player.equipped);
+    viewmodel.visible = true;
+  },
+
+  /** Campo de treinamento: o mapa já nasceu pronto, só falta desembarcar. */
+  onTraining() {
+    const { player, viewmodel } = game;
     player.respawn();
     viewmodel.setItem(player.equipped);
     viewmodel.visible = true;
@@ -176,7 +203,13 @@ const flow = initFlow({
 // ?deploy=N entra no mapa sem clique nenhum, na zona N. É o que deixa a
 // verificação headless exercitar o quadro com o jogador vivo, que é onde
 // sistema sem dono aparece.
-const autoDeploy = new URLSearchParams(location.search).get('deploy');
+const busca = new URLSearchParams(location.search);
+
+// ?treino=1 entra direto no campo de treinamento. É por aqui que trocar de
+// modo com o mundo já montado funciona: a página recarrega com o modo na URL.
+if (busca.has('treino')) flow.startTraining();
+
+const autoDeploy = busca.get('deploy');
 if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 
 function frame() {

@@ -45,6 +45,12 @@ export function initObjective(player, capture) {
   let ultimo = '';
 
   return function updateObjective() {
+    // Mapa sem pontos não tem frente: no campo de treinamento o painel some
+    // inteiro em vez de mostrar um placar de zero a zero.
+    const temPartida = capture.posts.length > 0;
+    painel.classList.toggle('escondido', !temPartida);
+    if (!temPartida) return;
+
     const contagem = tally(capture.posts);
     for (const [id, marca] of Object.entries(marcas)) {
       marca.textContent = `${TEAMS[id].short} ${contagem[id]}`;

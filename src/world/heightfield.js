@@ -60,7 +60,7 @@ function fbm(x, z) {
  *   podem nascer numa ladeira. Dentro de `radius` a altura é exatamente
  *   `height`, e ela volta pro relevo natural ao longo de `blend`.
  */
-export function createHeightfield(flatZones = [], deform = null) {
+export function createHeightfield(flatZones = [], deform = null, perfil = 'sainte-mere') {
   /**
    * Onde passa o leito do rio, no z, pra um dado x. Diagonal e com uma
    * ondulação: rio reto lê como vala, não como rio.
@@ -88,7 +88,19 @@ export function createHeightfield(flatZones = [], deform = null) {
     return WORLD.PONTES.map((x) => ({ x, z: leitoDoRio(x) }));
   }
 
+  /**
+   * Campo de treinamento: chão plano.
+   *
+   * Plano de propósito. Treinar distância num terreno que sobe e desce mede
+   * a ladeira junto com a arma, e aí "errei a 90 m" deixa de ser um dado.
+   */
+  function alturaDeTreino(x, z) {
+    return 4 + fbm(x * 0.006, z * 0.006) * 0.35;
+  }
+
   function naturalHeight(x, z) {
+    if (perfil === 'treino') return alturaDeTreino(x, z);
+
     // ------------------------------------------------------ perfil norte-sul
     let base;
     if (z <= WORLD.MAR_ATE) {

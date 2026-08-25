@@ -557,3 +557,7 @@ body.aiming #crosshair {
 .stamina-bar.seco span {
   background: #c46a3a;
 }
+
+#mission.escondido {
+  display: none;
+}

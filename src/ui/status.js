@@ -139,12 +139,15 @@ export function initStatus(player) {
 
       const ammo = row.item.ammo;
       if (!ammo) continue;
-      const stampAmmo = `${ammo.loaded}/${ammo.reserve}`;
+      // Reserva infinita se escreve como infinita: número que não desce
+      // parece contador quebrado.
+      const reserva = player.infiniteAmmo ? '∞' : `${ammo.reserve}`;
+      const stampAmmo = `${ammo.loaded}/${reserva}`;
       if (row.shown === stampAmmo) continue;
       row.shown = stampAmmo;
 
       row.loaded.textContent = `${ammo.loaded}`;
-      row.reserve.replaceChildren(reserveIcon.cloneNode(true), `${ammo.reserve}`);
+      row.reserve.replaceChildren(reserveIcon.cloneNode(true), reserva);
       row.loaded.classList.toggle('empty', ammo.loaded === 0);
     }
 

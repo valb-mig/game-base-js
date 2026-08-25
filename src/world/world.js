@@ -9,7 +9,6 @@ import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
 import { addForest } from './forest.js';
 import { addBase } from './base.js';
-import { addTrainingCourse } from './course.js';
 import { addOutposts } from './outposts.js';
 import { TEAMS } from '../game/teams.js';
 
@@ -39,7 +38,6 @@ function seededRandom(seed) {
 }
 
 const BASE_PLATFORM = 24;   // raio achatado sob cada base
-const COURSE_PLATFORM = 30;
 
 /**
  * Monta a ilha e devolve o que o resto do jogo precisa: os colisores, o
@@ -53,12 +51,10 @@ export function buildWorld(scene) {
   const probe = createHeightfield([]);
   const north = WORLD.BASE_KARNIA;
   const south = WORLD.BASE_VESTRIA;
-  const course = WORLD.COURSE_ORIGIN;
 
   const flatZones = assertFlatZones([
     { ...north, radius: BASE_PLATFORM, blend: 18, height: probe.naturalHeight(north.x, north.z) },
     { ...south, radius: BASE_PLATFORM, blend: 18, height: probe.naturalHeight(south.x, south.z) },
-    { ...course, radius: COURSE_PLATFORM, blend: 18, height: probe.naturalHeight(course.x, course.z) }
   ]);
 
   // Camada escavável: a ilha continua sendo função pura de altura, e cavar
@@ -90,15 +86,13 @@ export function buildWorld(scene) {
     facing: -1, color: TEAMS.vestria.color, settling
   });
 
-  const courseGround = terrain.heightAt(course.x, course.z);
-  const targets = addTrainingCourse(scene, colliders,
-    { origin: course, ground: courseGround, settling });
+  // Sem campo de treino aqui: ele é um mapa à parte, com regra própria.
+  const targets = [];
 
   // nada de árvore dentro de base, do campo de treino, ou no caminho entre eles
   const occupied = [
     { ...north, radius: BASE_PLATFORM + 4, name: 'Base Karnia' },
     { ...south, radius: BASE_PLATFORM + 4, name: 'Base Vestria' },
-    { x: course.x, z: course.z, radius: COURSE_PLATFORM + 4, name: 'campo de treino' }
   ];
 
   // Os doze postos entram antes da floresta: eles empurram árvore, não o
@@ -122,10 +116,6 @@ export function buildWorld(scene) {
     {
       id: 'base-vestria', name: `Base ${TEAMS.vestria.short}`, team: 'vestria',
       base: true, x: south.x, z: south.z - 30, radius: 16
-    },
-    {
-      id: 'treino', name: 'Campo de treino', team: null,
-      base: true, x: course.x - 16, z: course.z + 14, radius: 18
     },
     ...outposts.map((posto) => ({
       id: posto.id, name: `${posto.numero}. ${posto.name}`, team: posto.startTeam,

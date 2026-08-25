@@ -48,6 +48,31 @@ export function initDrop(scene, player, viewmodel, world) {
     return entity;
   }
 
+  /**
+   * Põe um item no chão numa coordenada. Serve pro campo de treinamento
+   * espalhar o arsenal, e passa pelo MESMO caminho de largar — item de
+   * treino tem que ser o mesmo objeto que se larga em partida.
+   */
+  function place(item, x, z, rotacao = 0) {
+    const model = createItemModel(item);
+    if (!model) return null;
+
+    model.position.set(x, terrainAt(x, z) + 0.6, z);
+    model.rotation.set(0, rotacao, 0);
+    scene.add(model);
+
+    const entity = {
+      item,
+      mesh: model,
+      velocity: new THREE.Vector3(0, 0, 0),
+      spin: 0,
+      resting: false,
+      settle: 0
+    };
+    items.push(entity);
+    return entity;
+  }
+
   function terrainAt(x, z) {
     return world.terrain ? world.terrain.heightAt(x, z) : 0;
   }
@@ -164,6 +189,7 @@ export function initDrop(scene, player, viewmodel, world) {
   return {
     items,
     dropEquipped,
+    place,
     pickUp,
     reachable,
 

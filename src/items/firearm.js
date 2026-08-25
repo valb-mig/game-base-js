@@ -95,7 +95,7 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
 
   function startReload(firearm) {
     const item = player.equipped;
-    if (item.ammo.reserve <= 0) return;
+    if (!player.infiniteAmmo && item.ammo.reserve <= 0) return;
     if (item.ammo.loaded >= firearm.magazine + 1) return;
 
     state.reloading = firearm.reloadTime;
@@ -106,10 +106,15 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
     const item = player.equipped;
     // uma na câmara continua lá: o carregador cheio soma oito
     const capacity = firearm.magazine + (item.ammo.loaded > 0 ? 1 : 0);
-    const wanted = Math.min(capacity - item.ammo.loaded, item.ammo.reserve);
+
+    // No campo de treinamento a reserva não acaba, mas o CARREGADOR acaba: a
+    // recarga continua custando os mesmos segundos. Munição infinita que
+    // dispensa recarregar treinaria uma arma que o jogo não tem.
+    const disponivel = player.infiniteAmmo ? Infinity : item.ammo.reserve;
+    const wanted = Math.min(capacity - item.ammo.loaded, disponivel);
 
     item.ammo.loaded += wanted;
-    item.ammo.reserve -= wanted;
+    if (!player.infiniteAmmo) item.ammo.reserve -= wanted;
   }
 
   return {

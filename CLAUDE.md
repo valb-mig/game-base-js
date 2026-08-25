@@ -45,7 +45,8 @@ src/
            minimap.js  a ilha vista de cima, do mesmo campo de altura
            dummy.js  boneco de treino (alvo de dano)
            terrain.js  malha · water.js  mar · forest.js  árvores e pedras
-           base.js  base militar · course.js  campo de treino
+           base.js  base militar · course.js  obstáculos
+           training-world.js  o campo de treinamento, mapa à parte
            outpost.js  posto de 4 mastros · outposts.js  onde ficam os 12
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
@@ -398,6 +399,24 @@ crédito no README.
 **O fluxo do jogo vive num lugar só.** `ui/flow.js` tem as três fases
 (início, deploy, jogando) e é o único que trava e destrava o mouse. Espalhar
 lock/unlock pelas telas foi o que tornou o fluxo antigo difícil de mexer.
+
+**Campo de treinamento é OUTRO MAPA, não um canto deste.** Treinar mira tem
+que ser plano, medido e sem nada acontecendo em volta, e Sainte-Mère é o
+contrário disso de propósito. Misturar os dois tirava o que cada um tem de
+bom, e por isso o campo saiu do mapa de combate.
+
+**As distâncias dos alvos se medem da LINHA DE TIRO.** Medidas da origem do
+campo elas saíam 6 m longas, e a placa de 90 m marcava 96 — aí ela deixa de
+ser medida e vira enfeite.
+
+**Munição infinita não dispensa recarregar.** O carregador acaba igual e o
+respiro entre eles continua custando os mesmos segundos: treinar com uma arma
+que não recarrega é treinar uma arma que o jogo não tem.
+
+**Trocar de modo com o mundo montado recarrega a página.** `boot(modo)` monta
+um mapa ou o outro, e o mundo é montado uma vez só. Desmontar mundo, bots e
+sistemas pra trocar seria superfície de bug num caminho que se usa uma vez por
+sessão — `?treino=1` resolve isso sem código nenhum.
 
 **A abertura não constrói o mundo.** Ilha, floresta e bases custam caro, e
 ninguém paga isso pra ver uma tela de título: `main.js` só tem cena e entrada
@@ -753,6 +772,11 @@ distância, queda e desvio do cano escritos no painel.
 P grava a tela num PNG com o estado queimado embaixo: posição, direção do
 olhar, postura, vida, arma e contagem de colisores. O nome do arquivo leva a
 posição, pra achar o lugar sem abrir a imagem.
+
+A abertura tem dois caminhos: Jogar leva ao deploy de Sainte-Mère, e Campo de
+treinamento entra direto num mapa plano com alvos a 10, 25, 50, 90 e 140 m,
+os obstáculos, o arsenal inteiro no chão e munição infinita que ainda precisa
+ser carregada.
 
 Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
 na tela de deploy — barra de equipamento em cima (classes e os itens que

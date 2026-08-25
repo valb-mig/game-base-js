@@ -31,7 +31,7 @@ export const PHASE = {
   PLAYING: 'jogando'
 };
 
-export function initFlow({ boot, onDeploy, onSpectate }) {
+export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   const screens = {
     start: document.getElementById('start-screen'),
     deploy: document.getElementById('deploy-screen'),
@@ -39,6 +39,7 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
   };
 
   const playButton = document.getElementById('play');
+  const trainingButton = document.getElementById('training');
   const grid = document.getElementById('class-grid');
   const detail = document.getElementById('class-detail');
   const deployButton = document.getElementById('deploy');
@@ -144,10 +145,37 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
 
   // ------------------------------------------------------------ transições
 
+  /**
+   * Campo de treinamento: entra direto, sem passar pelo deploy.
+   *
+   * Não é uma zona de desembarque a mais. Escolher classe e local pra ir
+   * treinar mira seria burocracia entre o jogador e o que ele quer fazer —
+   * e o treino tem regra própria (munição infinita, armas no chão).
+   */
+  function startTraining() {
+    // Mapa diferente, e o mundo é montado uma vez só: se a batalha já foi
+    // montada, trocar de modo é recarregar a página com o modo na URL. É
+    // honesto e simples — desmontar mundo, bots e sistemas pra trocar seria
+    // superfície de bug num caminho que se usa uma vez por sessão.
+    if (game && game.world.modo !== 'treino') {
+      location.search = '?treino=1';
+      return;
+    }
+    montar('treino');
+    phase = PHASE.PLAYING;
+    died = false;
+    deployed = true;
+    document.body.classList.add('playing');
+    document.body.classList.remove('spectating');
+    onTraining?.();
+    show(null);
+    lockPointer();
+  }
+
   /** Constrói o mundo (uma vez) e liga o que depende dele. */
-  function start() {
+  function montar(modo = 'batalha') {
     if (!game) {
-      game = boot();
+      game = boot(modo);
       // O mapa tático sai do terreno, então só pode ser montado com mundo.
       tactical = initTacticalMap(game.world.terrain, game.world.spawnZones, selectZone,
         { team: game.player.team, valid: zonaVale });
@@ -156,6 +184,10 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
       game.controls.addEventListener('lock', () => show(null));
       game.controls.addEventListener('unlock', onUnlock);
     }
+  }
+
+  function start() {
+    montar();
     document.body.classList.add('playing');
     openDeployScreen();
   }
@@ -213,6 +245,7 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
   // ------------------------------------------------------------- ligações
 
   playButton.addEventListener('click', start);
+  trainingButton?.addEventListener('click', startTraining);
   deployButton.addEventListener('click', deploy);
   backButton.addEventListener('click', backToGame);
   openDeploy.addEventListener('click', (event) => {
@@ -249,6 +282,7 @@ export function initFlow({ boot, onDeploy, onSpectate }) {
 
     openDeployScreen,
     selectZone,
+    startTraining,
 
     /**
      * Entra no mapa por código: Jogar, escolher zona e desembarcar de uma vez.

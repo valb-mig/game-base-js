@@ -47,6 +47,16 @@ de treino com estande de baioneta. Faca KA-BAR e Colt M1911A1 com balística
 de projétil: a bala viaja, cai por gravidade e um traçante a cada quatro
 tiros marca o caminho.
 
+## Campo de treinamento
+
+Segundo botão da abertura, e **outro mapa**: chão plano, alvos parados a 10,
+25, 50, 90 e 140 metros com a distância marcada no chão, os obstáculos pra
+medir salto e degrau, e o arsenal inteiro largado ao lado da linha de tiro.
+
+A munição não acaba, mas o **carregador acaba**: recarregar continua custando
+os mesmos segundos. Munição infinita que dispensasse a recarga treinaria uma
+arma que o jogo não tem.
+
 ## O mapa
 
 **Sainte-Mère**, Normandia, 1944 — dois quilômetros de lado. De norte pra sul:
