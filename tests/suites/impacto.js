@@ -1,8 +1,13 @@
 import * as THREE from 'three';
+import { Player } from '../../src/player/player.js';
+import { initFirearm } from '../../src/items/firearm.js';
+import { initInput, endFrame } from '../../src/core/input.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { createDeform, DEFORM } from '../../src/world/deform.js';
 import { turnedSoil } from '../../src/world/heightfield.js';
-import { TERRAIN_BITE, PISTOL, THOMPSON, KNIFE, SHOVEL } from '../../src/items/classes.js';
+import {
+  TERRAIN_BITE, PISTOL, THOMPSON, KNIFE, SHOVEL, getClass
+} from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -57,6 +62,45 @@ export function run() {
   eq('a Colt é a secundária', PISTOL.firearm.dig, TERRAIN_BITE.SECONDARY);
   eq('a faca não tem mordida de terreno', KNIFE.melee.dig ?? 0, 0);
   eq('e nem é arma de fogo', KNIFE.firearm ?? null, null);
+
+  suite('a arma na mão passa a mordida pra bala');
+
+  // Regressão que só apareceu jogando: a balística marcava o terreno, a suíte
+  // inteira passava, e no jogo não acontecia nada — porque firearm.js nunca
+  // punha `dig` na bala. Todo teste daqui disparava a bala direto e informava
+  // o valor na mão, ou seja exercitava a conta em vez do caminho. Este vai do
+  // clique até a bala.
+  initInput();
+  const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
+  const cena = new THREE.Scene();
+  const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+
+  const jogador = new Player(camera, document.body,
+    { colliders: [], terrain: chao, spawn: new THREE.Vector3(0, 0, 0) });
+  jogador.controls.isLocked = true;
+  jogador.setClass(getClass('assault'));
+  jogador.selectSlot(jogador.carried.findIndex((item) => item?.firearm));
+
+  const disparadas = [];
+  const espiao = createBallistics(cena, []);
+  const spawnOriginal = espiao.spawn;
+  espiao.spawn = (origem, direcao, opcoes) => {
+    disparadas.push(opcoes);
+    return spawnOriginal(origem, direcao, opcoes);
+  };
+
+  const arma = initFirearm(jogador, { targets: [] }, espiao);
+  eq('a pistola está na mão', jogador.equipped?.name, PISTOL.name);
+
+  dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+  dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+  arma.update(DT);
+  endFrame();
+
+  eq('um clique dispara uma bala', disparadas.length, 1);
+  eq('e a bala leva a mordida da arma que a disparou',
+    disparadas[0]?.dig, PISTOL.firearm.dig);
+  ok('não zero', disparadas[0]?.dig > 0, `${disparadas[0]?.dig}`);
 
   suite('tiro no chão marca o terreno');
 

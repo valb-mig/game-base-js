@@ -328,6 +328,12 @@ nada: dois tiros iguais fariam coisas diferentes conforme onde caíssem na
 grade. `DEFORM.RAIO_MIN` é o piso, e por isso a marca de bala é mais larga do
 que deveria — é o preço deste terreno, e é o preço certo.
 
+**Quem dispara tem que repassar a mordida.** `firearm.js` monta a bala e
+precisa pôr `dig` nela. Já ficou de fora uma vez: a balística marcava o
+terreno, as 428 asserções passavam, e atirar no jogo não fazia nada — todo
+teste disparava a bala direto, informando o valor na mão em vez de passar pela
+arma. Teste de tiro que não começa no clique não prova nada.
+
 **A balística não conhece o mundo.** Ela diz onde a bala bateu e com que
 força (`onTerrainImpact`); quem afunda o terreno é `main.js`. Sem isso a bala
 precisaria saber o que é escavável, e a suíte precisaria de um mundo inteiro

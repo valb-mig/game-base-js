@@ -66,6 +66,7 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
     ballistics.spawn(shot.origin, shot.direction, {
       damage: firearm.damage,
       range: firearm.range,
+      dig: firearm.dig ?? 0,   // quanto esta arma marca o chão onde a bala cair
       tracer: rounds % BULLET.TRACER_EVERY === 0
     });
 
