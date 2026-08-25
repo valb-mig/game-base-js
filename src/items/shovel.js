@@ -112,6 +112,17 @@ export function createShovel() {
   carga.visible = false;
   shovel.add(carga);
 
+  // Duas mãos no cabo: a de trás junto da alça em D, a da frente mais
+  // perto da lâmina. É assim que se cava, e é o que dá o braço cruzado.
+  const mao_dir = new THREE.Object3D();
+  mao_dir.name = 'mao_dir';
+  mao_dir.position.set(0, 0, -0.04);
+  shovel.add(mao_dir);
+  const mao_esq = new THREE.Object3D();
+  mao_esq.name = 'mao_esq';
+  mao_esq.position.set(0, 0, -0.15);
+  shovel.add(mao_esq);
+
   return shovel;
 }
 

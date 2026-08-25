@@ -135,6 +135,12 @@ export function createKnife() {
   pommel.position.x = -0.009 - HANDLE_LENGTH - 0.004;
   pommel.scale.z = 0.82;
 
+  // Mão no cabo, que vai pro -X. Só a direita, como se segura faca.
+  const mao_dir = new THREE.Object3D();
+  mao_dir.name = 'mao_dir';
+  mao_dir.position.set(-0.068, 0, 0);
+  knife.add(mao_dir);
+
   knife.add(blade, guard, handle, pommel);
   return knife;
 }

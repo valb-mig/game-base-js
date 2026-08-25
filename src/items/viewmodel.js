@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { createItemModel, disposeModel } from './models.js';
 import { handPose } from './poses.js';
+import { criarBracos } from './arms.js';
 
 /**
- * Item na mão, em primeira pessoa. Sem braços por enquanto: só o objeto.
+ * Item na mão, em primeira pessoa — com os braços que o seguram.
  *
  * Renderiza numa cena e numa câmera próprias, desenhadas por cima do mundo
  * com o depth buffer limpo. São duas coisas que isso resolve de uma vez:
@@ -57,7 +58,7 @@ function toVectors(pose) {
 }
 
 export class Viewmodel {
-  constructor(worldCamera, aspect) {
+  constructor(worldCamera, aspect, teamId) {
     this.worldCamera = worldCamera;
 
     this.scene = new THREE.Scene();
@@ -90,6 +91,10 @@ export class Viewmodel {
     this.lastForward = new THREE.Vector3(0, 0, -1);
     this.sprintBlend = 0;   // 0 = normal, 1 = correndo
     this.bobPhase = 0;
+
+    // Os braços ficam FORA do grupo do item: o ombro é fixo e a mão é que
+    // persegue o marcador da arma. Ver items/arms.js.
+    this.bracos = criarBracos(this.scene, teamId);
   }
 
   /**
@@ -104,7 +109,10 @@ export class Viewmodel {
       this.item = null;
     }
     const model = createItemModel(item);
-    if (!model) return;
+    if (!model) {
+      this.bracos.visible = false;
+      return;
+    }
 
     this.item = model;
     this.flash = model.getObjectByName('clarao') ?? null;
@@ -119,6 +127,24 @@ export class Viewmodel {
     // borrão preto nos quadros entre desembarcar e o pointer lock ser dado.
     this.group.position.copy(this.pose.rest.p);
     this.group.rotation.copy(this.pose.rest.r);
+    this.#seguirComAsMaos();
+  }
+
+  /**
+   * Cola as mãos no item depois que a pose dele já está escrita.
+   *
+   * A matriz TEM que ser recalculada aqui: o marcador da mão é filho do
+   * grupo, e ler a posição de mundo dele antes de o grupo saber onde está
+   * devolve a pose do quadro anterior — a mão ficaria um quadro atrás da
+   * arma, e no coice isso é o bastante pra ela descolar.
+   */
+  #seguirComAsMaos() {
+    if (!this.item) {
+      this.bracos.visible = false;
+      return;
+    }
+    this.group.updateMatrixWorld(true);
+    this.bracos.seguir(this.item);
   }
 
   get visible() {
@@ -222,6 +248,7 @@ export class Viewmodel {
     if (swinging) {
       this.group.position.x += this.sway.x;
       this.group.position.y += this.sway.y;
+      this.#seguirComAsMaos();
       return;
     }
 
@@ -241,6 +268,7 @@ export class Viewmodel {
 
     this.#applyReload(player, delta);
     this.#applyAim(player);
+    this.#seguirComAsMaos();
   }
 
   /** Solta um carregador que cai e some. Só enfeite, sem colisão. */

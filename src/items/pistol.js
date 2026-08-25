@@ -166,6 +166,13 @@ export function createPistol() {
   // base do carregador, fechando o punho
   part(grip, new THREE.BoxGeometry(0.026, 0.005, 0.044), frameSteel, 0, -0.0705, 0);
 
+  // Mão no cabo. Só a direita: a pose da pistola é de um braço só, e a
+  // esquerda ficaria pendurada no ar sem nada pra segurar.
+  const mao_dir = new THREE.Object3D();
+  mao_dir.name = 'mao_dir';
+  mao_dir.position.set(0, -0.06, 0.018);
+  pistol.add(mao_dir);
+
   // Marcador da boca do cano: sem geometria, só um ponto com orientação. É
   // daqui que a bala nasce e é daqui que sai a direção do tiro — o cano no
   // -Z do modelo vira, sem conta nenhuma, o -Z deste marcador.

@@ -194,6 +194,22 @@ export function createMP40() {
   }
   mp40.add(clarao);
 
+  // Onde as mãos pegam. Marcador, não geometria: quem desenha braço é
+  // items/arms.js, e ele não pode adivinhar onde fica o punho de cada arma.
+  // Estes números são de ANTES do recuo da origem lá embaixo, como todo o
+  // resto do modelo — o laço mexe neles junto.
+  //
+  // A esquerda vai no guarda-mão de baquelite, não no carregador: segurar
+  // pelo carregador é o erro clássico de filme, e emperra a arma de verdade.
+  const mao_dir = new THREE.Object3D();
+  mao_dir.name = 'mao_dir';
+  mao_dir.position.set(0, -0.078, 0.046);
+  mp40.add(mao_dir);
+  const mao_esq = new THREE.Object3D();
+  mao_esq.name = 'mao_esq';
+  mao_esq.position.set(0, -0.052, -0.112);
+  mp40.add(mao_esq);
+
   // A origem vai pra trás, junto do punho.
   //
   // Montada em volta do meio da caixa, a pose posicionava o MEIO da arma: a
