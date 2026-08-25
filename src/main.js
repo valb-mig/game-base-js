@@ -20,6 +20,7 @@ import { initCrosshair } from './ui/crosshair.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
 import { initWatchdog } from './ui/watchdog.js';
+import { initSnapshot } from './ui/snapshot.js';
 import { createCapture } from './game/capture.js';
 import { drawFlags } from './world/outpost.js';
 import { initObjective, initFlagPrompt } from './ui/objective.js';
@@ -117,6 +118,9 @@ function boot() {
   // arma fora de posição o arco tem que sair torto aqui também.
   const debugView = initDebugView(scene, world, bots, { player, viewmodel, ballistics });
 
+  // P grava a tela com o estado escrito nela, pra virar contexto de relato.
+  const snapshot = initSnapshot(renderer, player, { world, bots, capture });
+
   // vigia de invariantes: grita se o jogo entrar num estado impossível
   const watchdog = initWatchdog(player, world);
   window.watchdog = watchdog;   // pra copiar o relatório do console
@@ -136,6 +140,7 @@ function boot() {
     // interruptor é o painel: uma tecla acende tudo junto.
     debugView,
     // O painel lê os números da trajetória, então a vista nasce antes dele.
+    snapshot,
     debug: initDebug(player, () => debugView.shot)
   };
 
@@ -177,11 +182,15 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
-    watchdog, capture, bots
+    watchdog, capture, bots, snapshot
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
   const delta = Math.min(clock.getDelta(), 0.1);
+
+  // A tecla é lida aqui e a foto é tirada depois do render: o canvas só tem
+  // conteúdo entre uma coisa e outra.
+  snapshot.poll();
 
   if (player.isLocked) {
     player.update(delta);
@@ -244,6 +253,10 @@ function frame() {
 
   renderer.render(scene, camera);
   viewmodel.render(renderer);
+
+  // Depois do render, antes do fim do quadro: `preserveDrawingBuffer` é
+  // false, e fora desta janela `toDataURL` devolve uma imagem preta.
+  snapshot.afterRender();
 
   endFrame(); // o que ninguém consumiu neste frame não vale no próximo
 }

@@ -103,6 +103,12 @@ lado sobrevive 7,5. Mexa-se.
   faria sem gravidade, e no painel a distância até o impacto, a queda no
   caminho e quanto o cano está desviado da mira.
 
+**P** grava a tela num PNG, com o estado do jogador queimado embaixo da
+imagem — posição, direção do olhar, postura, vida, arma e quantos colisores o
+mapa tem. O nome do arquivo leva a posição junto (`bf45-154658-x-12z38.png`),
+então dá pra achar o lugar sem abrir a foto. Ligue o F2 antes se o que você
+quer mostrar for uma caixa de colisão.
+
 ## Atirar
 
 Parado, a bala vai exatamente onde a mira aponta — sem dispersão nenhuma.

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initDebug } from '../../src/ui/debug.js';
 import { initDebugView } from '../../src/ui/debugview.js';
+import { initSnapshot } from '../../src/ui/snapshot.js';
 import { initInput, endFrame } from '../../src/core/input.js';
 import { getClass } from '../../src/items/classes.js';
 import { createBallistics } from '../../src/items/ballistics.js';
@@ -132,6 +133,55 @@ export function run() {
 
   desenhar(true);
   eq('e ligado ele é reescrito', buffer.array[0], marcador);
+
+  suite('P grava a tela com o estado escrito nela');
+
+  // Uma tela falsa com conteúdo conhecido: o que se testa aqui é a MECÂNICA
+  // (quando grava, o que escreve, como nomeia), e não o render.
+  const tela = document.createElement('canvas');
+  tela.width = 320;
+  tela.height = 200;
+  const pincel = tela.getContext('2d');
+  pincel.fillStyle = '#4488cc';
+  pincel.fillRect(0, 0, 320, 200);
+
+  const fotografo = initSnapshot({ domElement: tela }, player, {
+    world: { colliders: [1, 2, 3] },
+    bots: { aliveByTeam: () => ({ karnia: 2 }) }
+  });
+
+  // Sem apertar P, não grava. Uma foto por quadro sem pedir encheria o disco
+  // de quem só estava jogando.
+  let gravado = null;
+  const clicar = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.download) { gravado = { nome: this.download, url: this.href }; return; }
+    return clicar.call(this);
+  };
+
+  fotografo.poll();
+  fotografo.afterRender();
+  ok('sem P, não grava nada', gravado === null);
+
+  player.object.position.set(-12.4, 0, 37.6);
+  tecla('KeyP');
+  fotografo.poll();
+  endFrame();
+  fotografo.afterRender();
+
+  ok('com P, grava', Boolean(gravado));
+  ok('e é um PNG', gravado.url.startsWith('data:image/png'));
+
+  // O nome carrega a posição: dá pra achar o lugar sem abrir o arquivo, e é
+  // metade do relatório de um bug de colisão.
+  ok('o nome traz a posição', gravado.nome.includes('x-12') && gravado.nome.includes('z38'),
+    gravado.nome);
+  eq('e o último arquivo fica registrado', fotografo.last, gravado.nome);
+
+  ok('grava uma vez por tecla, não a cada quadro',
+    (() => { gravado = null; fotografo.afterRender(); return gravado === null; })());
+
+  HTMLAnchorElement.prototype.click = clicar;
 
   suite('a trajetória prevista da bala');
 

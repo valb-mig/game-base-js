@@ -59,6 +59,7 @@ src/
            crosshair.js  a mira abre com a dispersão
            debug.js  painel e o interruptor do F2
            debugview.js  caixas de colisão e estado dos bots na cena
+           snapshot.js  P grava a tela com o estado escrito nela
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
             drop, melee, firearm, ballistics, muzzle, slope, combate,
@@ -601,6 +602,12 @@ reaproveita a porta se o conteúdo bater com este projeto — um `http.server`
 esquecido de outra pasta já foi reaproveitado em silêncio, e a suíte rodou em
 cima de código alheio. Se a porta estiver ocupada, ele anda pra próxima.
 
+**A foto do P só existe entre o render e o fim do quadro.**
+`preserveDrawingBuffer` é false, então `toDataURL` em qualquer outro lugar
+devolve uma imagem preta. Por isso `snapshot` tem duas metades: `poll()` lê a
+tecla cedo, junto com a entrada, e `afterRender()` grava depois do render do
+mundo e do viewmodel. É a mesma pegadinha das páginas de captura.
+
 **Screenshot precisa de loop de render.** `preserveDrawingBuffer` é false, então
 um `renderer.render()` solto some da captura. As páginas de captura usam
 `setAnimationLoop`.
@@ -668,6 +675,10 @@ jogador, caixa de colisão de tudo desenhada na cena, esfera de acerto de cada
 alvo, e o que cada bot está pensando escrito sobre a cabeça dele. Mais a
 trajetória prevista da bala — o arco, a reta que ela faria sem gravidade, e a
 distância, queda e desvio do cano escritos no painel.
+
+P grava a tela num PNG com o estado queimado embaixo: posição, direção do
+olhar, postura, vida, arma e contagem de colisores. O nome do arquivo leva a
+posição, pra achar o lugar sem abrir a imagem.
 
 Fluxo: abertura com a marca BF45 e o botão Jogar, sem mundo montado. Jogar cai
 na tela de deploy — barra de equipamento em cima (classes e os itens que
