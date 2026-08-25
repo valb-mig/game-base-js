@@ -86,15 +86,24 @@ export function moveHorizontal(player, delta) {
   let nextZ = prevZ + velocity.z * delta;
   const feetY = player.feetY;
 
-  // Resolve um eixo por vez pra deslizar na parede. Testar os dois
-  // juntos travaria o jogador em qualquer aproximação diagonal.
-  if (collides(player.colliders, nextX, prevZ, feetY, player.height)) {
-    nextX = prevX;
-    velocity.x = 0;
-  }
-  if (collides(player.colliders, nextX, nextZ, feetY, player.height)) {
-    nextZ = prevZ;
-    velocity.z = 0;
+  // Já colidindo onde está? Então bloquear não protege nada — só prende.
+  //
+  // Quem termina dentro de geometria (uma queda que assenta debaixo de uma
+  // laje, por exemplo) via toda direção ser recusada, inclusive a da saída.
+  // Enquanto estiver assim, o movimento passa livre até ele sair sozinho.
+  const encaixotado = collides(player.colliders, prevX, prevZ, feetY, player.height);
+
+  if (!encaixotado) {
+    // Resolve um eixo por vez pra deslizar na parede. Testar os dois
+    // juntos travaria o jogador em qualquer aproximação diagonal.
+    if (collides(player.colliders, nextX, prevZ, feetY, player.height)) {
+      nextX = prevX;
+      velocity.x = 0;
+    }
+    if (collides(player.colliders, nextX, nextZ, feetY, player.height)) {
+      nextZ = prevZ;
+      velocity.z = 0;
+    }
   }
 
   const limit = WORLD.SIZE / 2 - 1;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { isMouseDown, consumeClick, consumePress, MOUSE_RIGHT } from '../core/input.js';
 import { RELOAD_KEYS } from '../player/constants.js';
 import { BULLET } from '../config.js';
+import { muzzleShot, createShot, createMuzzle } from './muzzle.js';
 
 /**
  * Arma de fogo: tiro, munição, recarga e mira de ferro.
@@ -14,11 +15,15 @@ import { BULLET } from '../config.js';
  * A abertura do tiro é um cone em volta da mira: largo do quadril, quase
  * nulo com a arma no olho. É o que dá sentido mecânico a mirar, além do
  * visual.
+ *
+ * A bala sai da boca do cano e segue o cano, não o olho e não a mira — quem
+ * calcula isso é items/muzzle.js, lendo a arma na mão do viewmodel. Sem
+ * viewmodel (suítes que só exercitam munição e cadência) o tiro sai do olho,
+ * reto, como antes.
  */
-export function initFirearm(player, world, ballistics) {
-  const origin = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const toTarget = new THREE.Vector3();
+export function initFirearm(player, world, ballistics, viewmodel = null) {
+  const shot = createShot();
+  const muzzle = createMuzzle();
   const scratch = new THREE.Vector3();
 
   const listeners = [];
@@ -26,8 +31,17 @@ export function initFirearm(player, world, ballistics) {
   let rounds = 0;
 
   function fire(firearm) {
-    origin.copy(player.object.position);
-    direction.set(0, 0, -1).applyQuaternion(player.object.quaternion);
+    const eye = player.object.position;
+
+    if (viewmodel?.readMuzzle(muzzle)) {
+      muzzleShot(shot, player.object, muzzle, BULLET.MUZZLE_BEND);
+      // arma encostada em parede: a boca está do outro lado dela, e nascer
+      // ali seria atirar através da parede
+      if (ballistics.blocked(eye, shot.origin)) shot.origin.copy(eye);
+    } else {
+      shot.origin.copy(eye);
+      shot.direction.set(0, 0, -1).applyQuaternion(player.object.quaternion);
+    }
 
     // abertura: mais fechada quanto mais a arma estiver no olho
     const spread = THREE.MathUtils.lerp(
@@ -37,7 +51,7 @@ export function initFirearm(player, world, ballistics) {
       const radius = Math.sqrt(Math.random()) * spread;
       scratch.set(Math.cos(angle), Math.sin(angle), 0)
         .applyQuaternion(player.object.quaternion);
-      direction.addScaledVector(scratch, Math.tan(radius)).normalize();
+      shot.direction.addScaledVector(scratch, Math.tan(radius)).normalize();
     }
 
     const item = player.equipped;
@@ -49,7 +63,7 @@ export function initFirearm(player, world, ballistics) {
     // Traçante a cada tantos tiros, como nas fitas da guerra: o risco serve
     // pra corrigir a pontaria, não pra desenhar toda bala.
     rounds++;
-    ballistics.spawn(origin, direction, {
+    ballistics.spawn(shot.origin, shot.direction, {
       damage: firearm.damage,
       range: firearm.range,
       tracer: rounds % BULLET.TRACER_EVERY === 0

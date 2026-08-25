@@ -41,13 +41,14 @@ src/
   items/   classes.js  models.js  viewmodel.js  drop.js
            knife.js  pistol.js    modelos
            attack.js  firearm.js  ballistics.js  golpe, tiro, balas
+           muzzle.js  de onde a bala sai e pra onde ela vai
            poses.js  como cada item é segurado
   ui/      flow.js  máquina de estados e telas
            classcards.js  tacticalmap.js  session.js
            compass.js  mission.js  status.js  prompt.js  hitmarker.js  debug.js
 tests/     run.html + suites/
            (aim, compass, movement, jump, stance, terrain, swim, model,
-            drop, melee, firearm, ballistics, combate, flow)
+            drop, melee, firearm, ballistics, muzzle, combate, flow)
 tools/     dev.sh  model-viewer.html
 vendor/    three.js 0.169 local — não vem de CDN
            icons/  game-icons.net, CC BY 3.0 (crédito no README)
@@ -184,6 +185,31 @@ corpo a corpo, no hitscan e na balística. Quem testa parede tem que ignorar o
 colisor do alvo, senão a caixa dele vira muro alguns centímetros antes do
 centro e o tiro "acerta" sem causar dano.
 
+**A bala sai do cano e segue o cano.** Origem e direção do tiro vêm do
+marcador `boca` do modelo (`items/muzzle.js`), não da câmera: o traçante sai
+da arma, o tiro encostado numa quina bate na quina, e com a arma fora de
+posição a bala vai torta de verdade. `MUZZLE_BEND` amortece o desvio.
+
+**O desvio do cano é medido contra a arma ZERADA, não contra a câmera.** A
+pose de descanso tem 6° de caimento só por estética; medindo contra a câmera
+isso viraria erro fixo de 60 cm pra esquerda a 14 m em todo tiro do quadril —
+lê como bug, não como recuo. O zero é `rest` misturado com `ads` pelo nível de
+mira, então tanto do quadril quanto no ferro a arma parada atira reto, e o que
+torce é corrida, coice e atraso da mão.
+
+**Amortecer desvio é interpolar rotação, não escalar ângulo.** A pose de
+corrida joga a arma uns 48° pro lado; multiplicar o ângulo por um fator dá
+eixo errado assim que o desvio deixa de ser pequeno. É slerp da identidade até
+o desvio.
+
+**A cena do viewmodel É o espaço da câmera.** A câmera dele nunca sai da
+origem nem gira, só troca de aspecto — é isso que deixa levar a boca do cano
+pro mundo com a matriz da câmera do jogo e mais nada.
+
+**A boca do cano fica meio metro à frente do olho.** Encostado numa parede ela
+está do outro lado dela, e nascer ali é atirar através da parede:
+`ballistics.blocked` testa o trecho olho→boca e o tiro volta pro olho.
+
 **Ícone de HUD vem de biblioteca**, não desenhado à mão: `vendor/icons/`.
 São do game-icons.net sob CC BY 3.0 — trocar um ícone exige atualizar o
 crédito no README.
@@ -202,6 +228,15 @@ amostra o mesmo campo de altura. Mexer no relevo muda o mapa junto.
 **O que a tela precisa oferecer por código, ofereça.** `flow.selectZone` existe
 porque escolher zona só pelo clique no canvas tornava o fluxo inteiro
 impossível de testar — canvas em headless não tem tamanho.
+
+**Geometria não pode prender o jogador.** Duas regras, independentes:
+
+- `stance.js` encolhe quem não cabe, não só impede de crescer. De pé sob um
+  teto de 70 cm o corpo cruza a laje inteira e toda direção passa a colidir,
+  inclusive a da saída — o jogador ficava preso até descobrir sozinho que
+  deitar resolvia.
+- `locomotion.js` não bloqueia movimento de quem **já** colide onde está.
+  Bloquear ali não protege nada: só prende. Vale enquanto ele não sair.
 
 **Teste tem que exercitar o código, não repetir a conta.** `aim.js` já passou
 por engano enquanto o jogo usava a fórmula errada, porque duplicava a lógica.
@@ -264,7 +299,9 @@ Golpe de faca (botão esquerdo), com dano, marca de acerto e três bonecos de
 treino no estande. Colt M1911A1 exclusiva da Assault: tiro semiautomático,
 8 tiros (7 + 1 na câmara), recarga no R com animação, mira de ferro no botão
 direito, e troca de item no 1 e 2. A bala viaja e cai; um traçante a cada
-quatro tiros.
+quatro tiros. Ela sai da boca do cano e segue o cano: parada a arma atira
+reto, correndo com ela baixada o tiro vai pro mato, e atirar cancela a pose
+de corrida.
 
 Ainda não existe: dano ao jogador que não seja a tecla de teste, objetivo de
 partida, e captura de base — as bases são cenário. Só a Assault é jogável; as

@@ -22,6 +22,8 @@ export function createBallistics(scene, colliders) {
   const toCenter = new THREE.Vector3();
   const ray = new THREE.Ray();
   const hitPoint = new THREE.Vector3();
+  const probe = new THREE.Vector3();
+  const NOTHING = new Set();
 
   function makeTracer() {
     const mesh = new THREE.Mesh(
@@ -140,6 +142,18 @@ export function createBallistics(scene, colliders) {
 
     onHit(listener) {
       listeners.push(listener);
+    },
+
+    /**
+     * Há parede entre dois pontos?
+     *
+     * Quem atira da boca do cano precisa saber: a boca fica meio metro à
+     * frente do olho, e com a arma encostada numa quina isso põe a origem do
+     * tiro do outro lado dela — a bala nasceria atravessada.
+     */
+    blocked(from, to) {
+      probe.copy(to).sub(from);
+      return wallHit(from, probe, NOTHING) !== null;
     },
 
     /** Dispara uma bala. `tracer` decide se ela deixa risco. */

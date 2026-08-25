@@ -86,6 +86,65 @@ export function run() {
   ok('passagem alta: pular de pé bate a cabeça', collides(pass, 0, -38, 1.0, PLAYER.HEIGHT));
   ok('passagem alta: crouch-jump entra', !collides(pass, 0, -38, 1.0, PLAYER.CROUCH_HEIGHT));
 
+  suite('teto baixo não pode prender');
+
+  // Regressão: de pé sob um teto de 70 cm o corpo cruza a laje inteira, e
+  // toda direção horizontal passava a colidir — inclusive a da saída. O
+  // jogador ficava preso até descobrir sozinho que deitar resolvia.
+  const tetoBaixo = [
+    slab(0, 0, 0.7, 6, 5, 0.9, true),
+    slab(-2.5, 0, 0, 1, 5, 1.6),
+    slab(2.5, 0, 0, 1, 5, 1.6)
+  ];
+  player.colliders.push(...tetoBaixo);
+
+  player.object.position.set(0, PLAYER.HEIGHT, 0);
+  player.eyeY = PLAYER.HEIGHT;
+  player.height = PLAYER.HEIGHT;
+  player.prone = false;
+  player.crouchLatched = false;
+  player.stance = 'de pé';
+  player.onGround = true;
+  step(2);
+
+  eq('de pé sob um teto de 70 cm, o jogador abaixa sozinho', player.stance, 'deitado');
+  step(45);
+  near('e chega na altura que cabe', player.height, PLAYER.PRONE_HEIGHT, 1e-6);
+  ok('aí ele cabe de novo', !collides(player.colliders, 0, 0, 0, player.height));
+
+  // andar tem que voltar a funcionar assim que ele couber
+  const antesDeAndar = player.object.position.z;
+  down('KeyW'); step(50); up('KeyW');
+  ok('e volta a se mover', Math.abs(player.object.position.z - antesDeAndar) > 0.3,
+    `${Math.abs(player.object.position.z - antesDeAndar).toFixed(2)} m`);
+
+  suite('encaixotado ainda consegue sair');
+
+  // Rede de segurança: se nem deitado couber, bloquear não protege nada —
+  // só prende. Enquanto estiver dentro de geometria, o movimento passa.
+  player.colliders.length = 0;
+  player.colliders.push(slab(0, 0, 0, 8, 8, 4));
+
+  player.object.position.set(0, PLAYER.HEIGHT, 0);
+  player.eyeY = PLAYER.HEIGHT;
+  player.height = PLAYER.HEIGHT;
+  player.prone = false;
+  player.crouchLatched = false;
+  player.onGround = true;
+  step(2);
+
+  ok('dentro de um bloco maciço nem deitado cabe',
+    collides(player.colliders, 0, 0, player.feetY, PLAYER.PRONE_HEIGHT));
+
+  const presoEm = player.object.position.z;
+  down('KeyW'); step(60); up('KeyW');
+  ok('mas ele consegue andar pra fora',
+    Math.abs(player.object.position.z - presoEm) > 0.5,
+    `${Math.abs(player.object.position.z - presoEm).toFixed(2)} m`);
+  step(20);
+
+  player.colliders.length = 0;
+
   suite('teto de obstáculo também é chão');
 
   // Regressão: as lajes de teto do campo de treino estavam marcadas como não

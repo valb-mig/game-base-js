@@ -42,14 +42,20 @@ export function updateStance(player, delta) {
   if (player.prone) goal = stats.PRONE_HEIGHT;
   else if (player.crouchLatched) goal = stats.CROUCH_HEIGHT;
 
-  // Teto em cima? Sobe o quanto der: de deitado pra agachado, ou fica onde
-  // está. Sem isso o jogador atravessaria a laje ao levantar.
-  if (goal > player.height && !fits(player, goal)) {
-    if (goal === stats.HEIGHT && fits(player, stats.CROUCH_HEIGHT)) {
-      goal = stats.CROUCH_HEIGHT;
-    } else {
-      goal = player.height;
-    }
+  // Teto em cima? Encolhe até caber.
+  //
+  // Isso vale nos dois sentidos, e o segundo é o que importa: não é só
+  // impedir de levantar debaixo de uma laje, é abaixar quem já está de pé e
+  // não cabe. De pé sob um teto de 70 cm o corpo cruza a laje inteira, e aí
+  // toda direção horizontal colide — inclusive a da saída. O jogador fica
+  // preso sem nada a fazer além de descobrir sozinho que deitar resolve.
+  if (!fits(player, goal)) {
+    const menores = [stats.CROUCH_HEIGHT, stats.PRONE_HEIGHT]
+      .filter((altura) => altura < goal);
+
+    // se nem deitado couber, mantém a altura atual: quem tira o jogador
+    // dali é a regra de destravamento da locomoção
+    goal = menores.find((altura) => fits(player, altura)) ?? player.height;
   }
 
   player.stance = goal <= stats.PRONE_HEIGHT + 1e-3

@@ -120,6 +120,11 @@ export const BULLET = {
   LIFE: 2.5,          // segundos até a bala desistir
   STEP: 0.6,          // subdivisão máxima do trecho por quadro, em metros
 
+  // Quanto do desalinhamento do cano a bala herda. 1 é fisicamente honesto;
+  // um pouco abaixo existe porque o atraso da mão numa virada de 180° chega a
+  // 5° e não deveria custar o tiro inteiro.
+  MUZZLE_BEND: 0.8,
+
   TRACER_EVERY: 4,    // um traçante a cada tantos tiros, como nas fitas da guerra
   // Comprido de propósito: atirando na direção do olhar o risco é visto de
   // ponta, e a 2,4 m virava um ponto. Assim ele lê como risco mesmo de frente.

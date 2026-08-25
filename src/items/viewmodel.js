@@ -40,6 +40,10 @@ const BOB_SPEED = 9;
 
 const smooth = (k) => k * k * (3 - 2 * k);
 
+// rascunhos de `readMuzzle`, que roda a cada tiro
+const zeroEuler = new THREE.Euler();
+const localQuaternion = new THREE.Quaternion();
+
 /** Converte a pose crua do item em vetores, uma vez por troca. */
 function toVectors(pose) {
   const converted = {};
@@ -73,6 +77,8 @@ export class Viewmodel {
     this.item = null;
     this.flash = null;
     this.pose = null;
+    this.muzzle = null;   // marcador da boca do cano, se o item tiver um
+    this.aim = 0;         // último valor lido da mira, pra zerar o cano
 
     // carregador caindo durante a recarga; vive na cena do viewmodel
     this.mag = null;
@@ -101,6 +107,7 @@ export class Viewmodel {
 
     this.item = model;
     this.flash = model.getObjectByName('clarao') ?? null;
+    this.muzzle = model.getObjectByName('boca') ?? null;
     this.pose = toVectors(handPose(item));
     this.group.add(model);
   }
@@ -179,7 +186,10 @@ export class Viewmodel {
     this.sway.multiplyScalar(Math.exp(-SWAY_RECOVER * delta));
 
     // pose de corrida entra e sai suave
-    const wantsSprint = player.running && player.onGround ? 1 : 0;
+    // atirar cancela a pose de corrida, como golpear: com a arma baixada o
+    // cano aponta pro chão, e o primeiro tiro correndo já sai torto de propósito
+    const shooting = (player.gun?.cooldown ?? 0) > 0;
+    const wantsSprint = player.running && player.onGround && !shooting ? 1 : 0;
     this.sprintBlend += (wantsSprint - this.sprintBlend) * Math.min(1, POSE_SPEED * delta);
 
     // oscilação do passo, proporcional à velocidade
@@ -308,6 +318,7 @@ export class Viewmodel {
   #applyAim(player) {
     const aim = player.gun?.aim ?? 0;
     const kick = player.gun?.kick ?? 0;
+    this.aim = aim;   // quem calcula a boca do cano precisa dele fora do frame
     const ads = this.pose?.ads;
 
     if (ads && aim > 0.001) {
@@ -334,6 +345,40 @@ export class Viewmodel {
       this.group.position.z += kick * 0.02;
       this.group.rotation.x += kick * 0.09;
     }
+  }
+
+  /**
+   * Boca do cano em espaço de câmera. Devolve false quando não há cano —
+   * mão vazia, faca, ou modelo sem marcador — e aí quem atira usa o olho.
+   *
+   * A cena do viewmodel É o espaço da câmera: a câmera dele nunca sai da
+   * origem nem gira, só troca de aspecto. É isso que permite levar a boca pro
+   * mundo com a matriz da câmera do jogo e mais nada.
+   *
+   * `zero` é a arma como ela está sendo segurada pra atirar — descanso
+   * misturado com a mira de ferro, sem corrida, sem coice e sem balanço. O
+   * desvio contra ela é o que torce o tiro; ver items/muzzle.js.
+   */
+  readMuzzle(out) {
+    if (!this.muzzle || !this.pose) return false;
+
+    this.muzzle.getWorldPosition(out.position);
+    this.muzzle.getWorldQuaternion(out.quaternion);
+
+    // parte fixa da orientação: o que o modelo e o marcador põem por cima do
+    // grupo. Sai por diferença, então serve pra qualquer item
+    localQuaternion.copy(this.group.quaternion).invert().multiply(out.quaternion);
+
+    const { rest, ads } = this.pose;
+    const zeroPose = ads ?? rest;
+    zeroEuler.set(
+      THREE.MathUtils.lerp(rest.r.x, zeroPose.r.x, this.aim),
+      THREE.MathUtils.lerp(rest.r.y, zeroPose.r.y, this.aim),
+      THREE.MathUtils.lerp(rest.r.z, zeroPose.r.z, this.aim)
+    );
+    out.zero.setFromEuler(zeroEuler).multiply(localQuaternion);
+
+    return true;
   }
 
   /** Desenha por cima do mundo, com a profundidade zerada. */

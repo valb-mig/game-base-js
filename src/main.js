@@ -40,7 +40,7 @@ const drops = initDrop(scene, player, viewmodel, world);
 const updatePrompt = initPrompt(drops);
 const attack = initAttack(player, world);
 const ballistics = createBallistics(scene, world.colliders);
-const firearm = initFirearm(player, world, ballistics);
+const firearm = initFirearm(player, world, ballistics, viewmodel);
 const updateHitmarker = initHitmarker(attack, ballistics);
 
 const flow = initFlow({
