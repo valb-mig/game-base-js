@@ -50,7 +50,9 @@ tiros marca o caminho.
 ## Campo de treinamento
 
 Segundo botão da abertura, e **outro mapa**: chão plano, alvos parados a 10,
-25, 50, 90 e 140 metros com a distância marcada no chão, os obstáculos pra
+25, 50, 90 e 140 metros — soldados desarmados, com a mesma silhueta e a mesma
+esfera de acerto dos do combate, e a distância marcada no chão. Derrubados,
+levantam sozinhos em quatro segundos. Mais os obstáculos pra
 medir salto e degrau, e o arsenal inteiro largado ao lado da linha de tiro.
 
 A munição não acaba, mas o **carregador acaba**: recarregar continua custando

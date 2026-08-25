@@ -59,6 +59,32 @@ export function run() {
   }
   note('linha de tiro', ALCANCES.join(' · ') + ' metros');
 
+  suite('os alvos são gente parada, não boneco de palha');
+
+  // O que se treina é acertar gente: a silhueta e a esfera de acerto de um
+  // soldado são o que vale medir. Boneco de palha tem outra forma e outro
+  // tamanho, e acertar ele não ensina nada sobre acertar alguém.
+  const um = marcados[0];
+  ok('o alvo tem corpo de soldado', um.height > 1.5 && um.radius > 0.3,
+    `${um.height.toFixed(2)} m de altura, esfera de ${um.radius}`);
+  ok('e está virado pro atirador', Math.abs(um.yaw - Math.PI) < 0.01);
+  ok('desarmado: ele não revida', !um.weapon);
+
+  const vida = um.health;
+  um.damage(30);
+  eq('ele leva dano', um.health, vida - 30);
+
+  um.damage(1000);
+  ok('e cai', !um.alive);
+
+  // Alvo que fica caído obriga a sair do lugar pra treinar de novo.
+  for (let i = 0; i < 60 * 2; i++) um.update(DT);
+  ok('não levanta na hora', !um.alive);
+  for (let i = 0; i < 60 * 8; i++) um.update(DT);
+  ok('mas levanta sozinho depois', um.alive);
+  eq('inteiro', um.health, vida);
+  near('e no mesmo lugar', Math.hypot(um.x - marcados[0].x, um.z - marcados[0].z), 0, 0.01);
+
   suite('todo o arsenal do jogo está lá');
 
   ok('e é tudo que tem modelo', ARSENAL.every(hasModel));

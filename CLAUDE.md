@@ -405,6 +405,13 @@ que ser plano, medido e sem nada acontecendo em volta, e Sainte-Mère é o
 contrário disso de propósito. Misturar os dois tirava o que cada um tem de
 bom, e por isso o campo saiu do mapa de combate.
 
+**Alvo de treino é GENTE parada, não boneco de palha.** O que se treina é
+acertar alguém, e a silhueta e a esfera de acerto de um soldado são o que vale
+medir — o boneco tem outra forma e outro tamanho. Ele continua existindo no
+curso de obstáculos, pro corpo a corpo. E o alvo levanta sozinho depois de
+cair: alvo que some no primeiro acerto obriga a sair do lugar pra treinar de
+novo.
+
 **As distâncias dos alvos se medem da LINHA DE TIRO.** Medidas da origem do
 campo elas saíam 6 m longas, e a placa de 90 m marcava 96 — aí ela deixa de
 ser medida e vira enfeite.

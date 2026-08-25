@@ -6,6 +6,9 @@ import { createSettling } from './settling.js';
 import { createWater } from './water.js';
 import { addTrainingCourse } from './course.js';
 import { createDummy } from './dummy.js';
+import { createSoldier } from '../bots/soldier.js';
+import { enemyOf } from '../game/teams.js';
+import { PLAYER_TEAM } from '../game/teams.js';
 import { addBox } from './props.js';
 import { MP40, PISTOL, KNIFE, SHOVEL } from '../items/classes.js';
 
@@ -34,6 +37,10 @@ const PLATAFORMA = 34;
 // origem do campo: a placa diz 90 m e tem que ser 90 m de onde se atira,
 // senão ela não é medida, é enfeite.
 const LINHA_DE_TIRO = { x: ORIGEM.x - 26, z: ORIGEM.z + 6 };
+
+// Segundos até um alvo derrubado levantar de novo. Alvo que fica caído
+// obriga a sair do lugar pra treinar de novo.
+const REVIVE = 4;
 
 export function buildTrainingWorld(scene) {
   const sonda = createTerrain([], null, 'treino');
@@ -66,14 +73,40 @@ export function buildTrainingWorld(scene) {
 
   // Linha de tiro ao norte, com as distâncias exatas: é o que faz "errei a
   // 90 m" ser um dado em vez de uma impressão.
+  //
+  // Os alvos são SOLDADOS parados, não bonecos de palha: o que se treina é
+  // acertar gente, e a esfera de acerto e a silhueta de um soldado são o que
+  // vale medir. O boneco de palha continua existindo pro corpo a corpo, no
+  // curso de obstáculos.
+  const inimigo = enemyOf(PLAYER_TEAM);
   const marcados = ALCANCES.map((metros, i) => {
     const x = LINHA_DE_TIRO.x + (i % 2 === 0 ? -2.5 : 2.5);
     const z = LINHA_DE_TIRO.z - metros;
-    const alvo = createDummy(scene, colliders, {
-      x, z, ground: terrain.heightAt(x, z), facing: 0,
-      name: `alvo ${metros} m`, settling
+
+    const alvo = createSoldier(scene, colliders, {
+      id: metros, team: inimigo, x, z, terrain, weapons: []
     });
+    alvo.yaw = Math.PI;          // virado pro atirador
+    alvo.name = `alvo ${metros} m`;
     alvo.metros = metros;
+    alvo.update(0);
+
+    // Ele levanta sozinho depois de cair: alvo que some depois do primeiro
+    // acerto obriga a sair do lugar pra treinar de novo.
+    const derrubar = alvo.damage;
+    alvo.damage = (quanto) => {
+      const r = derrubar(quanto);
+      if (r.killed) alvo.voltaEm = REVIVE;
+      return r;
+    };
+    const passo = alvo.update;
+    alvo.update = (delta) => {
+      if (!alvo.alive) {
+        alvo.voltaEm -= delta;
+        if (alvo.voltaEm <= 0) alvo.respawn(x, z);
+      }
+      passo(delta);
+    };
 
     // Marco no chão a cada alvo, pra a distância se ler de longe.
     addBox(scene, colliders, {
