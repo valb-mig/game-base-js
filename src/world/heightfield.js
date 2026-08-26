@@ -1,5 +1,6 @@
 import { WORLD } from '../config.js';
 import { declividadeAt, tipoDoChao } from './ground.js';
+import { fbm, smoothstep } from './noise.js';
 
 /**
  * Campo de altura de Sainte-Mère. Matemática pura, sem three: é a fonte de
@@ -12,48 +13,6 @@ import { declividadeAt, tipoDoChao } from './ground.js';
  * existe pra que um ponto de captura seja difícil de um jeito diferente —
  * a praia é aberta, a escarpa é alta, o rio é gargalo.
  */
-
-// Ruído de valor determinístico. Math.imul mantém a multiplicação em 32 bits,
-// senão o hash perde precisão e o ruído vira faixa.
-function hash(ix, iz) {
-  let n = Math.imul(ix, 374761393) + Math.imul(iz, 668265263);
-  n = Math.imul(n ^ (n >>> 13), 1274126177);
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
-}
-
-function smoothstep(t) {
-  return t * t * (3 - 2 * t);
-}
-
-function valueNoise(x, z) {
-  const ix = Math.floor(x);
-  const iz = Math.floor(z);
-  const fx = smoothstep(x - ix);
-  const fz = smoothstep(z - iz);
-
-  const a = hash(ix, iz);
-  const b = hash(ix + 1, iz);
-  const c = hash(ix, iz + 1);
-  const d = hash(ix + 1, iz + 1);
-
-  return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz;
-}
-
-/** Três oitavas, resultado em -1..1. */
-function fbm(x, z) {
-  let sum = 0;
-  let norm = 0;
-  let amplitude = 1;
-  let frequency = 1;
-
-  for (let octave = 0; octave < 3; octave++) {
-    sum += valueNoise(x * frequency, z * frequency) * amplitude;
-    norm += amplitude;
-    amplitude *= 0.5;
-    frequency *= 2.13;
-  }
-  return (sum / norm) * 2 - 1;
-}
 
 /**
  * @param {Array<{x, z, radius, blend, height}>} flatZones
