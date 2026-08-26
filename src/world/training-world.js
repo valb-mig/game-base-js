@@ -44,6 +44,16 @@ const LINHA_DE_TIRO = { x: ORIGEM.x - 26, z: ORIGEM.z + 6 };
 // obriga a sair do lugar pra treinar de novo.
 const REVIVE = 4;
 
+// Meia-largura do corredor de tiro que fica limpo de mato, em metros.
+//
+// O mato do campo de treino existe pra treinar o que ele faz: quebrar, e
+// deixar de esconder quem estava atrás. Mas ele não pode atravessar a raia —
+// arbusto entre o atirador e a placa de 90 m devolve "errei a 90" como
+// impressão, e o campo inteiro existe pra isso ser um dado. Dezesseis metros
+// de raia dão folga de sobra pro maior arbusto (1,75 m de pegada) nunca
+// encostar na linha de visada.
+const RAIA_LIMPA = 8;
+
 export function buildTrainingWorld(scene) {
   const sonda = createTerrain([], null, 'treino');
 
@@ -118,6 +128,24 @@ export function buildTrainingWorld(scene) {
     return alvo;
   });
   targets.push(...marcados);
+
+  /**
+   * Onde arbusto NÃO nasce: a plataforma achatada, que é onde ficam o curso e
+   * o arsenal, e a raia de tiro inteira, até além do alvo mais distante.
+   */
+  const maiorAlcance = Math.max(...ALCANCES);
+  const naRaia = (x, z) =>
+    Math.abs(x - LINHA_DE_TIRO.x) < RAIA_LIMPA
+    && z < LINHA_DE_TIRO.z + 10
+    && z > LINHA_DE_TIRO.z - maiorAlcance - 20;
+
+  const bushes = addBushes(scene, {
+    heightAt: terrain.heightAt,
+    tipoAt: terrain.tipoAt,
+    blocked: (x, z) =>
+      Math.hypot(x - ORIGEM.x, z - ORIGEM.z) < PLATAFORMA + 4 || naRaia(x, z),
+    rng: sorteioFixo(20250826)
+  });
 
   return {
     modo: 'treino',
