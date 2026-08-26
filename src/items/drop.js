@@ -4,6 +4,7 @@ import { consumePress } from '../core/input.js';
 import { DROP_KEYS, PICK_KEYS, SLOT_KEYS } from '../player/constants.js';
 import { restHeightAt } from '../player/collision.js';
 import { createItemModel, restingRotation, disposeModel } from './models.js';
+import { reabastecer } from '../game/suprimento.js';
 
 /**
  * Itens largados no mundo.
@@ -162,6 +163,23 @@ export function initDrop(scene, player, viewmodel, world) {
   function pickUp() {
     const entity = reachable();
     if (!entity) return null;
+
+    /**
+     * Caixa de munição não vai pra mão: apanhar é CONSUMIR.
+     *
+     * Ela não tem slot, então `takeCarried` recusaria e a caixa ficaria no
+     * chão pra sempre. E recusar quando já está cheio importa: sem isso, o
+     * jogador com a reserva no teto some com a caixa que o companheiro ao
+     * lado precisava.
+     */
+    if (entity.item.suprimento) {
+      if (reabastecer(player.carried, entity.item.suprimento) === 0) return null;
+      items.splice(items.indexOf(entity), 1);
+      scene.remove(entity.mesh);
+      disposeModel(entity.mesh);
+      return entity.item;
+    }
+
     // slot ocupado recusa: melhor deixar no chão que sumir com o item
     if (!player.takeCarried(entity.item)) return null;
 
@@ -186,10 +204,24 @@ export function initDrop(scene, player, viewmodel, world) {
     return entity;
   }
 
+  /**
+   * Tira um item do mundo sem pôr na mão de ninguém. É o que faz o espólio
+   * de um corpo sumir junto com ele — apanhar continua sendo `pickUp`.
+   */
+  function remove(entity) {
+    const indice = items.indexOf(entity);
+    if (indice < 0) return false;   // já foi apanhado; nada a fazer
+    items.splice(indice, 1);
+    scene.remove(entity.mesh);
+    disposeModel(entity.mesh);
+    return true;
+  }
+
   return {
     items,
     dropEquipped,
     place,
+    remove,
     pickUp,
     reachable,
 
@@ -203,7 +235,17 @@ export function initDrop(scene, player, viewmodel, world) {
           if (consumePress(SLOT_KEYS[i])) player.selectSlot(i);
         }
         if (consumePress(...DROP_KEYS)) dropEquipped();
-        if (consumePress(...PICK_KEYS)) pickUp();
+        /**
+         * O E só é CONSUMIDO quando há item ao alcance.
+         *
+         * `pickUp` já devolvia null sem nada por perto, mas a tecla ia embora
+         * de todo jeito — e o E é disputado: quem está ao lado de um veículo
+         * quer entrar nele. Medido no jogo: `drops.update` roda antes de
+         * `veiculos.update` no laço, engolia a tecla em todo quadro, e apertar
+         * E ao lado do jipe não fazia absolutamente nada. Quem tem o que fazer
+         * com a tecla é quem a consome.
+         */
+        if (reachable() && consumePress(...PICK_KEYS)) pickUp();
       }
       for (const entity of items) step(entity, delta);
     }

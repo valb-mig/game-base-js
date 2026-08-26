@@ -85,6 +85,7 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
   scene.add(grupo);
 
   const olhar = new THREE.Vector3();
+  let escondido = false;
 
   return {
     grupo,
@@ -93,9 +94,20 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
       return grupo.visible;
     },
 
+    /**
+     * Desliga o corpo. Existe pra quem está DIRIGINDO: o corpo é posado em pé,
+     * e um corpo em pé dentro de um assento fica com as pernas enfiadas no
+     * assoalho e o tronco meio metro alto. Quem aparece na tela nesse caso são
+     * as mãos do viewmodel, que vivem no espaço da câmera.
+     */
+    set visible(v) {
+      escondido = !v;
+      if (!v) grupo.visible = false;
+    },
+
     update() {
       // Espectador não tem corpo: ele não está no jogo, está olhando.
-      const mostrar = !player.spectating && player.alive;
+      const mostrar = !escondido && !player.spectating && player.alive;
       if (grupo.visible !== mostrar) grupo.visible = mostrar;
       if (!mostrar) return;
 

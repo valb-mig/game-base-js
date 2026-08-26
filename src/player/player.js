@@ -70,6 +70,13 @@ export class Player {
     // a pá leva uma pazada de cada vez, e é isso que faz cavar virar sequência
     this.dig = { modo: null, progresso: 0, cooldown: 0, carga: 0, falhou: null };
 
+    /**
+     * O veículo em que ele está, ou null. Quem mexe é `veiculos/veiculos.js`,
+     * e só ele: dirigindo, `player.update` não roda e quem escreve a câmera é
+     * a vista de dentro do jipe.
+     */
+    this.vehicle = null;
+
     // água — atualizado todo frame por updateWaterState
     this.spectating = false;   // fantasma: voa, não colide, não é atingido
     this.alive = true;

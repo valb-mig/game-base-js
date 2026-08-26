@@ -135,15 +135,31 @@ export function buildTrainingWorld(scene) {
     }],
     bases: [],
     arsenal: ARSENAL,
+
+    /**
+     * Um jipe ao lado da linha de tiro.
+     *
+     * Ele fica FORA da raia (que é limpa até 8 m do eixo de tiro) e longe da
+     * faixa do curso de obstáculos: veículo parado na frente dos alvos
+     * transformaria a raia de 140 m numa raia de 12. E é aqui que ele tem que
+     * estar — o campo é plano, medido e sem ninguém atirando de volta, que é
+     * exatamente o que se quer pra aprender a dirigir. Sainte-Mère é o
+     * contrário disso de propósito.
+     */
+    garagem: [{ x: LINHA_DE_TIRO.x + 14, z: LINHA_DE_TIRO.z + 5, yaw: Math.PI / 2 }],
     /** Onde o jogador nasce: atrás da linha de tiro, olhando pros alvos. */
     spawn: new THREE.Vector3(LINHA_DE_TIRO.x, 0, LINHA_DE_TIRO.z),
-    stats: { alvos: targets.length, colliders: colliders.length },
+    stats: {
+      alvos: targets.length, arbustos: bushes.count,
+      colliders: colliders.length
+    },
 
     reshape(x, z, amount, radius) {
       const tocados = deform.apply(x, z, amount, radius);
       if (tocados.length === 0) return false;
       chao.applyEdit(tocados);
       settling.disturb(x, z, radius ?? 3);
+      bushes.disturb(x, z, radius ?? 3);
       return true;
     }
   };

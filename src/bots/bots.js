@@ -187,6 +187,12 @@ export function playerAsTarget(player, onDeath) {
     // atualiza sozinho no laço; aqui é só pra ele caber na lista.
     update() {},
 
+    /** Empurrado de lado — é o que um veículo devagar faz em vez de matar. */
+    empurrar(dx, dz) {
+      player.object.position.x += dx;
+      player.object.position.z += dz;
+    },
+
     damage(amount, regiao = null) {
       const dano = amount * (regiao?.multiplicador ?? 1);
       const morreu = player.damage(dano);

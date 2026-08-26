@@ -32,6 +32,10 @@ import { isDown } from './core/input.js';
 import { FLAG_KEYS } from './player/constants.js';
 import { createBots, playerAsTarget } from './bots/bots.js';
 import { carregarSoldado, caixasDoModelo } from './bots/model.js';
+import { carregarJipe, medidasDoJipe } from './veiculos/modelo.js';
+import { usarMedidasDoJipe } from './veiculos/hitbox.js';
+import { criarVeiculos } from './veiculos/veiculos.js';
+import { initPlayerBody } from './player/body.js';
 import { usarMedidasDoModelo } from './game/hitboxes.js';
 import { buildTrainingWorld } from './world/training-world.js';
 import { enemyOf, postOwner } from './game/teams.js';
@@ -52,6 +56,12 @@ import {
 // mundo é síncrono. Ele é esperado AQUI, antes de qualquer tela: são 25 KB, e
 // pagar isso na abertura é melhor do que soldado nascendo sem corpo.
 await carregarSoldado().catch(() => {});
+// O jipe pelo mesmo caminho e pelo mesmo motivo: 53 KB pagos na abertura em
+// vez de veículo nascendo invisível no meio do mapa.
+await carregarJipe().catch(() => {});
+// E a hitbox dele sai da MALHA, como a do soldado. Sem o arquivo, a tabela de
+// reserva vale — a regra de dano não depende de `.glb` ter carregado.
+usarMedidasDoJipe(medidasDoJipe);
 
 // A hitbox passa a sair da MALHA do modelo. A regra de dano continua sem
 // conhecer three: ela só recebe de onde medir.
@@ -87,6 +97,9 @@ function boot(modo = 'batalha') {
 
   const player = new Player(camera, renderer.domElement, world);
   scene.add(player.object);
+
+  // O corpo dele, visto por ele. Sem cabeça: a câmera está dentro dela.
+  const corpo = initPlayerBody(scene, player, { team: player.team });
 
   // item na mão: passe próprio, some enquanto alguma tela estiver aberta
   const viewmodel = new Viewmodel(camera, innerWidth / innerHeight);
@@ -181,9 +194,26 @@ function boot(modo = 'batalha') {
   bots.setTargets(alvos);
   world.targets.push(...bots.soldiers, alvoDoJogador);
 
+  /**
+   * Os veículos. Depois dos bots porque a lista de alvos do atropelamento é a
+   * mesma que eles formam — quem passa por cima de alguém precisa saber quem
+   * está em campo.
+   *
+   * ONDE eles ficam é do mapa, não daqui: `world.garagem` é a mesma ideia de
+   * `world.arsenal` e `world.spawnZones` — quem conhece o terreno é quem
+   * escolhe o lugar. Sainte-Mère põe um em cada base; o campo de treinamento
+   * põe um ao lado da linha de tiro, que é onde se aprende a dirigir sem
+   * ninguém atirando de volta.
+   */
+  const veiculos = criarVeiculos(scene, world, camera, player);
+  for (const vaga of world.garagem ?? []) {
+    veiculos.criar(vaga.x, vaga.z, vaga.yaw);
+  }
+
   // A trajetória prevista sai da boca do cano, como o tiro de verdade: com a
   // arma fora de posição o arco tem que sair torto aqui também.
   const debugView = initDebugView(scene, world, bots, { player, viewmodel, ballistics });
+
 
   // P grava a tela com o estado escrito nela, pra virar contexto de relato.
   const snapshot = initSnapshot(renderer, player, { world, bots, capture });
@@ -212,14 +242,14 @@ function boot(modo = 'batalha') {
 
   game = {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog,
-    capture, bots,
+    capture, bots, sparks, spoils, veiculos,
     updateObjective: initObjective(player, capture),
     updateFlagPrompt: initFlagPrompt(player, capture),
 
     updateStatus: initStatus(player),
     updateCompass: initCompass(camera),
     updateCrosshair: initCrosshair(player, camera),
-    updatePrompt: initPrompt(drops),
+    updatePrompt: initPrompt(drops, veiculos),
     updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics),
     killfeed,
     // Caixas de colisão e o que cada bot está pensando. Quem manda no
@@ -227,7 +257,6 @@ function boot(modo = 'batalha') {
     debugView,
     // O painel lê os números da trajetória, então a vista nasce antes dele.
     snapshot,
-    debug: initDebug(player, () => debugView.shot)
   };
 
   clock.getDelta();   // descarta o tempo que a abertura ficou na tela
@@ -283,7 +312,7 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
-    watchdog, capture, bots, snapshot, killfeed
+    watchdog, capture, bots, snapshot, killfeed, corpo, sparks, spoils, veiculos
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -293,19 +322,67 @@ function frame() {
   // conteúdo entre uma coisa e outra.
   snapshot.poll();
 
-  if (player.isLocked) {
+  /**
+   * Os veículos ANTES de tudo o que lê tecla, e antes do jogador.
+   *
+   * Duas razões, e as duas foram medidas doendo. O E é disputado com apanhar
+   * item, e quem roda primeiro tem a primeira recusa — com `drops` na frente,
+   * apertar E ao lado do jipe não fazia nada, porque ele consumia a tecla em
+   * todo quadro mesmo sem item por perto. E é aqui que `player.vehicle` muda,
+   * então tudo abaixo já sabe se o jogador está dirigindo neste quadro.
+   *
+   * Também é aqui que o corpo do jogador e as caixas de colisão do que anda se
+   * movem, e quem testa acerto tem que testar contra onde as coisas estão
+   * neste quadro.
+   */
+  veiculos.update(delta, world.targets);
+
+  /**
+   * Dirigindo, quem move o jogador é o VEÍCULO.
+   *
+   * `player.update` não roda: ele resolveria postura, locomoção e colisão pra
+   * um corpo que não está andando, e no fim do quadro `view.js` reescreveria
+   * `camera.position.y` por cima do assento. Quem escreve a câmera de dentro
+   * do jipe é `veiculos/vista.js`.
+   */
+  const dirigindo = Boolean(player.vehicle);
+  if (player.isLocked && !dirigindo) {
     player.update(delta);
     if (!player.spectating) viewmodel.update(delta, player);
   }
 
   // Espectador não larga item, não golpeia e não atira: ele não está no jogo.
+  // E quem está no VOLANTE tem as duas mãos ocupadas — passageiro atira.
+  const maosLivres = !dirigindo || !player.vehicle.lugar.def.dirige;
   if (!player.spectating) {
-    drops.update(delta);
-    attack.update(delta);
-    firearm.update(delta);
-    digging.update(delta);
+    if (!dirigindo) drops.update(delta);
+    if (maosLivres) {
+      attack.update(delta);
+      firearm.update(delta);
+    }
+    if (!dirigindo) digging.update(delta);
   }
+  if (dirigindo && maosLivres) viewmodel.update(delta, player);
+
+  /**
+   * Quem está no volante segura o volante, não a arma.
+   *
+   * `viewmodel.update` não roda pra ele, então sem isto a arma congelava na
+   * última pose no meio da tela. E o corpo em primeira pessoa sai de cena:
+   * ele está em pé, e um corpo em pé dentro de um assento tem as pernas
+   * enfiadas no assoalho — as mãos que aparecem são as do viewmodel, que
+   * vivem no espaço da câmera e não precisam de corpo nenhum.
+   */
+  if (dirigindo && !maosLivres) {
+    const maos = veiculos.maosNoVolante();
+    if (maos) viewmodel.segurarVolante(maos.esq, maos.dir, camera.fov);
+  } else {
+    viewmodel.soltarVolante();
+  }
+  corpo.visible = !dirigindo;
   ballistics.update(delta, world.targets, world.terrain);
+  sparks.update(delta);
+  spoils.update(delta);
   world.settling.update(delta);
   world.bushes?.update(delta);
 
@@ -338,6 +415,7 @@ function frame() {
   document.body.classList.toggle('aiming', player.gun.aim > 0.5);
   for (const target of world.targets) target.update(delta);
 
+  corpo.update();
   /**
    * Posto dominado é paiol.
    *

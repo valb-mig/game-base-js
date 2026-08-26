@@ -58,6 +58,8 @@ function toVectors(pose) {
 }
 
 export class Viewmodel {
+  #alvoDaMao;
+
   constructor(worldCamera, aspect, teamId) {
     this.worldCamera = worldCamera;
 
@@ -95,6 +97,7 @@ export class Viewmodel {
     // Os braços ficam FORA do grupo do item: o ombro é fixo e a mão é que
     // persegue o marcador da arma. Ver items/arms.js.
     this.bracos = criarBracos(this.scene, teamId);
+    this.#alvoDaMao = new THREE.Vector3();
   }
 
   /**
@@ -145,6 +148,55 @@ export class Viewmodel {
     }
     this.group.updateMatrixWorld(true);
     this.bracos.seguir(this.item);
+  }
+
+  /**
+   * As duas mãos no aro do volante, e a arma fora da mão.
+   *
+   * O item é ESCONDIDO, não removido: sair do jipe devolve a mesma arma na
+   * mesma pose, e `setItem` reconstruiria o modelo por nada. Quem dirige com
+   * as duas mãos não pode estar segurando uma MP40 — e o que aparecia era
+   * pior que isso: sem `update` (que não roda pra quem está no volante), a
+   * arma congelava na última pose no meio da tela.
+   *
+   * Os pontos vêm no espaço da CÂMERA, que é o espaço desta cena — é o mesmo
+   * caminho da boca do cano, ao contrário: o mundo entra aqui pela matriz da
+   * câmera do jogo. Como eles saem do aro do volante, as mãos giram COM ele
+   * de graça, e é isso que faz a direção ser vista de dentro.
+   */
+  segurarVolante(esq, dir, fovDoJogo) {
+    if (this.item) this.item.visible = false;
+    if (this.mag) this.mag.visible = false;
+    this.bracos.visible = true;
+    this.bracos.esq.mirar(this.#naTela(esq, fovDoJogo));
+    this.bracos.dir.mirar(this.#naTela(dir, fovDoJogo));
+  }
+
+  /**
+   * Um ponto do MUNDO trazido pra onde ele APARECE na tela.
+   *
+   * Esta cena tem câmera própria, com 42° contra os 70° do jogo — é isso que
+   * desacopla o tamanho da arma na tela do campo de visão. Só que o volante é
+   * desenhado pela câmera do JOGO: um ponto do aro copiado cru pra cá projeta
+   * noutro lugar da tela, e as mãos nunca encostam nele. Medido: o aro fica a
+   * 24° do eixo e o quadro do viewmodel acaba em 21° — elas não apareciam nem
+   * na tela.
+   *
+   * A correção é uma conta de projeção, não um ajuste a olho: mantendo a
+   * profundidade e escalando x e y por tan(42/2)/tan(70/2), o ponto passa a
+   * projetar exatamente onde o original projeta na câmera do jogo. Sem o
+   * `fov` de quem desenha o volante não há como saber esse fator.
+   */
+  #naTela(ponto, fovDoJogo) {
+    const meio = THREE.MathUtils.degToRad(fovDoJogo ?? this.camera.fov) / 2;
+    const fator = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)
+      / Math.tan(meio);
+    return this.#alvoDaMao.set(ponto.x * fator, ponto.y * fator, ponto.z);
+  }
+
+  /** Devolve a arma pra mão. Idempotente: roda todo quadro fora do volante. */
+  soltarVolante() {
+    if (this.item && !this.item.visible) this.item.visible = true;
   }
 
   get visible() {

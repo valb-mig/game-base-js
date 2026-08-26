@@ -441,12 +441,36 @@ export function createSoldier(scene, colliders, {
       return meio.set(soldier.x, soldier.feetY + soldier.height * 0.62, soldier.z);
     },
 
+    /**
+     * Empurrado de lado, sem levar dano.
+     *
+     * É o que um veículo devagar faz: encostar num soldado a 3 km/h tem que
+     * tirá-lo do caminho, não matá-lo. Fica no alvo e não em quem empurra
+     * porque só ele sabe mover o próprio corpo — e alvo que não sabe (poste,
+     * boneco de treino) simplesmente não tem este método.
+     */
+    empurrar(dx, dz) {
+      if (!soldier.alive) return;
+      soldier.x += dx;
+      soldier.z += dz;
+      soldier.feetY = groundHeightAt(colliders, soldier.x, soldier.z,
+        soldier.feetY + PLAYER.STEP_HEIGHT,
+        terrain.heightAt(soldier.x, soldier.z));
+    },
+
     /** De onde ELE atira: altura do olho. */
     eye(out) {
       return out.set(soldier.x, soldier.feetY + soldier.height - 0.14, soldier.z);
     },
 
-    damage(amount, regiao = null) {
+    /**
+     * `impacto` é de onde veio o dano: `{ dir, ponto }`. Tiro é IMPACTO, não
+     * só perda de vida — é ele que decide pra onde o corpo tomba, onde o
+     * ragdoll leva o empurrão, e que osso dá o solavanco em quem continua de
+     * pé. Sem ele o dano ainda vale; o corpo é que cai sempre pra frente,
+     * como se o tiro tivesse vindo de lugar nenhum.
+     */
+    damage(amount, regiao = null, impacto = null) {
       if (!soldier.alive) return { target: soldier, amount: 0, killed: false };
 
       // O multiplicador é da REGIÃO, e é o que faz mirar valer a pena.

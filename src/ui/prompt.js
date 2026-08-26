@@ -3,7 +3,7 @@
  * alcançável agora. Sem item por perto, não há aviso — o HUD não anuncia
  * ação que não vai funcionar.
  */
-export function initPrompt(drops) {
+export function initPrompt(drops, veiculos = null) {
   const element = document.getElementById('prompt');
 
   const key = document.createElement('kbd');
@@ -15,8 +15,12 @@ export function initPrompt(drops) {
   let shown = null;
 
   return function updatePrompt() {
-    const target = drops.reachable();
-    const name = target ? target.item.name : null;
+    // Veículo antes de item: o E é o mesmo, e quem está ao lado de um jipe
+    // quer entrar nele. Se o aviso mostrasse o item, a tecla faria uma coisa
+    // e a tela prometeria outra.
+    const veiculo = veiculos?.aviso() ?? null;
+    const target = veiculo ? null : drops.reachable();
+    const name = veiculo ?? (target ? target.item.name : null);
 
     if (name === shown) return;
     shown = name;

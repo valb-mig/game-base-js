@@ -194,6 +194,17 @@ export function buildWorld(scene) {
     deform,
 
     /**
+     * Onde há veículo no mapa, e é o MAPA que diz — como ele já diz onde se
+     * desembarca e o que existe em cada ponto. Um em cada base: num mapa de
+     * dois quilômetros, o jipe é a diferença entre entrar na briga e caminhar
+     * até ela. Nariz pra fora da base, que é pra onde se vai.
+     */
+    garagem: [
+      { x: north.x + 14, z: north.z + 4, yaw: Math.PI },
+      { x: south.x + 14, z: south.z + 4, yaw: Math.PI }
+    ],
+
+    /**
      * Cava (amount negativo) ou aterra (positivo) em (x, z).
      * Devolve true se o terreno mudou de fato.
      */
