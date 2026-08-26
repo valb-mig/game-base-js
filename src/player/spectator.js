@@ -4,6 +4,7 @@ import { axis, isDown } from '../core/input.js';
 import {
   FORWARD_KEYS, BACK_KEYS, RIGHT_KEYS, LEFT_KEYS, JUMP_KEYS, CROUCH_KEYS, RUN_KEYS
 } from './constants.js';
+import { waterLevelUnder } from './collision.js';
 
 /**
  * Espectador: fantasma que voa pelo mapa.
@@ -71,7 +72,8 @@ export function spectate(player, delta) {
   player.running = false;
   player.swimming = false;
   player.submerged = 0;
-  player.headUnderwater = player.eyeY < WORLD.WATER_LEVEL;
+  player.headUnderwater = player.eyeY
+    < waterLevelUnder(player, position.x, position.z);
   player.height = PLAYER.HEIGHT;
   player.state = 'espectando';
 }

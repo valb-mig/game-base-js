@@ -145,7 +145,14 @@ export function initAttack(player, world) {
     const porTras = pelasCostas(target);
     const dano = melee.damage * (porTras ? (melee.costas ?? 1) : 1);
 
-    const result = target.damage(dano);
+    // O rumo do golpe é o do olhar: o corpo tomba pra longe de quem esfaqueou.
+    const rumo = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(player.object.quaternion)
+      .setY(0)
+      .normalize();
+    // A lâmina não tem ponto de impacto próprio: ela pega o corpo inteiro de
+    // perto, e o solavanco do tronco é o que sobra disso.
+    const result = target.damage(dano, null, { dir: rumo, ponto: null });
     for (const listener of listeners) {
       listener({ ...result, costas: porTras, corpoACorpo: true });
     }

@@ -2,6 +2,7 @@ import { createKnife } from './knife.js';
 import { createPistol } from './pistol.js';
 import { createMP40 } from './mp40.js';
 import { createShovel } from './shovel.js';
+import { createCaixaMunicao } from './caixa.js';
 
 /**
  * Item (dado) -> modelo 3D (malha).
@@ -14,7 +15,8 @@ export const FACTORIES = {
   kabar: createKnife,
   m1911: createPistol,
   mp40: createMP40,
-  m1943: createShovel
+  m1943: createShovel,
+  'caixa-municao': createCaixaMunicao
 };
 
 export function hasModel(item) {
@@ -36,6 +38,7 @@ export function restingRotation(item) {
   if (item?.id === 'm1911') return { x: 0, z: Math.PI / 2 };   // deita de lado
   if (item?.id === 'mp40') return { x: 0, z: Math.PI / 2 };    // idem, sobre o carregador
   if (item?.id === 'm1943') return { x: 0, z: 0 };             // já deita reta
+  if (item?.id === 'caixa-municao') return { x: 0, z: 0 };     // engradado já assenta
   return { x: 0, z: 0 };
 }
 
