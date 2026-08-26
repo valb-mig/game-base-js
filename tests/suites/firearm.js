@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { initFirearm, spreadFactor } from '../../src/items/firearm.js';
-import { SPREAD } from '../../src/config.js';
+import { SPREAD, BULLET } from '../../src/config.js';
 import { createBallistics } from '../../src/items/ballistics.js';
 import { createDummy } from '../../src/world/dummy.js';
 import { initInput, endFrame } from '../../src/core/input.js';
@@ -9,7 +9,7 @@ import { CLASSES, PISTOL, KNIFE, SLOT_ORDER, getClass } from '../../src/items/cl
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
 /**
  * Põe o item na mão e ESPERA a troca terminar.
@@ -205,6 +205,34 @@ export function run() {
   passo(Math.ceil(PISTOL.firearm.reloadTime / DT) + 4);
   eq('e sem nada na câmara entram sete', PISTOL.ammo.loaded, PISTOL.firearm.magazine);
 
+  // Trocar de arma no meio da recarga deixava a arma TRAVADA na pose de
+  // recarregar quando ela voltava pra mão: `selectSlot` cancelava
+  // `reloading` e esquecia `reloadProgress`, e o viewmodel anima pelo
+  // PROGRESSO. Com ele parado em 0,4 a arma ficava de lado pra sempre, e só
+  // recarregar de novo — que leva o progresso até o fim — desentortava.
+  suite('trocar de arma no meio da recarga não trava a pose');
+
+  empunhar(player, player.carried.findIndex((item) => item?.id === 'm1911'));
+  PISTOL.ammo.loaded = 2;
+  PISTOL.ammo.reserve = 21;
+  tecla('KeyR'); passo(Math.ceil(PISTOL.firearm.reloadTime * 0.4 / DT));
+  ok('a recarga está no meio', player.gun.reloadProgress > 0.2,
+    player.gun.reloadProgress.toFixed(2));
+
+  empunhar(player, player.carried.findIndex((item) => item?.id === 'kabar'));
+  passo(2);
+  eq('trocar pra faca cancela a recarga', player.gun.reloading, 0);
+  eq('e zera o progresso, senão a pose congela',
+    player.gun.reloadProgress, 0);
+
+  empunhar(player, player.carried.findIndex((item) => item?.id === 'm1911'));
+  passo(2);
+  eq('a arma volta pra mão sem pose de recarga pendurada',
+    player.gun.reloadProgress, 0);
+
+  PISTOL.ammo.loaded = PISTOL.firearm.magazine + 1;
+  PISTOL.ammo.reserve = 21;
+
   suite('mira de ferro');
 
   eq('em repouso a arma está no quadril', player.gun.aim, 0);
@@ -270,6 +298,20 @@ export function run() {
   passo(Math.ceil(PISTOL.firearm.fireInterval / DT) + 2);
   clicar(); passo(10);
   ok('tirando a parede, acerta', alvo.health < antes);
+
+  suite('a bala do jogador cai; a do bot, não');
+
+  // A queda é mecânica do JOGADOR: ele mira sem atraso e a depuração desenha
+  // o arco pra ele aprender. Só a do bot vai reta, porque a mira dele já erra
+  // de propósito e somar queda a isso é um segundo erro ilegível.
+  empunhar(player, player.carried.findIndex((item) => item?.id === 'm1911'));
+  PISTOL.ammo.loaded = 8;
+  passo(Math.ceil(PISTOL.firearm.fireInterval / DT) + 2);
+  clicar(); passo(1);
+  const doJogador = ballistics.bullets[ballistics.bullets.length - 1];
+  eq('a bala do jogador cai por GRAVITY', doJogador.gravity, BULLET.GRAVITY);
+  ok('e é queda de verdade', BULLET.GRAVITY > 0, `${BULLET.GRAVITY} m/s²`);
+  eq('a do bot vai reta', BULLET.BOT_GRAVITY, 0);
 
   suite('faca na mão não atira');
 

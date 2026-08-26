@@ -10,7 +10,7 @@ import { BULLET } from '../../src/config.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 const GRAUS = 180 / Math.PI;
 
 /**

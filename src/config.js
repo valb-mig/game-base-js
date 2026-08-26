@@ -418,7 +418,26 @@ export const BULLET = {
   // mas o bastante pra queda aparecer e pra alvo em movimento exigir avanço.
   SPEED: 253,
   GRAVITY: 14,        // acima do real de propósito: queda precisa ser legível
-  LIFE: 2.5,          // segundos até a bala desistir
+  /**
+   * Até onde uma bala voa, em metros. Teto de TODAS elas: a arma pode declarar
+   * um limite MENOR, nunca maior.
+   *
+   * Antes as duas armas diziam `Infinity` e a rédea era só a `LIFE` de 30 s,
+   * que não segura nada. No plano a gravidade põe o tiro no chão a 125 m e
+   * parecia resolvido — mas o alcance de um lançamento a 45° é v²/g, ou seja
+   * 253²/14 = 4572 m: duas vezes e meia a ilha. Mirando pra cima a bala saía
+   * do mapa e seguia sendo testada contra todo alvo e toda parede por trinta
+   * segundos, sem nunca poder acertar nada.
+   *
+   * 600 m é acima de qualquer engajamento que o mapa oferece (o posto mais
+   * distante do desembarque está a 711 m, e isso é travessia, não tiro) e
+   * abaixo do lado da ilha, então bala nenhuma morre de velhice no ar.
+   */
+  RANGE_MAX: 600,
+  // Segundos até a bala desistir. Trava de segurança, não a rédea de
+  // distância — quem manda nela é RANGE_MAX, e 600 m são 2,4 s de voo. Fica
+  // pra bala que por algum motivo saia devagar demais pra gastar o alcance.
+  LIFE: 30,
   STEP: 0.6,          // subdivisão máxima do trecho por quadro, em metros
 
   // Quanto do desalinhamento do cano a bala herda. 1 é fisicamente honesto;

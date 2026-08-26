@@ -84,7 +84,11 @@ export const PISTOL = {
   note: '.45 ACP · sete no carregador e uma na câmara',
   firearm: {
     damage: 34,
-    range: 55,
+    // `Infinity` aqui quer dizer "esta arma não impõe limite PRÓPRIO", não
+    // que a bala voa pra sempre: o teto é `BULLET.RANGE_MAX`, cravado na
+    // balística. O número mora num lugar só de propósito — duas fontes de
+    // verdade sobre distância se separam no primeiro ajuste.
+    range: Infinity,
     magazine: 7,       // o oitavo tiro é o da câmara
     reloadTime: 1.9,
     fireInterval: 0.17,
@@ -94,7 +98,10 @@ export const PISTOL = {
     som: 'colt',       // ver `core/audio.js`: mais grave que a MP40
     adsSpread: 0.12,
     adsTime: 0.16,
-    recoil: 1.5,       // coice, em graus
+    // Graus que a MIRA sobe por tiro — quem aplica é player/view.js. A .45
+    // pula mais que a MP40 no tiro isolado; é a CADÊNCIA da automática que
+    // faz o coice dela somar mais rápido.
+    recoil: 1.5,
     dig: TERRAIN_BITE.SECONDARY
   },
   ammo: { loaded: 8, reserve: 21 }
@@ -138,7 +145,7 @@ export const MP40 = {
   note: '9×19mm, automática, 32 tiros',
   firearm: {
     damage: 24,
-    range: 95,
+    range: Infinity,   // ver a Colt: o teto é BULLET.RANGE_MAX
     magazine: 32,
     reloadTime: 2.4,
     auto: true,

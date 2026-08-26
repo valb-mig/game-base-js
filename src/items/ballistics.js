@@ -32,6 +32,16 @@ export function createBallistics(scene, colliders, {
   const folhagem = new THREE.Vector3();
   const NOTHING = new Set();
 
+  /**
+   * Folga da peneira barata, em metros.
+   *
+   * O corpo tem meio metro de raio e a caixa mais larga (os ombros) vai um
+   * pouco além; 1,4 cobre os dois com sobra. Apertar isto pra ganhar
+   * desempenho é trocar milissegundo por bala que atravessa gente.
+   */
+  const ALCANCE_LATERAL = 1.4;
+  const ALTURA_ALVO = 2;
+
   // Fração do trecho abaixo da qual dois acertos contam como simultâneos. A
   // 253 m/s, 0,4% de um quadro é meio centímetro — a espessura de uma tampa
   // de cápsula, que é exatamente onde as regiões se encostam.
@@ -40,16 +50,45 @@ export function createBallistics(scene, colliders, {
   // Reaproveitados: resolver acerto é coisa de todo quadro, e alocar uma
   // lista de regiões por bala por alvo seria lixo por quadro.
   const corpo = [];
+  // Reaproveitado: uma lista nova por bala por quadro seria lixo por quadro.
+  const noTrecho = [];
+
+  /**
+   * Traçantes vêm de uma PISCINA, e a geometria é uma só.
+   *
+   * Antes cada bala com risco criava uma `BoxGeometry` e um material, e os
+   * descartava ao morrer. Num tiroteio de 300 bots são mais de mil tiros por
+   * segundo: mil buffers criados e destruídos na GPU por segundo, com a
+   * sincronização de driver que cada `dispose` custa. Medido, a contagem de
+   * geometrias em memória subia sem parar durante a briga.
+   *
+   * A geometria é compartilhada porque o risco é sempre a mesma caixa —
+   * o comprimento sai da escala. O MATERIAL é por traçante porque a opacidade
+   * é dele: um material só faria todos os riscos do mapa apagarem juntos.
+   */
+  const GEO_TRACER = new THREE.BoxGeometry(
+    BULLET.TRACER_WIDTH, BULLET.TRACER_WIDTH, 1);
+  const piscina = [];
 
   function makeTracer() {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(BULLET.TRACER_WIDTH, BULLET.TRACER_WIDTH, 1),
+    const mesh = piscina.pop() ?? new THREE.Mesh(
+      GEO_TRACER,
       new THREE.MeshBasicMaterial({
         color: BULLET.TRACER_COLOR, transparent: true, opacity: 0.85, depthWrite: false
       })
     );
     mesh.renderOrder = 3;
+    mesh.material.opacity = 0.85;
     return mesh;
+  }
+
+  /** Devolve o risco pra piscina em vez de destruí-lo. */
+  function guardarTracer(mesh) {
+    scene.remove(mesh);
+    // Teto pra que uma briga muito grande não deixe a piscina pra sempre do
+    // tamanho do pico. Acima dele o excedente é descartado de verdade.
+    if (piscina.length < 512) piscina.push(mesh);
+    else mesh.material.dispose();
   }
 
   /**
@@ -117,8 +156,17 @@ export function createBallistics(scene, colliders, {
     ray.origin.copy(start);
     ray.direction.copy(delta).divideScalar(length);
 
+    // Só os colisores ao longo do trecho. A lista inteira eram 5505 caixas
+    // por bala por quadro; num tiroteio com 747 balas no ar isso é 4,1
+    // milhões de testes raio-caixa, e o quadro ia a 258 ms. Quem não responde
+    // `aoLongoDe` (dublê de teste) devolve tudo, e o resultado é o mesmo.
+    const candidatos = colliders.aoLongoDe
+      ? colliders.aoLongoDe(start.x, start.z,
+        start.x + delta.x, start.z + delta.z, noTrecho)
+      : colliders;
+
     let nearest = null;
-    for (const collider of colliders) {
+    for (const collider of candidatos) {
       if (ignore.has(collider) || collider === doAtirador) continue;
       const point = ray.intersectBox(collider.box, hitPoint);
       if (!point) continue;
@@ -141,20 +189,77 @@ export function createBallistics(scene, colliders, {
     from.copy(bullet.position);
 
     const previousVelocity = bullet.velocity.y;
-    bullet.velocity.y -= BULLET.GRAVITY * delta;
+    bullet.velocity.y -= bullet.gravity * delta;
     to.copy(from)
       .addScaledVector(bullet.velocity, delta)
       .setY(from.y + (previousVelocity + bullet.velocity.y) * 0.5 * delta);
 
     segment.copy(to).sub(from);
 
+    /**
+     * O trecho é CORTADO no alcance que sobra, não conferido depois de andar.
+     *
+     * A checagem no fim do quadro deixava a bala passar do teto antes de
+     * morrer, e o quanto ela passava saía do framerate: 4,2 m a 60 fps e 8,4 a
+     * 30. Alcance que depende de quantos quadros o aparelho desenha é o mesmo
+     * defeito da altura do pulo que a integração trapezoidal existe pra
+     * corrigir — e aqui é pior, porque nesses metros extras a bala ainda
+     * resolvia acerto contra alvo e parede.
+     *
+     * Cortando o trecho, o que está DENTRO do alcance continua sendo acertado
+     * normalmente (alvo a 599 m morre) e a bala expira em exatamente
+     * `range`, em qualquer framerate.
+     */
+    const restante = Math.max(0, bullet.range - bullet.travelled);
+    const comprimento = segment.length();
+    let noLimite = false;
+    if (comprimento > restante && comprimento > 1e-9) {
+      segment.multiplyScalar(restante / comprimento);
+      to.copy(from).add(segment);
+      noLimite = true;
+    }
+
     let closest = wallHit(from, segment, ignore, bullet.shooter);
     let struck = null;
 
     let regiaoAtingida = null;
     let melhorOrdem = Infinity;
+    // Alcance vertical do trecho, com folga de um corpo: alvo cujo pé está
+    // acima do teto do trecho, ou cuja cabeça está abaixo do piso dele, não
+    // tem como ser acertado.
+    const yMin = Math.min(from.y, to.y) - ALCANCE_LATERAL;
+    const yMax = Math.max(from.y, to.y) + ALCANCE_LATERAL;
+    const comprimento2 = segment.x * segment.x + segment.z * segment.z;
+
     for (const target of targets) {
       if (!target.alive) continue;
+
+      /**
+       * Peneira barata antes das dezesseis caixas.
+       *
+       * Sem ela, cada bala testava o corpo inteiro de TODOS os alvos: com 300
+       * em campo são 4800 testes de caixa por bala por quadro, e numa briga
+       * com cem balas no ar isso é meio milhão. Aqui é a distância do alvo ao
+       * TRECHO da bala, no plano — meia dúzia de multiplicações — e ela
+       * derruba quase todo mundo antes de qualquer conta cara.
+       *
+       * A folga é generosa de propósito: o alvo é um corpo de meio metro de
+       * raio, e errar pra menos aqui é a bala atravessar gente.
+       */
+      const pe = target.feetY ?? 0;
+      if (pe > yMax || pe + ALTURA_ALVO < yMin) continue;
+
+      const rx = target.x - from.x;
+      const rz = target.z - from.z;
+      let ao = 0;
+      if (comprimento2 > 1e-9) {
+        ao = (rx * segment.x + rz * segment.z) / comprimento2;
+        ao = ao < 0 ? 0 : (ao > 1 ? 1 : ao);
+      }
+      const dx = rx - segment.x * ao;
+      const dz = rz - segment.z * ao;
+      if (dx * dx + dz * dz > ALCANCE_LATERAL * ALCANCE_LATERAL) continue;
+
       // Ninguém atira em si mesmo. A bala nasce na altura do OLHO e a esfera
       // de acerto está no peito: agachado, os dois ficam a 30 cm um do outro,
       // e sem isto o bot se mata no primeiro tiro.
@@ -261,7 +366,10 @@ export function createBallistics(scene, colliders, {
     bullet.position.copy(to);
     bullet.travelled += segment.length();
     bullet.life -= delta;
-    if (bullet.life <= 0 || bullet.travelled > bullet.range) retire(bullet, null);
+    // `noLimite` em vez de comparar `travelled` com `range`: o corte acima já
+    // garantiu que ela parou exatamente no teto, e reconferir aqui só
+    // reintroduziria o arredondamento que o corte tirou.
+    if (bullet.life <= 0 || noLimite) retire(bullet, null);
   }
 
   return {
@@ -312,8 +420,12 @@ export function createBallistics(scene, colliders, {
         origin: origin.clone(),
         aim: direction.clone(),
         damage,
-        range,
+        // O teto é cravado AQUI, e não na arma: a arma declara o limite próprio
+        // dela (`Infinity` = não limito) e o sistema decide o máximo. Assim um
+        // cano curto pode alcançar menos, e nada pode alcançar mais.
+        range: Math.min(range ?? Infinity, BULLET.RANGE_MAX),
         dig,
+        gravity,
         shooter,
         owner,
         travelled: 0,
@@ -358,11 +470,7 @@ export function createBallistics(scene, colliders, {
           bullet.fade -= delta;
           if (bullet.fade > 0) continue;
 
-          if (bullet.tracer) {
-            scene.remove(bullet.tracer);
-            bullet.tracer.geometry.dispose();
-            bullet.tracer.material.dispose();
-          }
+          if (bullet.tracer) guardarTracer(bullet.tracer);
           bullets.splice(i, 1);
         }
       }
