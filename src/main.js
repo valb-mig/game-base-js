@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createStage } from './core/stage.js';
 import { CAMERA } from './config.js';
+import { criarAudio } from './core/audio.js';
 import { initInput, endFrame, consumePress } from './core/input.js';
 import { buildWorld } from './world/world.js';
 import { applyUnderwater } from './world/water.js';
@@ -54,7 +55,17 @@ await carregarSoldado().catch(() => {});
 // conhecer three: ela só recebe de onde medir.
 usarMedidasDoModelo(caixasDoModelo);
 
-const { scene, camera, renderer } = createStage();
+const { scene, camera, renderer, luzes } = createStage();
+
+/**
+ * O ouvido nasce com o palco, mas MUDO: o navegador só libera áudio depois
+ * de um gesto do usuário, e sintetizar os buffers no boot seria pagar por
+ * som que não vai tocar. O jogo já exige clique pra travar o ponteiro —
+ * `despertar` pega carona nele.
+ */
+const audio = criarAudio(camera, scene);
+addEventListener('pointerdown', () => audio.despertar(), { once: false });
+addEventListener('keydown', () => audio.despertar(), { once: false });
 const clock = new THREE.Clock();
 initInput();
 

@@ -17,6 +17,10 @@ export function createBallistics(scene, colliders, {
 } = {}) {
   const bullets = [];
   const listeners = [];
+  // Quem escuta DISPARO, não acerto. São duas perguntas diferentes: o som do
+  // tiro sai no cano e o do impacto sai onde a bala bate, e um tiro que não
+  // acerta nada continua sendo ouvido.
+  const aoDisparar = [];
 
   const from = new THREE.Vector3();
   const to = new THREE.Vector3();
@@ -285,9 +289,19 @@ export function createBallistics(scene, colliders, {
       return wallHit(from, probe, ignore) !== null;
     },
 
-    /** Dispara uma bala. `tracer` decide se ela deixa risco. */
+    /**
+     * Dispara uma bala. `tracer` decide se ela deixa risco, e `gravity` quanto
+     * ela cai — quem atira decide, porque a bala do jogador e a do bot não
+     * caem igual.
+     */
+    /** Avisado a cada disparo, de quem quer que seja. */
+    onShot(listener) {
+      aoDisparar.push(listener);
+    },
+
     spawn(origin, direction, {
-      damage, range, tracer = false, dig = 0, shooter = null, owner = null
+      damage, range, tracer = false, dig = 0, shooter = null, owner = null,
+      som = null, gravity = BULLET.GRAVITY
     }) {
       const bullet = {
         position: origin.clone(),
@@ -310,6 +324,9 @@ export function createBallistics(scene, colliders, {
       };
       if (bullet.tracer) scene.add(bullet.tracer);
       bullets.push(bullet);
+      for (const listener of aoDisparar) {
+        listener({ x: origin.x, y: origin.y, z: origin.z, som, owner });
+      }
       return bullet;
     },
 

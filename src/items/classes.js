@@ -91,6 +91,7 @@ export const PISTOL = {
     // Abertura ANDANDO, em graus. Parado é zero, e correr e pular multiplicam
     // pela tabela de SPREAD em config.js.
     hipSpread: 0.45,
+    som: 'colt',       // ver `core/audio.js`: mais grave que a MP40
     adsSpread: 0.12,
     adsTime: 0.16,
     recoil: 1.5,       // coice, em graus
@@ -145,8 +146,9 @@ export const MP40 = {
     hipSpread: 0.62,   // andando, do quadril; ver SPREAD em config.js
     adsSpread: 0.2,
     adsTime: 0.2,
-    recoil: 1.05,         // recuo contido: é a fama da arma
-    dig: TERRAIN_BITE.PRIMARY
+    recoil: 1.05,      // recuo contido por tiro: é a fama da arma
+    dig: TERRAIN_BITE.PRIMARY,
+    som: 'mp40'        // qual receita de `core/audio.js` este cano toca
   },
   ammo: { loaded: 32, reserve: 96 }
 };
