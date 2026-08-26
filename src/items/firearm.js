@@ -3,7 +3,7 @@ import {
   isMouseDown, consumeClick, consumePress, MOUSE_LEFT, MOUSE_RIGHT
 } from '../core/input.js';
 import { RELOAD_KEYS } from '../player/constants.js';
-import { BULLET, SPREAD } from '../config.js';
+import { BULLET, SPREAD, VIEW } from '../config.js';
 import { muzzleShot, createShot, createMuzzle } from './muzzle.js';
 
 /**
@@ -79,6 +79,13 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
     state.flash = 0.045;
     state.kick = 1;
 
+    // Coice de CÂMERA, além do da arma na tela: a mira sobe e o jogador puxa
+    // de volta. Mirando pelo ferro sobra menos — apoiar a arma no olho tem
+    // que valer alguma coisa além do zoom. Ele é somado ao que ainda não
+    // subiu: numa rajada a 500 tiros por minuto, o coice se acumula.
+    player.recoil.pendente += firearm.recoil * Math.PI / 180
+      * THREE.MathUtils.lerp(1, VIEW.RECOIL_ADS, state.aim);
+
     // Traçante a cada tantos tiros, como nas fitas da guerra: o risco serve
     // pra corrigir a pontaria, não pra desenhar toda bala.
     rounds++;
@@ -136,7 +143,9 @@ export function initFirearm(player, world, ballistics, viewmodel = null) {
 
       if (!firearm) {
         state.aim = 0;
+        // o progresso acompanha o relógio; parado no meio, ele trava a pose
         state.reloading = 0;
+        state.reloadProgress = 0;
         return;
       }
 

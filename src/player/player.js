@@ -3,6 +3,7 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import { PLAYER, STAMINA, SWAP } from '../config.js';
 import { hasModel } from '../items/models.js';
 import { getClass, DEFAULT_CLASS_ID, SLOT_ORDER } from '../items/classes.js';
+import { marcarReservaCheia, encherTudo } from '../game/suprimento.js';
 import { PLAYER_TEAM } from '../game/teams.js';
 import { STAND } from './constants.js';
 import { updateStance } from './stance.js';
@@ -58,6 +59,16 @@ export class Player {
 
     this.viewOffset = 0;
     this.bobPhase = 0;
+
+    // Acabamento de câmera; quem mexe é player/view.js. `recoil` é o único
+    // que sai do visual: ele move a MIRA, e por isso tem duas metades — o
+    // que ainda vai subir e o que já subiu e está voltando.
+    this.recoil = { pendente: 0, aplicado: 0 };
+    this.lean = 0;          // inclinação de andar de lado, em radianos
+    this.rollImpulse = 0;   // solavanco de aterrissagem
+    this.shake = 0;         // 0..1, tremor de quem levou tiro
+    this.shakePhase = 0;
+    this.viewSprint = 0;    // 0..1, o quanto o campo de visão está aberto
 
     // golpe em andamento; quem mexe é items/attack.js, quem desenha é o viewmodel
     this.swing = { active: false, progress: 0, cooldown: 0, buffered: 0 };
@@ -164,7 +175,12 @@ export class Player {
     this.swap.total = this.swap.restante;
 
     this.swing.active = false;
+    // O progresso vai junto com o relógio: quem ANIMA a recarga é o
+    // progresso, e deixá-lo parado no meio travava a arma na pose de
+    // recarregar quando ela voltasse pra mão — só recarregar de novo,
+    // levando o progresso até o fim, desentortava.
     this.gun.reloading = 0;
+    this.gun.reloadProgress = 0;
     this.gun.aim = 0;
     this.dig.modo = null;
     this.dig.progresso = 0;
@@ -299,15 +315,30 @@ export class Player {
     this.spectating = false;
     this.alive = true;
     this.health = this.maxHealth;
+
+    // Renascer devolve munição cheia. Sem isto, um carregador gasto numa vida
+    // seguia gasto na seguinte, e o jogador nascia sem bala em cima de um
+    // posto contestado — punição que ele não tem como ver chegando.
+    encherTudo(this.carried);
+
     this.swing.active = false;
     this.swing.progress = 0;
     this.swing.cooldown = 0;
     this.swing.buffered = 0;
     this.gun.reloading = 0;
+    this.gun.reloadProgress = 0;
     this.gun.aim = 0;
     this.dig.modo = null;
     this.dig.progresso = 0;
     this.dig.carga = 0;
+    // sem isto o tremor e o coice do tiro que matou continuam na vista de
+    // quem acabou de renascer, do outro lado do mapa
+    this.recoil.pendente = 0;
+    this.recoil.aplicado = 0;
+    this.shake = 0;
+    this.lean = 0;
+    this.rollImpulse = 0;
+    this.viewOffset = 0;
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.carried = this.carriedOf(this.classDef);
     this.forceSlot(this.firstSlot());   // nascer não guarda arma nenhuma
@@ -347,6 +378,9 @@ export class Player {
     // tiro que dói e o último, e a barra de vida no canto não ganha esse
     // olhar no meio de um tiroteio.
     this.hurtFlash = 1;
+    // E a vista treme. Só no eixo Z: sacudir a MIRA de quem está levando dano
+    // tiraria dele justamente a chance de revidar.
+    this.shake = 1;
 
     if (this.health > 0) return false;
 

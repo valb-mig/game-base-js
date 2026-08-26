@@ -476,6 +476,46 @@ export const MELEE = {
   HIT_FLASH: 0.12     // quanto tempo a marca de acerto fica na tela
 };
 
+/**
+ * Acabamento de câmera: o que a vista faz que a física não manda fazer.
+ *
+ * Tudo aqui é feedback — o jogador não olha o HUD no meio de um tiroteio, e a
+ * própria câmera é o painel que ele não precisa procurar. Os números são
+ * pequenos de propósito: enjoo é o fracasso deste bloco, e "sentir" não é o
+ * mesmo que "sacudir".
+ *
+ * A rolagem (eixo Z) é o único enfeite que entra na orientação da câmera, e
+ * ela é segura: o PointerLockControls compõe em YXZ e preserva o Z que
+ * encontrar, e girar em torno do Z não mexe no -Z — ou seja, não mexe em
+ * pra onde a bala vai.
+ */
+export const VIEW = {
+  LEAN_MAX: 1.7,        // graus de inclinação andando de lado, na velocidade cheia
+  LEAN_SPEED: 6,        // com que rapidez ela entra e sai
+  STEP_ROLL: 0.6,       // graus de rolagem no passo; junto com o balanço vira um 8
+  LAND_ROLL: 4,         // graus por metro por segundo de queda, ao aterrissar
+  LAND_ROLL_MAX: 2.6,
+
+  // Coice de câmera. Ele mexe na MIRA de verdade, não é enfeite: a arma sobe
+  // e o jogador puxa de volta, que é o que faz rajada longa custar alguma
+  // coisa. A volta é automática e parcial em ritmo, não em quantidade —
+  // recuperação instantânea apagaria o coice, e nenhuma o tornaria briga com
+  // o mouse.
+  RECOIL_RISE: 40,      // graus por segundo com que o coice sobe
+  RECOIL_RECOVER: 4,    // com que rapidez a mira desce de volta
+  RECOIL_ADS: 0.5,      // quanto do coice sobra com a arma no olho
+
+  // Tremor ao levar tiro. Só no eixo Z: sacudir a mira de quem está levando
+  // dano tira dele justamente a chance de revidar, que é o que a vinheta
+  // vermelha existe pra dar.
+  SHAKE_ROLL: 2.4,      // graus no pico
+  SHAKE_FREQ: 27,
+  SHAKE_DECAY: 5,
+
+  SPRINT_FOV: 6,        // graus a mais de campo correndo: velocidade se vê
+  SPRINT_FOV_SPEED: 4
+};
+
 export const CAMERA = {
   FOV: 70,
   ADS_FOV: 56,   // mirar aproxima; sem isso a mira de ferro só atrapalha a visão

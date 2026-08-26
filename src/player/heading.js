@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * Base horizontal da câmera — de onde sai a direção do movimento.
  *
@@ -10,10 +12,19 @@
  * Isto vive num módulo separado pra que o teste exercite o mesmo código que
  * o jogo usa, em vez de repetir a conta.
  */
+const yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
 export function horizontalRight(quaternion, out) {
-  out.set(1, 0, 0).applyQuaternion(quaternion);
-  out.y = 0;
-  return out.normalize();
+  // YXZ é a MESMA ordem em que o PointerLockControls compõe a rotação, então
+  // esta decodificação devolve o yaw EXATO — inclusive com a câmera rolada.
+  //
+  // O eixo X local sozinho não serve mais: desde que o acabamento de câmera
+  // inclina a vista no eixo Z, ele sai do horizontal, e projetar não desfaz
+  // isso. Medido com 1,7° de inclinação olhando 45° pra baixo, a direção do
+  // movimento saía 1,2° torta — silenciosa, e do tipo que só aparece como
+  // "o personagem anda de banda" muito depois.
+  yawEuler.setFromQuaternion(quaternion);
+  return out.set(Math.cos(yawEuler.y), 0, -Math.sin(yawEuler.y));
 }
 
 /** Frente = direita girada 90° no plano XZ. */

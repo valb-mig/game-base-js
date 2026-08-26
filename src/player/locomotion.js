@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD } from '../config.js';
+import { WORLD, VIEW } from '../config.js';
 import { axis, isDown, consumePress } from '../core/input.js';
 import { collides, groundHeightAt, terrainUnder, ceilingAbove } from './collision.js';
 import { horizontalRight, forwardX, forwardZ } from './heading.js';
@@ -226,6 +226,13 @@ export function moveVertical(player, delta) {
         stats.LAND_DIP_MAX
       );
       player.viewOffset -= impact;
+      // e joga a vista pro lado: cair de pé é um baque, e baque não é só
+      // vertical. O lado é sorteado — o corpo não cede sempre pro mesmo.
+      const lado = Math.random() < 0.5 ? -1 : 1;
+      player.rollImpulse += lado * Math.min(
+        Math.abs(player.verticalVelocity) * VIEW.LAND_ROLL * Math.PI / 180,
+        VIEW.LAND_ROLL_MAX * Math.PI / 180
+      );
     }
     player.eyeY = landingEyeY;
     player.verticalVelocity = 0;
