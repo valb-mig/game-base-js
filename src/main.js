@@ -435,6 +435,9 @@ function frame() {
   }
 
   world.water.update(clock.elapsedTime);
+  world.river?.update(clock.elapsedTime);
+  // Pás de moinho e o que mais vier: o laço não sabe o que são, só que andam.
+  for (const anima of world.animados ?? []) anima(delta);
   applyUnderwater(scene, player.headUnderwater);
 
   // A vista desenha primeiro: é ela que calcula os números que o painel lê.
