@@ -9,6 +9,8 @@ import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
 import { addForest } from './forest.js';
 import { addBushes } from './bushes.js';
+import { sorteioFixo } from './props.js';
+import { ListaDeColisores } from './colisores.js';
 import { addBase } from './base.js';
 import { addOutposts } from './outposts.js';
 import { TEAMS } from '../game/teams.js';
@@ -27,15 +29,6 @@ function assertSpawnZones(zones, colliders, terrain) {
     );
   }
   return zones;
-}
-
-/** Sorteio determinístico: o mapa tem que sair igual toda vez. */
-function seededRandom(seed) {
-  let state = seed >>> 0;
-  return function next() {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
 }
 
 const BASE_PLATFORM = 24;   // raio achatado sob cada base
@@ -68,7 +61,8 @@ export function buildWorld(scene) {
   const water = createWater();
   scene.add(water.mesh);
 
-  const colliders = [];
+
+  const colliders = new ListaDeColisores();
 
   // Quem perde o chão desaba. Registrado na construção do mapa pra que a
   // pazada só precise perguntar "o que tem por perto".
@@ -128,7 +122,7 @@ export function buildWorld(scene) {
     heightAt: terrain.heightAt,
     tipoAt: terrain.tipoAt,
     blocked,
-    rng: seededRandom(20250824),
+    rng: sorteioFixo(20250824),
     settling
   });
 
@@ -138,7 +132,7 @@ export function buildWorld(scene) {
     heightAt: terrain.heightAt,
     tipoAt: terrain.tipoAt,
     blocked,
-    rng: seededRandom(20250825)
+    rng: sorteioFixo(20250825)
   });
 
   assertSpawnZones(spawnZones, colliders, terrain);

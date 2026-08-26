@@ -6,6 +6,19 @@ import { PLAYER } from '../config.js';
 //
 // RADIUS e STEP_HEIGHT são globais de propósito: valem pro mundo inteiro, e
 // classe nenhuma deve sobrescrever (ver classes.js).
+/**
+ * Os colisores que podem cobrir (x, z).
+ *
+ * Uma `ListaDeColisores` responde `perto` e devolve só a célula da grade —
+ * uns poucos em vez de milhares. Um Array simples não responde, e aí o laço é
+ * a lista inteira: é o caso de todo dublê de teste, e continua correto, só
+ * mais caro. Medido no mapa de verdade, a varredura linear com 2000 colisores
+ * já custava 13% do orçamento a 60 fps.
+ */
+function candidatos(colliders, x, z) {
+  return colliders.perto ? colliders.perto(x, z) : colliders;
+}
+
 function overlapsXZ(box, x, z, radius = PLAYER.RADIUS) {
   return x >= box.min.x - radius
       && x <= box.max.x + radius
@@ -21,7 +34,7 @@ export function collides(colliders, x, z, feetY, height) {
   const headY = feetY + height;
   const climbY = feetY + PLAYER.STEP_HEIGHT;
 
-  for (const { box } of colliders) {
+  for (const { box } of candidatos(colliders, x, z)) {
     if (!overlapsXZ(box, x, z)) continue;
     // degraus baixos passam por baixo do teste, viram "subida"
     if (climbY < box.max.y && headY > box.min.y) return true;
@@ -43,7 +56,7 @@ export function groundHeightAt(colliders, x, z, feetY, terrainY = 0, out = null)
   let highest = terrainY;
   let onCollider = false;
 
-  for (const { box, standable } of colliders) {
+  for (const { box, standable } of candidatos(colliders, x, z)) {
     if (!standable) continue;
     if (box.max.y <= highest || box.max.y > reach) continue;
     if (!overlapsXZ(box, x, z)) continue;
@@ -69,7 +82,7 @@ export function ceilingAbove(colliders, x, z, feetY, fromHeadY, toHeadY) {
   const climbY = feetY + PLAYER.STEP_HEIGHT;
   let lowest = Infinity;
 
-  for (const { box } of colliders) {
+  for (const { box } of candidatos(colliders, x, z)) {
     if (box.max.y <= climbY) continue;          // é piso, não teto
     if (box.min.y < fromHeadY || box.min.y >= toHeadY) continue;
     if (!overlapsXZ(box, x, z)) continue;

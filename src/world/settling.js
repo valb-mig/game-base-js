@@ -212,6 +212,9 @@ export function createSettling(terrain, colliders = null) {
           ).applyMatrix4(matriz);
           caixa.expandByPoint(canto);
         }
+        // O índice espacial guarda em que células cada caixa está; sem avisar,
+        // ele continuaria apontando pro lugar onde a peça estava DE PÉ.
+        colliders?.moveu?.(fatia.colisor);
       }
       return;
     }
@@ -239,6 +242,7 @@ export function createSettling(terrain, colliders = null) {
         ).applyMatrix4(matriz);
         caixa.expandByPoint(canto);
       }
+      colliders?.moveu?.(prop.collider);
     }
   }
 

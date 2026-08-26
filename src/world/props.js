@@ -9,6 +9,21 @@ export const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 8);
 export const ROCK = new THREE.IcosahedronGeometry(1, 0);
 
 /**
+ * Sorteio determinístico: o mapa tem que sair igual toda vez.
+ *
+ * Mora aqui pelo mesmo motivo que `espalhar`: os dois mapas semeiam o mesmo
+ * tipo de coisa, e duas cópias do gerador dariam dois mapas que se dizem
+ * iguais e não são.
+ */
+export function sorteioFixo(semente) {
+  let estado = semente >>> 0;
+  return function proximo() {
+    estado = (Math.imul(estado, 1664525) + 1013904223) >>> 0;
+    return estado / 4294967296;
+  };
+}
+
+/**
  * Espalha `count` pontos pela ilha com rejeição: sorteia, e descarta o que cai
  * fora dos tipos de chão pedidos ou em área ocupada.
  *
