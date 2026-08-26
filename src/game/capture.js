@@ -3,9 +3,14 @@ import { postOwner, spawnableFor, enemyOf, activePostFor } from './teams.js';
 /**
  * Captura de posto: arriar a bandeira de quem era e içar a sua.
  *
- * São quatro bandeiras por posto e trinta segundos cada uma, ou seja dois
- * minutos de posto inteiro com um soldado só. É lento de propósito: posto que
- * troca de mão num piscar não é objetivo, é decoração.
+ * É UMA bandeira por posto, e trinta segundos nela. Eram quatro, o que dava
+ * dois minutos de posto inteiro com um soldado só — lento de propósito, pra
+ * que posto não trocasse de mão num piscar. Com trezentos em campo a conta se
+ * inverteu: quatro mastros com gente sobrando caem quase juntos, e os dois
+ * minutos viraram espera em vez de disputa.
+ *
+ * A regra de dono não sabe quantas são: dono é quem tem TODAS. Ela continua
+ * geral, e é isso que deixou trocar quatro por uma sem mexer em `teams.js`.
  *
  * A troca tem duas metades porque é o que se vê: a bandeira antiga desce até
  * o meio do mastro, o mastro fica vazio, e só então a nova sobe. O instante
