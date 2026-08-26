@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada: banda no céu linear</title>
+<!--
+  O céu não é tonemapeado porque a textura é sRGB (three, linha 15028:
+  `toneMapped = getTransfer(colorSpace) !== SRGBTransfer`). Marcá-la como
+  linear faz o three tonemapear junto com o terreno e a costura do horizonte
+  desaparece — mas byte em espaço LINEAR gasta a precisão nos claros e a
+  economiza nos escuros, que é o contrário do que um degradê de céu precisa.
+
+  Esta bancada mede o SALTO entre pixels vizinhos na coluna vertical do céu,
+  nas duas codificações. Banda é salto grande num degradê que deveria ser
+  contínuo, e a pergunta é quantos níveis o degradê usa dos 256.
+-->
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<body style="margin:0;background:#111;color:#ddd;font:13px monospace">
+<pre id="out">medindo…</pre>
+<script type="module">
+import { WORLD } from '../src/config.js';
+
+const linhas = [];
+const log = (s) => { linhas.push(s); console.log(s); document.getElementById('out').textContent = linhas.join('\n'); };
+
+const hex = (h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+const srgbParaLinear = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+
+const topo = hex(WORLD.SKY_TOPO).map((v) => v / 255);
+const horizonte = hex(WORLD.SKY_HORIZONTE).map((v) => v / 255);
+
+const ALTURA = 512;
+
+/** O degradê do céu como `sky.js` o desenha, uma coluna do zênite ao horizonte. */
+function coluna(codificar) {
+  const col = [];
+  for (let py = 0; py < ALTURA / 2; py++) {
+    const t = py / (ALTURA / 2 - 1);
+    // mistura em sRGB, como sky.js faz hoje
+    const c = [0, 1, 2].map((k) => topo[k] + (horizonte[k] - topo[k]) * t);
+    col.push(c.map((v) => Math.round(codificar(v) * 255)));
+  }
+  return col;
+}
+
+function relatar(rotulo, col) {
+  let maiorSalto = 0;
+  const niveis = new Set();
+  for (let i = 0; i < col.length; i++) {
+    niveis.add(col[i][1]);
+    if (i) maiorSalto = Math.max(maiorSalto, Math.abs(col[i][1] - col[i - 1][1]));
+  }
+  log(`${rotulo.padEnd(26)} níveis usados ${String(niveis.size).padStart(3)}  maior salto ${maiorSalto}`
+    + `  zênite ${col[0].join(',')}  horizonte ${col[col.length - 1].join(',')}`);
+  return { niveis: niveis.size, maiorSalto };
+}
+
+log('Degradê vertical do céu, 256 linhas do zênite ao horizonte.\n');
+const srgb = relatar('sRGB (hoje)', coluna((v) => v));
+const linear = relatar('linear (pra tonemapear)', coluna(srgbParaLinear));
+
+log('');
+log(`O degradê linear usa ${linear.niveis} dos 256 níveis contra ${srgb.niveis} do sRGB.`);
+log(`Salto máximo entre vizinhos: ${linear.maiorSalto} linear contra ${srgb.maiorSalto} sRGB.`);
+log(linear.maiorSalto <= 1 && linear.niveis > 20
+  ? 'VEREDITO: linear NÃO produz banda visível neste intervalo. Segue a codificação linear.'
+  : 'VEREDITO: linear produz banda. Precisa de dither ou de assar a curva em JS.');
+log('FIM');
+</script>

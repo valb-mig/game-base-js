@@ -49,6 +49,7 @@ export function createWater() {
  */
 let submergedNow = false;
 let dryFog = null;
+let drySky = null;
 
 export function applyUnderwater(scene, underwater) {
   if (underwater === submergedNow) return;
@@ -56,15 +57,20 @@ export function applyUnderwater(scene, underwater) {
 
   if (underwater) {
     dryFog = { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far };
+    // O fundo virou TEXTURA de céu, e textura não tem setHex. Guardar o
+    // objeto e trocá-lo por uma cor é o que deixa voltar exatamente o céu que
+    // estava lá — recriar a textura na saída custaria meio segundo dentro do
+    // quadro em que o jogador tira a cabeça da água.
+    drySky = scene.background;
     scene.fog.color.setHex(WORLD.DEEP_WATER_COLOR);
     scene.fog.near = 0.4;
     scene.fog.far = 26;
-    scene.background.setHex(WORLD.DEEP_WATER_COLOR);
+    scene.background = new THREE.Color(WORLD.DEEP_WATER_COLOR);
     return;
   }
 
   scene.fog.color.copy(dryFog.color);
   scene.fog.near = dryFog.near;
   scene.fog.far = dryFog.far;
-  scene.background.setHex(WORLD.SKY_COLOR);
+  scene.background = drySky;
 }

@@ -152,21 +152,81 @@ export const WORLD = {
   BUSH_COUNT: 1600,
 
   // ------------------------------------------------------------- cores
-  SKY_COLOR: 0x9ec6dd,
+  // Céu encoberto da Normandia em junho, não dia de verão. O azul de antes
+  // achatava o mapa: com tudo claro e a luz vinda de todo lado, mata e campo
+  // liam igual. Nublado dá contraste de valor entre chão e horizonte, e a
+  // névoa da mesma cor faz a distância existir.
+  SKY_COLOR: 0xbfc4c9,
+  // Encoberto é DIA, e a primeira paleta errou isso: com o zênite em 0x4d5257
+  // o topo do quadro ficava quase preto, e a tela inteira lia como noite
+  // mesmo com o chão bem iluminado. Nuvem de junho é clara — o que ela tira é
+  // o azul e a sombra dura, não a luz.
+  // Os dois foram REAUTORADOS junto com a curva de tom, e não por gosto: a
+  // textura do céu declarava sRGB os bytes que `THREE.Color` já tinha
+  // convertido pra linear, ou seja o shader convertia de novo e o céu saía
+  // escuro. Estas constantes tinham sido escolhidas COMPENSANDO esse erro —
+  // com ele corrigido, o mesmo par deu um céu de brilho 185 e croma 0,022, ou
+  // seja branco lavado sem cor nenhuma. Medido no enquadramento da vila:
+  //
+  //   par                    brilho do céu   croma do céu
+  //   0x818890 / 0xd6dade        185,4          0,022
+  //   0x6e7783 / 0xb9c2cc        169,2          0,054
+  //
+  // O segundo é o que devolve a cor: cinza-azulado de nuvem fechada, com o
+  // horizonte claro e frio. Encoberto continua sendo DIA — o que se tirou foi
+  // o branco de estouro, não a luz. E a diferença entre 185 e 169 parece pouca
+  // escrita: o que ela vale é a barriga de nuvem voltar a aparecer, que em 185
+  // estava dentro do branco.
+  //
+  // E `SKY_HORIZONTE` não é só o céu: é a névoa e é a luz de cúpula. Uma
+  // fonte só, de propósito — se a distância se dissolvesse numa cor que o céu
+  // não tem, a linha do horizonte ganhava uma faixa que não está lá.
+  SKY_TOPO: 0x6e7783,      // barriga de nuvem no zênite
+  SKY_HORIZONTE: 0xb9c2cc,  // clareia até a linha do horizonte
+  SOL_COR: 0xffeedd,
+  SOL_ALTURA: 0.34,        // altura do sol na abóbada, 0 = horizonte, 1 = zênite
+  SOL_AZIMUTE: 2.4,        // de onde ele vem, em radianos
+
   WATER_COLOR: 0x2e6d80,
   // Rio é mais verde e mais opaco que o mar: água rasa sobre leito de lodo,
   // não vinte metros de oceano.
   RIO_COR: 0x3c6a5e,
   DEEP_WATER_COLOR: 0x14323d,
   SAND_COLOR: 0xd8c89a,
-  GRASS_COLOR: 0x5f8b3c,
-  DIRT_COLOR: 0x7d6446,   // barranco pelado, onde a grama não pega
-  TREE_COLOR: 0x2f6b3a,
+
+  // A vegetação foi REPINTADA quando a curva de tom entrou, e a conta está em
+  // `tools/paleta-vegetacao.py`: croma alvo de 0,42, empurrão de matiz pro
+  // amarelo, e o brilho de cada cor devolvido no fim.
+  //
+  // O motivo é medido. AgX desatura no CLARO, e o quadro precisava escurecer
+  // pra ter preto: no mesmo enquadramento da vila, baixar a luz levou o
+  // percentil 1 do brilho de 77,9 pra 67,0 — e a croma média SUBIU de 0,190
+  // pra 0,211, porque o valor mais escuro cai na parte da curva que ela não
+  // lava. Ou seja o verde neon volta exatamente quando se ganha contraste. A
+  // curva não podia resolver isso sozinha; a saturação tinha que sair da
+  // FONTE, e é o que jogo nenhum de guerra faz de outro jeito — em BF a grama
+  // já é oliva na textura, não oliva por causa do grading.
+  //
+  // O brilho é devolvido de propósito: mexer nele junto mudaria o valor da
+  // mata, e é o contraste de valor entre mata e campo que diz a distância.
+  // Medido, as seis cores ficaram a menos de 0,5 de luma de onde estavam.
+  GRASS_COLOR: 0x6f854d,  // croma 0,568 -> 0,421
+  DIRT_COLOR: 0x7c6448,   // barranco pelado, onde a grama não pega — croma 0,440 -> 0,419
+  // O pinheiro é o único que NÃO leva o empurrão pro amarelo: ele é frio de
+  // propósito (azul acima do vermelho), e amarelá-lo o deixava mais quente que
+  // a folhosa — as duas espécies existem pra se distinguir a cem metros, e a
+  // cor é a única coisa que faz isso.
+  TREE_COLOR: 0x3b6643,   // agulha de pinheiro, escura e fria — croma 0,561 -> 0,422
+  FOLHA_COLOR: 0x5e7343,  // folhagem, mais quente e mais clara — 0,607 -> 0,417
+  FOLHA_CLARA: 0x6f854d,  // a parte de cima da copa, onde bate a luz — 0,593 -> 0,421
   TRUNK_COLOR: 0x4a3524,
   ROCK_COLOR: 0x7b7f80,
-  BUSH_COLOR: 0x40702f,
-  BUSH_COLOR_DARK: 0x2d5222,
-  SOIL_COLOR: 0x6b5334,   // terra revolvida, onde a pá passou
+  BUSH_COLOR: 0x52693d,      // 0,580 -> 0,419
+  BUSH_COLOR_DARK: 0x3b4d2c, // 0,585 -> 0,429
+  // Terra revolvida era o tom mais saturado do mapa depois da vegetação. A
+  // areia (0,287) e o caminho de terra (0,365) passam INTACTOS: o 0,42 é teto,
+  // não alvo, e aplicado como alvo ele deixava a praia amarela.
+  SOIL_COLOR: 0x66543b,   // terra revolvida, onde a pá passou — croma 0,514 -> 0,422
   // Asfalto de 1945 é macadame betuminoso: cinza-pardo gasto, não piche novo.
   // Em 0x4a4a48 a pista lia como uma faixa preta no meio do capim, e é o
   // contraste que fazia ela parecer o dobro da largura que tem.
@@ -175,14 +235,84 @@ export const WORLD = {
 
   // A névoa fecha bem mais longe que na ilha: num mapa de dois quilômetros,
   // 320 m de alcance esconderia o mapa inteiro do jogador.
-  FOG_NEAR: 260,
-  FOG_FAR: 1400,
+  //
+  // Mas 260 a 1400 era o outro extremo: com o engajamento mais longo do mapa
+  // em 700 m, a névoa só começava a agir depois de tudo que se pode atirar, e
+  // a mata a 600 m saía com a mesma saturação do capim a 20. Sem essa perda de
+  // contraste com a distância não existe leitura de profundidade nenhuma — é o
+  // que faz um quadro parecer maquete.
+  //
+  // 130 a 1050 põe a névoa DENTRO do alcance de tiro: a 700 m sobra 12% do
+  // valor original, a 300 m sobra 82%, e o vulto distante fica mais claro e
+  // mais pálido que o próximo sem deixar de ser visível — que é a única coisa
+  // que a névoa não pode fazer num jogo de tiro.
+  FOG_NEAR: 130,
+  FOG_FAR: 1050,
 
   COURSE_LENGTH: 52,
 
   // Raio da área jogável, medido do centro. Existe pra que floresta e
   // sorteios saibam onde parar sem cada um inventar o próprio limite.
   ISLAND_RADIUS: 980
+};
+
+
+/**
+ * Gradação de cor: a curva de tom e a exposição com que a cena vira pixel.
+ *
+ * Não é enfeite — é o que separa "cores certas" de "quadro que lê como jogo".
+ * Sem curva nenhuma (o estado anterior), o verde da grama saía neon e o
+ * telhado saía chapado, porque nada rolava os claros: o valor era escrito na
+ * tela como estava.
+ *
+ * A curva foi ESCOLHIDA medindo as sete que o three oferece, em
+ * `tools/bancada-grade.html`, contra o desvio de cromaticidade das sete cores
+ * de chão que aparecem em quadro. Só uma desatura:
+ *
+ *   curva      grama   pinheiro  folha   areia   luma do chão
+ *   nenhuma    0        0         0       0      106,5
+ *   Reinhard  -0,042   -0,030    -0,034  -0,091  112,0
+ *   Cineon    +0,093   +0,168    +0,137  -0,100  122,9
+ *   ACESFilmic +0,032  +0,207    +0,068  -0,129  129,9
+ *   AgX       -0,152   -0,144    -0,126  -0,144  134,9
+ *   Neutral   +0,217   +0,284    +0,253  +0,020  103,0
+ *
+ * ACES e Cineon — as escolhas óbvias — SATURAM o verde e esmagam a sombra
+ * (o pinheiro perde o canal vermelho de 41 pra 26), ou seja empurram
+ * justamente pro neon que se queria corrigir. AgX é a única que tira croma de
+ * tudo e levanta o brilho ao mesmo tempo: claro desbotado e cor contida, que
+ * é o tratamento de um dia encoberto.
+ */
+export const GRADE = {
+  /**
+   * Exposição. AgX é escura por construção — ela reserva alcance pro claro
+   * que não existe numa cena sem HDR, e em 1,0 o mapa lê como fim de tarde.
+   */
+  EXPOSICAO: 1.6,
+
+  /**
+   * As duas luzes vivem aqui, e não soltas em `stage.js`, porque elas são
+   * METADE da gradação: a curva decide como o valor vira pixel, e a luz decide
+   * qual valor entra na curva. Ajustar uma sem a outra é perseguir o próprio
+   * rabo.
+   *
+   * A hemisférica caiu de 2,9 pra 1,9 quando a curva entrou, e não é gosto: os
+   * 2,9 foram calibrados pra um render SEM curva nenhuma, onde o valor ia pra
+   * tela como estava. AgX levanta o quadro inteiro — medido no mesmo
+   * enquadramento da vila, o percentil 1 do brilho subiu de 60,9 pra 77,9 e a
+   * mediana de 108,7 pra 139,5. Preto que não é preto é o que faz um quadro ler
+   * como chapado, e com a curva por cima os 2,9 viraram excesso.
+   *
+   * A direcional sobe na mesma conta. Ela é o único jeito de o quadro ter
+   * FORMA: com luz só de cúpula, telhado, parede e chão chegam no mesmo valor e
+   * a silhueta da casa desaparece — o que se via era um bloco claro sobre um
+   * chão claro. Encoberto tem pouca sombra, não sombra nenhuma.
+   */
+  HEMISFERICA: 1.45,
+  DIRECIONAL: 1.7,
+
+  /** A cor que a luz de cúpula devolve por baixo: o chão batendo de volta. */
+  BOUNCE: 0x7b8558
 };
 
 

@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bancada de grading</title>
+<!--
+  Mede o que o tonemapping faz ANTES de escolher número.
+
+  Duas perguntas que não se responde lendo a doc do three:
+  1. o tonemapping alcança `scene.background`? (é textura, não material)
+  2. quanto ele escurece uma superfície Lambert já iluminada?
+
+  Roda em tempo real, sem orçamento de tempo virtual: o relógio congela depois
+  do primeiro fetch, e aqui não há fetch nenhum — mas a regra da casa é bancada
+  fora da suíte, e o resultado sai por console.log.
+-->
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<body style="margin:0;background:#111;color:#ddd;font:13px monospace">
+<pre id="out">medindo…</pre>
+<script type="module">
+import * as THREE from 'three';
+import { GRADE, WORLD } from '../src/config.js';
+import { createSkyTexture, sunDirection } from '../src/core/sky.js';
+
+const linhas = [];
+const log = (s) => { linhas.push(s); console.log(s); document.getElementById('out').textContent = linhas.join('\n'); };
+
+const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+renderer.setSize(64, 64);
+
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000);
+const scene = new THREE.Scene();
+scene.background = createSkyTexture();
+scene.add(new THREE.HemisphereLight(WORLD.SKY_HORIZONTE, 0x7b8558, 2.9));
+const sun = new THREE.DirectionalLight(WORLD.SOL_COR, 0.9);
+sun.position.copy(sunDirection()).multiplyScalar(200);
+scene.add(sun);
+
+// Uma amostra de cada cor de chão que aparece em quadro, plana e virada pra
+// cima, medida no MESMO pixel: é a única forma de comparar o que a luz faz.
+const amostras = [
+  ['grama', WORLD.GRASS_COLOR],
+  ['areia', WORLD.SAND_COLOR],
+  ['terra', WORLD.DIRT_COLOR],
+  ['asfalto', WORLD.ASFALTO],
+  ['folha', WORLD.FOLHA_COLOR],
+  ['pinheiro', WORLD.TREE_COLOR],
+  ['pedra', WORLD.ROCK_COLOR]
+];
+
+const chao = new THREE.Mesh(
+  new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true })
+);
+scene.add(chao);
+
+const buf = new Uint8Array(4);
+function pixel(x, y) {
+  renderer.render(scene, camera);
+  renderer.getContext().readPixels(x, y, 1, 1, 0x1908 /* RGBA */, 0x1401 /* UNSIGNED_BYTE */, buf);
+  return [buf[0], buf[1], buf[2]];
+}
+
+/** Olhando pro chão: mede o material iluminado. */
+function olharChao() {
+  camera.position.set(0, 5, 0);
+  camera.rotation.set(-Math.PI / 2, 0, 0);
+}
+/** Olhando pro céu: zero triângulo, o que sobra é o background. */
+function olharCeu() {
+  camera.position.set(0, 5, 0);
+  camera.rotation.set(Math.PI / 3, 0, 0);
+}
+
+function medir(rotulo) {
+  olharCeu();
+  const ceu = pixel(32, 32);
+  log(`\n[${rotulo}]`);
+  log(`  céu (background)  ${ceu.join(', ')}`);
+  olharChao();
+  const r = { ceu };
+  for (const [nome, hex] of amostras) {
+    chao.material.color.setHex(hex);
+    const p = pixel(32, 32);
+    r[nome] = p;
+    log(`  ${nome.padEnd(9)} ${String(p[0]).padStart(3)}, ${String(p[1]).padStart(3)}, ${String(p[2]).padStart(3)}`);
+  }
+  return r;
+}
+
+const curvas = [
+  ['NoToneMapping (hoje)', THREE.NoToneMapping, 1.0],
+  ['Linear', THREE.LinearToneMapping, 1.0],
+  ['Reinhard', THREE.ReinhardToneMapping, 1.4],
+  ['Cineon', THREE.CineonToneMapping, 1.2],
+  ['ACESFilmic', THREE.ACESFilmicToneMapping, 1.4],
+  ['AgX', THREE.AgXToneMapping, 1.6],
+  ['Neutral', THREE.NeutralToneMapping, 1.2]
+];
+
+const medidas = {};
+for (const [rotulo, curva, exposicao] of curvas) {
+  renderer.toneMapping = curva;
+  renderer.toneMappingExposure = exposicao;
+  medidas[rotulo] = medir(`${rotulo}, exposição ${exposicao}`);
+}
+
+// O que interessa não é o valor absoluto, é o DESVIO de saturação e de
+// brilho: grading que satura mais o verde puxa pro neon, que é o defeito que
+// se quer corrigir. Cromaticidade = (max - min) / max.
+function croma(p) { const M = Math.max(...p), m = Math.min(...p); return M ? (M - m) / M : 0; }
+function luma(p) { return 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]; }
+
+log('\n=== desvio de croma contra o estado de hoje ===');
+const base = medidas['NoToneMapping (hoje)'];
+for (const [rotulo] of curvas) {
+  const m = medidas[rotulo];
+  const partes = [];
+  for (const nome of Object.keys(base)) {
+    if (nome === 'ceu') continue;
+    const dc = croma(m[nome]) - croma(base[nome]);
+    partes.push(`${nome} ${dc >= 0 ? '+' : ''}${dc.toFixed(3)}`);
+  }
+  log(`${rotulo.padEnd(22)} ${partes.join('  ')}`);
+}
+
+log('\n=== brilho médio do chão (luma) ===');
+for (const [rotulo] of curvas) {
+  const m = medidas[rotulo];
+  const nomes = Object.keys(m).filter((n) => n !== 'ceu');
+  const media = nomes.reduce((s, n) => s + luma(m[n]), 0) / nomes.length;
+  log(`${rotulo.padEnd(22)} ${media.toFixed(1)}`);
+}
+
+log('\n=== céu (background) por curva — igual em todas = não é tonemapeado ===');
+for (const [rotulo] of curvas) log(`${rotulo.padEnd(22)} ${medidas[rotulo].ceu.join(', ')}`);
+
+// Submerso, `applyUnderwater` troca o fundo por uma `THREE.Color`. Cor de
+// clear não passa pela curva de tom (o three só tonemapeia fundo de TEXTURA,
+// e só quando ela não é sRGB), mas a névoa passa — e as duas são a mesma cor
+// declarada. Se elas saírem em valores diferentes, o pixel sem geometria e o
+// pixel de geometria distante não casam, e aparece uma linha na água.
+log('\n=== fundo submerso: cor de clear contra névoa da MESMA cor ===');
+scene.background = new THREE.Color(WORLD.DEEP_WATER_COLOR);
+scene.fog = new THREE.Fog(WORLD.DEEP_WATER_COLOR, 0.4, 26);
+chao.material.color.setHex(0xffffff);
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = GRADE.EXPOSICAO;
+
+olharCeu();
+const fundo = pixel(32, 32);
+// Chão a 300 m: bem além do `far` de 26, ou seja névoa pura.
+camera.position.set(0, 5, 0);
+camera.rotation.set(-0.02, 0, 0);
+const longe = pixel(32, 32);
+log(`  fundo (clear, sem curva)   ${fundo.join(', ')}`);
+log(`  névoa saturada (com curva) ${longe.join(', ')}`);
+const desvio = Math.max(...[0, 1, 2].map((k) => Math.abs(fundo[k] - longe[k])));
+log(desvio > 6
+  ? `  DESCASA em ${desvio} níveis: o pixel sem geometria não é o mesmo da névoa.`
+  : `  casa (desvio ${desvio} níveis): dentro do ruído, sem linha visível.`);
+
+log('FIM');
+</script>
