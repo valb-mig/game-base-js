@@ -348,8 +348,13 @@ export function createBallistics(scene, colliders, {
         onTerrainImpact(hitPoint.x, hitPoint.z, bullet.dig);
       }
 
+      // O RUMO da bala vai junto do dano: é o que faz o corpo tombar pra
+      // longe de quem atirou em vez de sempre pra frente.
+      const rumo = segment.clone().normalize();
+      // Rumo E ponto: o corpo precisa saber de onde veio pra tombar, e ONDE
+      // pegou pra o empurrão torcer em vez de transladar.
       const result = struck
-        ? struck.damage(bullet.damage, regiaoAtingida)
+        ? struck.damage(bullet.damage, regiaoAtingida, { dir: rumo, ponto: hitPoint })
         : { target: null, amount: 0, killed: false };
       // `owner` vai junto: sem ele, quem escuta acerto não tem como saber se
       // a bala era dele. Era assim que o acerto de um bot a sessenta metros
@@ -357,6 +362,10 @@ export function createBallistics(scene, colliders, {
       for (const listener of listeners) {
         listener({
           ...result, point: hitPoint.clone(), terreno: noChao,
+          // Rumo da bala no momento do acerto. Quem levanta fagulha precisa
+          // dele: matéria arrancada sai CONTRA a bala, e sem isso o impacto
+          // espirra pro mesmo lado tenha ele vindo de onde vier.
+          dir: rumo,
           owner: bullet.owner, regiao: regiaoAtingida
         });
       }

@@ -12,6 +12,8 @@ import { initAttack } from './items/attack.js';
 import { initFirearm } from './items/firearm.js';
 import { initDigging } from './items/digging.js';
 import { createBallistics } from './items/ballistics.js';
+import { createSparks } from './world/sparks.js';
+import { createSpoils } from './world/spoils.js';
 import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
 import { initDebugView } from './ui/debugview.js';
@@ -99,6 +101,37 @@ function boot(modo = 'batalha') {
     // e tiro no mato derruba o mato, sem parar a bala
     onFoliage: (de, para) => world.bushes?.slash(de, para)
   });
+  // Fagulha onde a bala bate. Ela escuta a balística como o kill feed
+  // escuta: a balística diz onde bateu e no quê, e quem desenha é daqui.
+  const sparks = createSparks(scene);
+  ballistics.onHit((r) => {
+    const tipo = r.terreno ? 'terra' : (r.target && !r.target.veiculo ? 'corpo' : 'duro');
+    sparks.burst(r.point, r.dir, tipo);
+    // O som do impacto sai ONDE a bala bateu, e não de onde ela saiu: é ele
+    // que diz ao jogador que o tiro passou perto, que é metade do que faz
+    // levar fogo ser levar fogo.
+    audio.tocar(r.terreno ? 'terra' : (r.target ? 'carne' : 'pedra'),
+      r.point.x, r.point.y, r.point.z, { volume: 0.8 });
+  });
+
+  // Todo disparo passa por `spawn`, o do jogador e o dos bots. É o mesmo
+  // funil que o bot já usa pra ouvir tiro (o estado `alerta`); o jogador não
+  // tinha nada, e virar pro lado certo era privilégio de quem estava olhando.
+  ballistics.onShot(({ x, y, z, som }) => {
+    if (som) audio.tocar(som, x, y, z);
+  });
+
+  // Espólio: a mochila do morto e as armas dele no chão, por alguns
+  // segundos. Ele escuta a balística e o corpo a corpo — os dois lugares
+  // onde alguém morre — e o filtro é ter arsenal: boneco de treino não
+  // deixa nada.
+  const spoils = createSpoils(scene, drops, world);
+  const largarEspolio = (r) => {
+    if (r.killed && r.target?.weapons) spoils.soltar(r.target);
+  };
+  ballistics.onHit(largarEspolio);
+  attack.onHit(largarEspolio);
+
   const firearm = initFirearm(player, world, ballistics, viewmodel);
   const digging = initDigging(player, world);
 
