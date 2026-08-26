@@ -33,6 +33,32 @@ function assertSpawnZones(zones, colliders, terrain) {
   return zones;
 }
 
+/**
+ * Bandeira dentro de parede não se captura.
+ *
+ * Cada ponto agora ergue o próprio cenário — casa, celeiro, casamata — e os
+ * quatro mastros continuam no miolo dele. Uma construção que avance sobre o
+ * quadrado deixa a bandeira inalcançável, e o sintoma disso é um ponto que
+ * simplesmente não pode ser tomado: nenhum erro, nenhuma pista, e a partida
+ * inteira trava num objetivo impossível. Melhor estourar montando o mapa.
+ *
+ * O teste é o do NASCIMENTO, e não por acaso: quem captura tem que caber em
+ * pé ao lado do mastro pra segurar o F, que é exatamente o que ele mede.
+ */
+function assertFlagsClear(outposts, colliders, terrain) {
+  for (const posto of outposts) {
+    for (const flag of posto.flags) {
+      const chao = terrain.heightAt(flag.x, flag.z);
+      if (spawnIsClear(colliders, flag.x, flag.z, chao, PLAYER.HEIGHT)) continue;
+      throw new Error(
+        `bandeira de "${posto.name}" em (${flag.x.toFixed(0)}, ${flag.z.toFixed(0)}) ` +
+        'está dentro de geometria: o ponto não poderia ser capturado'
+      );
+    }
+  }
+  return outposts;
+}
+
 const BASE_PLATFORM = 24;   // raio achatado sob cada base
 
 /**
@@ -112,6 +138,11 @@ export function buildWorld(scene) {
     });
   }
 
+  // O que se mexe sozinho no mapa. Hoje são as pás do moinho; o laço de
+  // render chama todos sem saber o que são.
+  const animados = outposts
+    .map((posto) => posto.local?.update)
+    .filter(Boolean);
 
   const blocked = (x, z) => occupied.some(
     (zone) => Math.hypot(x - zone.x, z - zone.z) < zone.radius
@@ -155,6 +186,7 @@ export function buildWorld(scene) {
   });
 
   assertSpawnZones(spawnZones, colliders, terrain);
+  assertFlagsClear(outposts, colliders, terrain);
 
   return {
     colliders,
@@ -180,6 +212,7 @@ export function buildWorld(scene) {
     water,
     river,
     bridges,
+    animados,
     bushes,
     targets,
     outposts,

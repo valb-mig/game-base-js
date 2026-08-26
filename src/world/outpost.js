@@ -1,23 +1,35 @@
 import * as THREE from 'three';
-import { addBox } from './props.js';
+import { construirLocal } from './locais.js';
 import { teamOf } from '../game/teams.js';
 
 /**
- * Posto militar: quatro mastros num quadrado, cercados por sacos de areia.
+ * Ponto de captura: UM mastro no meio do lugar.
  *
- * Quatro porque a captura é nas quatro — quem toma o posto teve que dar a
- * volta nele, e não ficar parado num canto seguro. Os mastros ficam nos
- * cantos justamente pra isso.
+ * Eram quatro num quadrado, e a ideia era obrigar quem toma o posto a dar a
+ * volta nele em vez de ficar parado num canto seguro. Numa partida de
+ * trezentos soldados isso deixou de ser uma manobra e virou aritmética: com
+ * gente sobrando, as quatro caem quase juntas e os dois minutos de trabalho
+ * só somam espera. Com uma bandeira o posto troca de mão quando alguém
+ * SEGURA o terreno, que é o que se queria desde o começo.
+ *
+ * A regra de dono continua a mesma e continua geral: dono é quem tem TODAS as
+ * bandeiras do posto. `teams.js` nunca soube quantas são.
  *
  * O posto NÃO achata o terreno. Zona plana não pode se cruzar com outra, e
  * doze postos mais duas bases mais o campo de treino não cabem sem se
  * encostar — cada peça aqui lê a altura do chão onde ela cai.
  */
 
-const LADO = 9;            // meia-diagonal do quadrado de mastros
-const ALTURA_MASTRO = 4.6;
-const PANO_ALTURA = 1.1;
-const PANO_LARGURA = 1.8;
+// Meia-diagonal do quadrado que os construtores de `locais.js` deixam livre.
+// Não são mais mastros, mas continua sendo o miolo do ponto: é onde fica a
+// bandeira e é por onde se nasce.
+const LADO = 9;
+
+// Mastro único e ALTO: ele é a marca do ponto no horizonte, e a bandeira
+// subindo ou descendo é o que conta de longe o que está acontecendo ali.
+const ALTURA_MASTRO = 7.4;
+const PANO_ALTURA = 1.7;
+const PANO_LARGURA = 2.8;
 
 // A bandeira arriada não desce até o chão: ela para no meio do mastro, que é
 // onde o olho percebe "está sendo trocada" a distância.
@@ -54,62 +66,46 @@ export function createOutpost(scene, colliders, {
   const cor = teamOf(team).color;
   const flags = [];
 
-  // Mastros nos quatro cantos. Cada um assenta na altura do chão dele: sem
-  // zona plana, o quadrado pode ficar torto, e é assim mesmo.
-  const cantos = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-  for (const [dx, dz] of cantos) {
-    const px = x + dx * LADO * 0.5;
-    const pz = z + dz * LADO * 0.5;
-    const chao = terrain.heightAt(px, pz);
+  // O mastro no meio do ponto. Assenta na altura do chão dele: sem zona plana
+  // o terreno é o que é, e é assim mesmo.
+  const chao = terrain.heightAt(x, z);
 
-    const mastro = new THREE.Mesh(MASTRO, MADEIRA);
-    mastro.position.set(px, chao + ALTURA_MASTRO / 2, pz);
-    group.add(mastro);
+  const mastro = new THREE.Mesh(MASTRO, MADEIRA);
+  mastro.position.set(x, chao + ALTURA_MASTRO / 2, z);
+  group.add(mastro);
 
-    // Virada pra fora do posto, e pendurada do lado DELA, não do X do mundo:
-    // com o pano girado, deslocar em X fazia a bandeira de cada canto sair
-    // pra um lado diferente do próprio mastro.
-    const giro = Math.atan2(dx, dz);
-    const braco = PANO_LARGURA / 2 + 0.08;
+  // O pano pendura do lado do mastro, e é de dupla face: uma bandeira só tem
+  // que ser lida de qualquer direção, e não só de fora do quadrado.
+  const pano = new THREE.Mesh(PANO, material(cor));
+  pano.position.set(x + PANO_LARGURA / 2 + 0.08, chao + TOPO, z);
+  group.add(pano);
 
-    const pano = new THREE.Mesh(PANO, material(cor));
-    pano.position.set(
-      px + Math.cos(giro) * braco, chao + TOPO, pz - Math.sin(giro) * braco);
-    pano.rotation.y = giro;
-    group.add(pano);
+  flags.push({
+    x,
+    z,
+    y: chao + 1.2,      // altura do PUNHO de quem mexe, não do pano
+    base: chao,
+    owner: team,
+    byTeam: null,
+    phase: 'parada',
+    progress: 0,
+    cloth: pano
+  });
 
-    flags.push({
-      x: px,
-      z: pz,
-      y: chao + 1.2,      // altura do PUNHO de quem mexe, não do pano
-      base: chao,
-      owner: team,
-      byTeam: null,
-      phase: 'parada',
-      progress: 0,
-      cloth: pano
-    });
-  }
-
-  // Cerca de sacos de areia: três lados, deixando uma entrada. Ela existe
-  // pra dar cobertura a quem defende, e é por isso que o posto vale terreno.
-  const saco = 0xa08a5e;
-  const meio = LADO * 0.5 + 1.6;
-  const paredes = [
-    { ax: 0, az: -meio, w: LADO + 3.4, d: 0.7 },
-    { ax: -meio, az: 0, w: 0.7, d: LADO + 3.4 },
-    { ax: meio, az: 0, w: 0.7, d: LADO + 3.4 }
-  ];
-  for (const parede of paredes) {
-    const px = x + parede.ax;
-    const pz = z + parede.az;
-    addBox(scene, colliders, {
-      settling, x: px, z: pz, y: terrain.heightAt(px, pz) - 0.1,
-      w: parede.w, h: 1.05, d: parede.d, color: saco
-    });
-  }
+  // O cenário do ponto. Antes aqui havia uma cerca de sacos de areia igual em
+  // todos os seis, e era a única coisa construída em cada um: os pontos só se
+  // distinguiam pelo terreno em volta. Hoje cada um é um LUGAR — praia
+  // invadida, bunker de encosta, vila, fazenda, guarnição de ponte, moinho —
+  // e é a construção que decide como se briga ali.
+  //
+  // Os mastros continuam sendo os mesmos quatro em todos, porque a captura é
+  // a mesma regra em todo lugar. Quem constrói respeita o quadrado do meio.
+  const local = construirLocal(scene, colliders, {
+    id, x, z, terrain, settling
+  });
 
   return {
+    local,
     id,
     name,
     // Número da ordem e o que torna este ponto difícil. Vêm da tabela do mapa
