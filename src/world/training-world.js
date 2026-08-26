@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
+import { ListaDeColisores } from './colisores.js';
 import { createTerrain } from './terrain.js';
 import { createDeform } from './deform.js';
 import { createSettling } from './settling.js';
@@ -9,7 +10,8 @@ import { createDummy } from './dummy.js';
 import { createSoldier } from '../bots/soldier.js';
 import { enemyOf } from '../game/teams.js';
 import { PLAYER_TEAM } from '../game/teams.js';
-import { addBox } from './props.js';
+import { addBox, sorteioFixo } from './props.js';
+import { addBushes } from './bushes.js';
 import { MP40, PISTOL, KNIFE, SHOVEL } from '../items/classes.js';
 
 /**
@@ -60,7 +62,7 @@ export function buildTrainingWorld(scene) {
   const water = createWater();
   scene.add(water.mesh);
 
-  const colliders = [];
+  const colliders = new ListaDeColisores();
   const settling = createSettling(terrain, colliders);
   const targets = [];
 
@@ -125,6 +127,7 @@ export function buildTrainingWorld(scene) {
     settling,
     water,
     deform,
+    bushes,
     outposts: [],
     spawnZones: [{
       id: 'treino', name: 'Campo de treinamento', team: null, base: true,
