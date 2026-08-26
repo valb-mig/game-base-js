@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { createHeightfield, turnedSoil } from './heightfield.js';
 import { colorAt } from './ground.js';
+import * as grao from './grao.js';
 
 /**
  * Malha do terreno. A geometria é só o desenho do campo de altura — a
@@ -11,6 +12,50 @@ import { colorAt } from './ground.js';
 const SOIL = new THREE.Color(WORLD.SOIL_COLOR);
 const LADO = WORLD.TERRAIN_SEGMENTS + 1;   // vértices por lado
 const PASSO = WORLD.SIZE / WORLD.TERRAIN_SEGMENTS;
+
+/**
+ * Textura de grão do chão, embrulhada da imagem pura de `grao.js`.
+ *
+ * O `map` do Lambert MULTIPLICA o vertexColor, e é isso que faz esta camada
+ * custar três linhas: os cinco tipos de chão, a transição grama↔terra, a água
+ * escurecendo e a terra revolvida da pazada continuam saindo todos da cor por
+ * vértice. O grão só quebra o chapado — e a `applyEdit` não muda nada, porque
+ * ela mexe em cor e altura, não em UV.
+ *
+ * O UV vem de graça: `PlaneGeometry` já nasce com ele em 0..1 nos 2 km, então
+ * o tile sai de `repeat` e nenhum atributo novo entra na malha.
+ */
+function criarGrao() {
+  const canvas = document.createElement('canvas');
+  canvas.width = grao.LADO;
+  canvas.height = grao.LADO;
+
+  const ctx = canvas.getContext('2d');
+  const imagem = ctx.createImageData(grao.LADO, grao.LADO);
+  imagem.data.set(grao.desenharGrao(grao.LADO));
+  ctx.putImageData(imagem, 0, 0);
+
+  const textura = new THREE.CanvasTexture(canvas);
+
+  // Multiplicador, NÃO cor. Marcado como sRGB o three converteria o cinza pra
+  // linear antes de multiplicar, e um 128 viraria 0,216: o terreno escureceria
+  // 78% em vez dos 5,3% medidos. Espaço linear é o que faz o byte valer o que
+  // ele diz. É a mesma pegadinha do `THREE.Color` que já está no CLAUDE.md.
+  textura.colorSpace = THREE.LinearSRGBColorSpace;
+
+  textura.wrapS = THREE.RepeatWrapping;
+  textura.wrapT = THREE.RepeatWrapping;
+  textura.repeat.set(grao.repeticoes(), grao.repeticoes());
+
+  // Chão de FPS é visto rasante quase todo quadro, e é exatamente onde o
+  // mipmap isotrópico borra até virar cinza liso. Sem anisotropia o grão não
+  // sobrevive a dez metros; sem mipmap ele cintila, que é pior que não ter.
+  // O three limita ao máximo do aparelho, então 4 é seguro sem consultar o
+  // renderer — e 16 custa banda sem diferença visível a 1080p.
+  textura.anisotropy = 4;
+
+  return textura;
+}
 
 export function createTerrain(flatZones = [], deform = null, perfil = 'sainte-mere') {
   const field = createHeightfield(flatZones, deform, perfil);
@@ -99,7 +144,9 @@ export function createTerrain(flatZones = [], deform = null, perfil = 'sainte-me
 
     const mesh = new THREE.Mesh(
       geometry,
-      new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })
+      new THREE.MeshLambertMaterial({
+        vertexColors: true, flatShading: true, map: criarGrao()
+      })
     );
     mesh.name = 'terreno';
 
