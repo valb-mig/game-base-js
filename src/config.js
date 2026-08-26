@@ -143,13 +143,31 @@ export const WORLD = {
   BASE_KARNIA: { x: 638, z: 745 },
   COURSE_ORIGIN: { x: -880, z: 830 },   // campo de treino, num canto
 
-  TREE_COUNT: 1400,
-  ROCK_COUNT: 260,
+  // Três vezes o que era. 1400 sobre a área de grama davam uma árvore a cada
+  // 43 m mesmo depois da máscara de densidade — mata que se atravessa sem
+  // desviar de nada não é mata. Só deu pra subir depois do índice espacial de
+  // `world/colisores.js`: medido, a varredura linear de colisores custava
+  // 4,57 ms por quadro com 4 mil deles (27% do orçamento a 60 fps) e passou a
+  // custar 0,011 ms.
+  TREE_COUNT: 4200,
+  ROCK_COUNT: 340,
+
+  // ---------------------------------------------------- densidade de mata
+  // A máscara que decide onde a floresta é grossa e onde não há floresta
+  // nenhuma. Escala é o tamanho da mancha: 0,006 dá célula de ruído de 167 m,
+  // e com a segunda oitava as bordas quebram a cada 78 m. Mancha muito menor
+  // que isso vira mato salpicado, e o jogador nunca decide contornar nada.
+  //
+  // Duas oitavas, não três: a terceira só recorta a borda da mata em dente de
+  // serra, sem mudar onde a mata está. E mexer em qualquer um dos dois exige
+  // remedir os cortes de `world/densidade.js` — eles são percentis.
+  FLORESTA_ESCALA: 0.006,
+  FLORESTA_OITAVAS: 2,
 
   // Arbusto só nasce em grama, e é o único prop que quebra. 1600 sobre os
   // 2,6 km² de grama dá um a cada 40 m — perto o bastante pra haver mato na
   // briga, longe o bastante pra não ser carpete.
-  BUSH_COUNT: 1600,
+  BUSH_COUNT: 2400,
 
   // ------------------------------------------------------------- cores
   // Céu encoberto da Normandia em junho, não dia de verão. O azul de antes

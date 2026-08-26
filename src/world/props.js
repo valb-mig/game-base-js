@@ -7,6 +7,10 @@ export const CONE = new THREE.ConeGeometry(1, 1, 6);
 export const PYRAMID = new THREE.ConeGeometry(1, 1, 4);
 export const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 8);
 export const ROCK = new THREE.IcosahedronGeometry(1, 0);
+// Copa de folhosa. Mesma forma da pedra e um nome próprio de propósito: são
+// vinte triângulos que leem como massa de folha em cima de um tronco e como
+// pedra no chão, e chamar a copa de ROCK esconderia isso de quem for mexer.
+export const COPA = new THREE.IcosahedronGeometry(1, 0);
 
 /**
  * Sorteio determinístico: o mapa tem que sair igual toda vez.
@@ -34,10 +38,29 @@ export function sorteioFixo(semente) {
  *
  * Mora aqui e não na floresta porque árvore, pedra e arbusto espalham do
  * mesmo jeito: duas cópias do laço se separariam no primeiro ajuste.
+ *
+ * `densidade` é opcional e é a segunda peneira: uma função (x, z) -> 0..1 que
+ * diz a chance de o ponto vingar. Sem ela o sorteio é uniforme por área, e o
+ * resultado é um tapete de mesma espessura no mapa inteiro — floresta que
+ * nunca é grossa nem rala, e portanto nunca é uma decisão. Ela é sorteada, não
+ * cotada, e é isso que faz a borda da mata sair esgarçada sem código nenhum
+ * de transição.
  */
-export function espalhar(count, { heightAt, tipoAt, tipos, blocked, rng }) {
+export function espalhar(count, {
+  heightAt, tipoAt, tipos, blocked, rng, densidade = null
+}) {
   const spots = [];
   const limite = WORLD.ISLAND_RADIUS * 0.99;
+
+  // O teto de 40× continua servindo com a máscara, e isso foi MEDIDO em vez
+  // de deduzido: a peneira de densidade derruba o aceite de 85,8% pra 28,5%,
+  // mas 1400 árvores ainda custam 4911 tentativas contra as 56 mil do teto —
+  // onze vezes de folga. Eu tinha subido o teto por precaução antes de medir;
+  // era um número inventado defendendo contra um problema que não existe.
+  //
+  // O que ele protege de verdade é do sorteio que nunca converge (uma máscara
+  // zerada no mapa inteiro, um tipo de chão que não ocorre). Aí ele para com
+  // menos pontos do que se pediu, e é a contagem devolvida que denuncia.
   let tentativas = 0;
 
   while (spots.length < count && tentativas < count * 40) {
@@ -50,6 +73,7 @@ export function espalhar(count, { heightAt, tipoAt, tipos, blocked, rng }) {
 
     if (!tipos.includes(tipoAt(x, z))) continue;
     if (blocked(x, z)) continue;
+    if (densidade && rng() >= densidade(x, z)) continue;
     spots.push({ x, y: heightAt(x, z), z, rng: rng() });
   }
   return spots;
