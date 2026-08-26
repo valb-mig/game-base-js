@@ -111,32 +111,20 @@ function boot(modo = 'batalha') {
     }
   }
 
-  // Nove bots: cinco do lado de lá, quatro do lado de cá. O jogador é o
-  // décimo do time dele, e é isso que faz os números fecharem em 5 × 5.
-  const inimigo = enemyOf(player.team);
-  const ESQUADRAS = [
-    { team: inimigo, quantos: 5 },
-    { team: player.team, quantos: 4 }
-  ];
-
-  for (const { team, quantos } of (treino ? [] : ESQUADRAS)) {
-    // Nascem no posto do time mais perto da linha de frente, que é o de menor
-    // distância ao centro da ilha: é lá que a briga começa.
-    const frente = world.outposts
-      .filter((posto) => posto.startTeam === team)
-      .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
-
-    for (let i = 0; i < quantos; i++) {
-      // Espalhados em volta do posto: empilhados na mesma coordenada eles
-      // nasceriam dentro uns dos outros e passariam o primeiro segundo se
-      // empurrando pra fora.
-      const angulo = (i / quantos) * Math.PI * 2;
-      bots.spawn({
-        id: i + 1,
-        team,
-        x: frente.x + Math.cos(angulo) * 9,
-        z: frente.z + Math.sin(angulo) * 9
-      });
+  /**
+   * Os dois exércitos, formados ANTES de o jogador escolher onde desembarcar.
+   *
+   * A ordem importa e é a pedida: clicar em Jogar monta o mundo e põe os
+   * trezentos em campo, e só então a tela de deploy aparece. Quando o jogador
+   * desembarca, a partida já está acontecendo — ele entra numa guerra em
+   * curso em vez de acender o mapa ao pisar nele.
+   *
+   * Cada um nasce num posto que o time dele já domina, repartido entre eles.
+   */
+  const POR_TIME = 150;
+  if (!treino) {
+    for (const [i, time] of ['karnia', 'vestria'].entries()) {
+      bots.formar({ team: time, quantos: POR_TIME, id0: 1 + i * POR_TIME });
     }
   }
 

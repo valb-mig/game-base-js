@@ -431,7 +431,16 @@ export const BULLET = {
   // metros, e o jogador não lê isso como "arma fora de posição", lê como bug.
   MUZZLE_RISE: 4,
 
-  TRACER_EVERY: 4,    // um traçante a cada tantos tiros, como nas fitas da guerra
+  // A bala do BOT não cai: ele mira com atraso e erro de propósito, e somar
+  // queda a isso seria um segundo erro que o jogador não tem como ler. A do
+  // JOGADOR cai por GRAVITY — a queda é mecânica dele, medida na depuração.
+  BOT_GRAVITY: 0,
+
+  // Um traçante a cada quatro tiros, como nas fitas da guerra. Estava em 1
+  // por causa de uma bancada; com 300 bots em campo isso é um risco por tiro,
+  // mais de mil por segundo, e o traçante deixa de dizer de onde vem o fogo
+  // porque tudo vira risco.
+  TRACER_EVERY: 4,
   // Comprido de propósito: atirando na direção do olhar o risco é visto de
   // ponta, e a 2,4 m virava um ponto. Assim ele lê como risco mesmo de frente.
   TRACER_LENGTH: 7,

@@ -1,0 +1,127 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: combate</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { createBallistics } from '../src/items/ballistics.js';
+import { createCapture } from '../src/game/capture.js';
+import { createBots } from '../src/bots/bots.js';
+import { carregarSoldado } from '../src/bots/model.js';
+
+/**
+ * O custo do TIROTEIO, não o de bots recém-nascidos.
+ *
+ * A bancada anterior media trezentos bots espalhados pelos seis postos, que
+ * é o minuto ZERO da partida: quase ninguém se vê, quase ninguém atira. O
+ * que trava é o combate, e pra medir combate é preciso pôr os dois times de
+ * frente um pro outro e deixar rodar até a briga engrenar.
+ *
+ * Sem tempo virtual e com saída por console: medido, `performance.now()`
+ * congela depois do primeiro fetch sob `--virtual-time-budget`, e esta
+ * página carrega o GLB do soldado.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log('BANCADA ' + t); };
+
+const DT = 1 / 60;
+const POR_TIME = 150;
+
+await carregarSoldado();
+const scene = new THREE.Scene();
+const world = buildWorld(scene);
+const ballistics = createBallistics(scene, world.colliders, {});
+const capture = createCapture(world.outposts);
+
+let semente = 4242;
+const rng = () => {
+  semente = (Math.imul(semente, 1664525) + 1013904223) >>> 0;
+  return semente / 4294967296;
+};
+const bots = createBots(scene, world, { ballistics, capture, rng });
+
+// Os dois times frente a frente num campo aberto, a 70 m: perto o bastante
+// pra todo mundo enxergar alguém, longe o bastante pra não nascer colado.
+const CX = -44;
+const CZ = -173;
+for (let i = 0; i < POR_TIME * 2; i++) {
+  const karnia = i < POR_TIME;
+  const k = karnia ? i : i - POR_TIME;
+  const fila = Math.floor(k / 25);
+  const col = k % 25;
+  bots.spawn({
+    id: i + 1,
+    team: karnia ? 'karnia' : 'vestria',
+    x: CX + (col - 12) * 3.4,
+    z: CZ + (karnia ? -35 - fila * 3.4 : 35 + fila * 3.4)
+  });
+}
+const alvos = [...bots.soldiers];
+bots.setTargets(alvos);
+world.targets.push(...alvos);
+
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(320, 180);
+const camera = new THREE.PerspectiveCamera(70, 320 / 180, 0.1, 400);
+camera.position.set(CX, 30, CZ);
+camera.lookAt(CX, 20, CZ - 40);
+
+function contar() {
+  let vivos = 0;
+  for (const b of bots.soldiers) if (b.alive) vivos++;
+  let malhas = 0;
+  let nos = 0;
+  scene.traverse((o) => { nos++; if (o.geometry?.attributes?.position) malhas++; });
+  return { vivos, malhas, nos };
+}
+
+function rodar(quadros) {
+  const t = performance.now();
+  for (let q = 0; q < quadros; q++) {
+    bots.update(DT, camera.position);
+    ballistics.update(DT, alvos, world.terrain);
+    renderer.render(scene, camera);
+  }
+  return (performance.now() - t) / quadros;
+}
+
+diz('segundo   ms/quadro   balas no ar   vivos   malhas   nós   geometrias');
+let segundo = 0;
+for (let bloco = 0; bloco < 10; bloco++) {
+  const ms = rodar(60);
+  segundo += 1;
+  const c = contar();
+  diz(`${String(segundo).padStart(5)}s   ${ms.toFixed(2).padStart(9)}   `
+    + `${String(ballistics.bullets?.length ?? ballistics.count?.() ?? '?').padStart(11)}   `
+    + `${String(c.vivos).padStart(5)}   ${String(c.malhas).padStart(6)}   `
+    + `${String(c.nos).padStart(5)}   ${renderer.info.memory.geometries}`);
+}
+// De quem é a conta agora que a briga está engrenada.
+{
+  const so = (fn, voltas = 30) => {
+    for (let q = 0; q < 5; q++) fn();
+    const t = performance.now();
+    for (let q = 0; q < voltas; q++) fn();
+    return (performance.now() - t) / voltas;
+  };
+  const soIA = so(() => bots.update(DT, camera.position));
+  // Olho a 5 km: todo bot cai no tier de 3 Hz de sondagem. A diferença pro
+  // número acima é exatamente o que a sondagem custa.
+  const longe = new THREE.Vector3(camera.position.x + 5000, 20, camera.position.z);
+  const soIALonge = so(() => bots.update(DT, longe));
+  const soBala = so(() => ballistics.update(DT, alvos, world.terrain));
+  const soRender = so(() => renderer.render(scene, camera));
+  diz('');
+  diz(`com ${ballistics.bullets.length} balas no ar e ${contar().vivos} vivos:`);
+  diz(`  IA (sondagem a 30 Hz)             ${soIA.toFixed(2)} ms`);
+  diz(`  IA (sondagem a 3 Hz)              ${soIALonge.toFixed(2)} ms  <- diferença = sondagem`);
+  diz(`  balística                         ${soBala.toFixed(2)} ms`);
+  diz(`  render (raster por software)      ${soRender.toFixed(2)} ms`);
+}
+diz('FIM');
+</script></body></html>

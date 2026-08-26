@@ -1,0 +1,190 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: bots</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { createBallistics } from '../src/items/ballistics.js';
+import { createCapture } from '../src/game/capture.js';
+import { createBots } from '../src/bots/bots.js';
+import { carregarSoldado } from '../src/bots/model.js';
+
+/**
+ * Quanto custa um bot, em tempo REAL.
+ *
+ * Não é suíte: sob --virtual-time-budget o performance.now() não anda, e uma
+ * asserção de milissegundo passa verde com 0,000 ms. Contagem FIXA de voltas,
+ * porque laço por relógio sob tempo virtual já travou uma bancada aqui.
+ */
+/**
+ * A saída vai pro CONSOLE, não só pra tela, e a página roda SEM
+ * `--virtual-time-budget`.
+ *
+ * Medido: sob tempo virtual, `performance.now()` e `Date.now()` param de
+ * andar depois do primeiro fetch — antes do fetch marcam 316 ms num laço, e
+ * depois marcam 0,0 no mesmo laço. Como esta bancada precisa carregar o GLB
+ * do soldado, toda medida DEPOIS do carregamento saía zero, e a bancada
+ * reportava verde sem medir nada. Sem tempo virtual o relógio é de verdade,
+ * mas `--dump-dom` volta antes da conta terminar; por isso o console, que o
+ * `--enable-logging=stderr` captura enquanto o processo vive.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => {
+  linhas.push(t);
+  out.textContent = linhas.join('\n');
+  console.log('BANCADA ' + t);
+};
+
+const QUADROS = 90;
+const DT = 1 / 60;
+
+// `carregarSoldado`, não `soldadoPronto`: aquele devolve a PROMESSA e este um
+// booleano. Com `await soldadoPronto()` o `await false` passa reto, o GLB
+// nunca carrega e `createSoldier` cai no soldado de reserva feito de caixas —
+// a bancada media um corpo que o jogo não usa.
+await carregarSoldado();
+
+const scene = new THREE.Scene();
+const t0 = performance.now();
+const world = buildWorld(scene);
+diz(`mundo montado em ${(performance.now() - t0).toFixed(0)} ms`);
+
+const ballistics = createBallistics(world.targets, {
+  colliders: world.colliders, terrain: world.terrain
+});
+const capture = createCapture(world.outposts);
+
+let semente = 12345;
+const rng = () => {
+  semente = (Math.imul(semente, 1664525) + 1013904223) >>> 0;
+  return semente / 4294967296;
+};
+
+const bots = createBots(scene, world, { ballistics, capture, rng });
+const postos = world.outposts;
+
+function medir(quantos) {
+  // nasce em volta dos postos, metade de cada lado
+  const antes = bots.soldiers.length;
+  for (let i = antes; i < quantos; i++) {
+    const team = i % 2 === 0 ? 'karnia' : 'vestria';
+    const posto = postos[i % postos.length];
+    const a = (i / quantos) * Math.PI * 2;
+    const r = 10 + (i % 7) * 3;
+    bots.spawn({ id: i + 1, team, x: posto.x + Math.cos(a) * r, z: posto.z + Math.sin(a) * r });
+  }
+  bots.setTargets([...bots.soldiers]);
+  world.targets.length = 0;
+  world.targets.push(...bots.soldiers);
+
+  // O olho fica onde a briga estaria: o LOD de detalhe é medido do jogador.
+  const olho = new THREE.Vector3(postos[0].x, 20, postos[0].z);
+  bots.update(DT, olho);               // aquece o JIT
+  const t = performance.now();
+  for (let q = 0; q < QUADROS; q++) bots.update(DT, olho);
+  const porQuadro = (performance.now() - t) / QUADROS;
+
+  let triangulos = 0;
+  let malhas = 0;
+  scene.traverse((o) => {
+    const p = o.geometry?.attributes?.position;
+    if (!p) return;
+    malhas++;
+    triangulos += (o.geometry.index ? o.geometry.index.count / 3 : p.count / 3)
+      * (o.isInstancedMesh ? o.count : 1);
+  });
+
+  return { porQuadro, triangulos, malhas };
+}
+
+diz('');
+diz('bots   ms/quadro   % do orçamento a 60 fps   malhas na cena   triângulos');
+for (const n of [10, 60, 150, 300]) {
+  const r = medir(n);
+  const pct = (100 * r.porQuadro) / (1000 / 60);
+  diz(`${String(n).padStart(4)}   ${r.porQuadro.toFixed(2).padStart(7)}   `
+    + `${pct.toFixed(1).padStart(10)}%   ${String(r.malhas).padStart(12)}   `
+    + `${(r.triangulos / 1000).toFixed(0)}k`);
+  if (r.porQuadro > 400) { diz('  (abortado: caro demais pra continuar)'); break; }
+}
+/**
+ * O quadro INTEIRO: IA mais render, com os 300 em campo.
+ *
+ * Medir os componentes soltos diz quanto cada um custa e não diz se o quadro
+ * fecha. E o que a coluna de malhas não mostra é o que o three faz com elas:
+ * percorrer a cena, atualizar matriz, testar frustum e submeter desenho — tudo
+ * por objeto, todo quadro.
+ *
+ * A tela é MINÚSCULA de propósito. Isto roda em swiftshader, que rasteriza em
+ * CPU: numa tela grande o número viraria o custo de pintar pixel por software,
+ * que não diz nada sobre uma GPU de verdade. Com 320x180 a rasterização some e
+ * o que sobra é o trabalho de CPU, que é o mesmo em qualquer máquina.
+ */
+{
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(320, 180);
+  const camera = new THREE.PerspectiveCamera(70, 320 / 180, 0.1, 400);
+  camera.position.set(postos[0].x, 24, postos[0].z + 30);
+  camera.lookAt(postos[0].x, 20, postos[0].z);
+  const olho3 = camera.position;
+
+  const cronometrar = (fn, voltas = 60) => {
+    for (let q = 0; q < 12; q++) fn();
+    const t = performance.now();
+    for (let q = 0; q < voltas; q++) fn();
+    return (performance.now() - t) / voltas;
+  };
+
+  // Câmera apontada pro CÉU: nada passa no frustum, então nenhum triângulo é
+  // transformado nem rasterizado. O que sobra é exatamente o trabalho de CPU
+  // que o three faz por quadro — percorrer a cena, atualizar matriz e testar
+  // recorte —, e ESSE número vale numa GPU de verdade. A diferença pro render
+  // apontado pra cena é software raster, que aqui é o custo de não ter placa.
+  const paraOCeu = camera.clone();
+  paraOCeu.lookAt(camera.position.x, camera.position.y + 200, camera.position.z);
+  paraOCeu.updateMatrixWorld(true);
+  const soTravessia = cronometrar(() => renderer.render(scene, paraOCeu));
+  const soMatriz = cronometrar(() => {
+    scene.matrixWorldNeedsUpdate = true;
+    scene.updateMatrixWorld(true);
+  });
+
+  const soRender = cronometrar(() => renderer.render(scene, camera));
+  const tudo = cronometrar(() => {
+    bots.update(DT, olho3);
+    renderer.render(scene, camera);
+  });
+  diz('');
+  diz('QUADRO INTEIRO com 300 bots (320x180, custo de CPU):');
+  diz(`  só matriz da cena (CPU)           ${soMatriz.toFixed(2)} ms`);
+  diz(`  travessia + recorte, 0 triângulo  ${soTravessia.toFixed(2)} ms   <- CPU, vale em GPU de verdade`);
+  diz(`  render da cena inteira            ${soRender.toFixed(2)} ms   <- inclui raster por software`);
+  diz(`  IA + render                       ${tudo.toFixed(2)} ms`);
+  diz(`  sobra do orçamento a 60 fps       ${(16.67 - tudo).toFixed(2)} ms`);
+  renderer.dispose();
+}
+
+// Reparte os 300: quanto é corpo (rig, esqueleto, colisor) e quanto é cérebro.
+// Medir o total sem repartir diz que está caro e não diz de quem é a conta.
+{
+  const olho2 = new THREE.Vector3(postos[0].x, 20, postos[0].z);
+  const so = (fn) => {
+    for (let q = 0; q < 20; q++) fn();          // aquece
+    const t = performance.now();
+    for (let q = 0; q < QUADROS; q++) fn();
+    return (performance.now() - t) / QUADROS;
+  };
+  const corpo = so(() => { for (const b of bots.soldiers) b.update(DT); });
+  const tudo = so(() => bots.update(DT, olho2));
+  diz('');
+  diz(`com 300 bots, por quadro:`);
+  diz(`  bot.update (corpo, rig, colisor)  ${corpo.toFixed(2)} ms`);
+  diz(`  o resto (cérebro, grade, tiro)    ${(tudo - corpo).toFixed(2)} ms`);
+  diz(`  total                             ${tudo.toFixed(2)} ms`);
+}
+diz('FIM');
+</script></body></html>

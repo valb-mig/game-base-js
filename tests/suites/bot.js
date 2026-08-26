@@ -11,7 +11,19 @@ import { initHitmarker } from '../../src/ui/hitmarker.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0 };
+/**
+ * Terreno de mentira do mundo dos bots.
+ *
+ * `estradaAt` entrou quando o pelotão passou a escolher formação pelo chão —
+ * coluna em estrada e em mata fechada, cunha no resto. Sem ele a suíte
+ * inteira estourava com "estradaAt is not a function", três camadas longe da
+ * causa. Dublê tem que ter o contrato inteiro.
+ */
+const chao = {
+  heightAt: () => 0,
+  estradaAt: () => 0,
+  corDeEstradaAt: () => null
+};
 
 /** Sorteio determinístico: bot testado tem que se comportar igual toda vez. */
 function dado(semente = 7) {
@@ -523,7 +535,11 @@ export function run() {
   // segundos de tiroteio e cem de vida intactos.
   const cenaJ = new THREE.Scene();
   const colisoresJ = [];
-  const relevoJ = { heightAt: () => 0, waterDepthAt: () => 0 };
+  const relevoJ = {
+    heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0,
+    // mesma razão do `chao`: o pelotão escolhe formação pelo tipo de chão
+    estradaAt: () => 0, corDeEstradaAt: () => null
+  };
   const camaraJ = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
 
   const jogador = new Player(camaraJ, document.body, {
