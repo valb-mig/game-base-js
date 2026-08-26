@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as clonarComEsqueleto } from 'three/addons/utils/SkeletonUtils.js';
 import { teamOf } from '../game/teams.js';
 
 /**
@@ -17,7 +18,25 @@ import { teamOf } from '../game/teams.js';
 
 // Resolvido contra ESTE módulo, não contra a página: a suíte mora em
 // tests/ e um caminho relativo à página buscava tests/assets/ e dava 404.
-const CAMINHO = new URL('../../assets/models/soldado-tpose.glb', import.meta.url).href;
+/**
+ * DOIS arquivos, e cada um existe por um motivo diferente.
+ *
+ * O de RENDER é uma malha skinnada única: 1 objeto em vez de 27, com normais
+ * flat explícitas e pesos rígidos (peso 1,0 num osso só, nada de blending —
+ * o facetado das caixas fica igual). Medido: 300 bots caem de 8100 malhas de
+ * corpo pra 300.
+ *
+ * O de GABARITO é o antigo, com as 36 caixas nomeadas — `capacete_topo`,
+ * `cabeca`, `coxa_L`. É dele que a hitbox é MEDIDA, e ele não vai pra cena
+ * nenhuma: carrega, mede uma vez, e o gabarito serve todos os soldados.
+ *
+ * A hitbox não pode sair do modelo de render porque a malha fundida não tem
+ * peça nomeada, e agrupar vértice por OSSO também não serve: cabeça e
+ * capacete são regiões separadas com dano diferente, e as duas penduram no
+ * osso `head` — medido, ele carrega 96 vértices, que são quatro caixas.
+ */
+const CAMINHO = new URL('../../assets/models/soldado-skinned.glb', import.meta.url).href;
+const CAMINHO_GABARITO = new URL('../../assets/models/soldado-tpose.glb', import.meta.url).href;
 
 // O modelo tem 1,80 m e o jogo trata o soldado como 1,75. A escala mora aqui
 // porque a hitbox e a locomoção já falam em 1,75 — mudar o número do jogo pra
@@ -45,13 +64,20 @@ function bytes(hex) {
 
 let promessa = null;
 let modelo = null;
+let molde = null;
 
-/** Carrega o arquivo uma vez. Chamar de novo devolve a mesma promessa. */
+/** Carrega os dois arquivos uma vez. Chamar de novo devolve a mesma promessa. */
 export function carregarSoldado() {
   if (!promessa) {
-    promessa = new GLTFLoader().loadAsync(CAMINHO).then((gltf) => {
-      modelo = gltf.scene;
+    const loader = new GLTFLoader();
+    promessa = Promise.all([
+      loader.loadAsync(CAMINHO),
+      loader.loadAsync(CAMINHO_GABARITO)
+    ]).then(([render, gabarito]) => {
+      modelo = render.scene;
       modelo.updateMatrixWorld(true);
+      molde = gabarito.scene;
+      molde.updateMatrixWorld(true);
       return modelo;
     });
   }
@@ -222,12 +248,13 @@ function grupoDaMalha(nome) {
  */
 let gabarito = null;
 export function caixasDoModelo() {
-  if (gabarito || !modelo) return gabarito;
+  if (gabarito || !molde) return gabarito;
 
-  const molde = criarSoldado('karnia');
-  if (!molde) return null;
-
-  const raiz = molde.grupo;
+  // O molde, posado igual ao soldado de verdade e na escala do jogo. Ele
+  // nunca entra numa cena: existe pra ser medido e descartado.
+  const raiz = molde.clone(true);
+  raiz.scale.setScalar(ALTURA_JOGO / ALTURA_MODELO);
+  posar(raiz);
   raiz.position.set(0, 0, 0);
   raiz.rotation.set(0, 0, 0);
   raiz.updateMatrixWorld(true);
@@ -260,25 +287,37 @@ export function caixasDoModelo() {
  * um material por soldado seria uma chamada de desenho por soldado.
  */
 const materiais = new Map();
-export function criarSoldado(teamId) {
-  if (!modelo) return null;
+
+function montar(fonte, teamId, chaveMaterial) {
+  if (!fonte) return null;
 
   const time = teamOf(teamId);
-  const copia = modelo.clone(true);
+  // Clone que RELIGA o esqueleto: `Object3D.clone(true)` leva o `Skeleton`
+  // por REFERÊNCIA, e os trezentos bots apontariam pros mesmos dezenove
+  // ossos — todos posando idêntico, no mesmo quadro.
+  //
+  // É o `SkeletonUtils` do three, e não uma cópia caseira: a versão que
+  // estava aqui casava osso por NOME e ligava com `matrixWorld`, e a de
+  // upstream casa por IDENTIDADE (a travessia paralela das duas árvores) e
+  // liga com o `bindMatrix` da malha, que é a matriz certa pra isso.
+  //
+  // Geometria e material continuam COMPARTILHADOS de propósito: só o
+  // esqueleto é por bot, senão são trezentos uploads do mesmo buffer.
+  const copia = clonarComEsqueleto(fonte);
   copia.scale.setScalar(ALTURA_JOGO / ALTURA_MODELO);
 
-  if (!materiais.has(teamId)) {
+  if (!materiais.has(chaveMaterial)) {
     let base = null;
-    modelo.traverse((o) => { if (o.isMesh && !base) base = o.material; });
+    fonte.traverse((o) => { if (o.isMesh && !base) base = o.material; });
 
     const material = base.clone();
     material.map = texturaDoTime(time, base.map);
     material.flatShading = true;
     material.needsUpdate = true;
-    materiais.set(teamId, material);
+    materiais.set(chaveMaterial, material);
   }
 
-  const material = materiais.get(teamId);
+  const material = materiais.get(chaveMaterial);
   const pintados = [];
   copia.traverse((o) => {
     if (!o.isMesh) return;
@@ -288,5 +327,33 @@ export function criarSoldado(teamId) {
 
   posar(copia);
   marcarTime(copia, time);
-  return { grupo: copia, material, pintados, maos: copia.getObjectByName('weapon') };
+  // `weapon_R` no modelo novo, `weapon` no antigo. Os dois nomes porque as
+  // duas fontes convivem — nome de nó não é contrato pra quebrar em silêncio.
+  const maos = copia.getObjectByName('weapon_R') ?? copia.getObjectByName('weapon');
+  return { grupo: copia, material, pintados, maos };
+}
+
+/**
+ * O soldado dos BOTS: malha skinnada única, quatro objetos por corpo.
+ *
+ * São trezentos deles em campo, e é aqui que a contagem de objetos importa.
+ */
+export function criarSoldado(teamId) {
+  return montar(modelo, teamId, teamId);
+}
+
+/**
+ * O soldado EM PEÇAS, com cada caixa nomeada.
+ *
+ * Existe pro corpo em primeira pessoa, que é UM só — ali as 36 malhas não
+ * custam nada e as peças nomeadas são indispensáveis: `player/body.js`
+ * remove `cabeca` e `capacete` pra que o jogador não veja o próprio crânio
+ * por dentro, e isso é `getObjectByName`. Na malha fundida não há o que
+ * remover, e o resultado é o jogador olhando o interior da própria cabeça.
+ *
+ * A chave do material é outra porque a fonte é outra: o atlas é o mesmo
+ * arquivo, mas o `material.map` sai do `base` de cada modelo.
+ */
+export function criarSoldadoEmPecas(teamId) {
+  return montar(molde, teamId, `pecas:${teamId}`);
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { criarSoldado, soldadoPronto } from '../bots/model.js';
+import { criarSoldadoEmPecas, soldadoPronto } from '../bots/model.js';
 import { PLAYER_TEAM } from '../game/teams.js';
 
 /**
@@ -58,7 +58,10 @@ const RECUO = 0.10;
 export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
   if (!soldadoPronto()) return { update() {}, get visible() { return false; } };
 
-  const feito = criarSoldado(team);
+  // Em PEÇAS, não a malha fundida dos bots: logo abaixo o corpo remove a
+  // cabeça e o capacete por nome, e malha fundida não tem peça pra remover.
+  // Aqui é um corpo só, então as 36 malhas não custam nada.
+  const feito = criarSoldadoEmPecas(team);
   if (!feito) return { update() {}, get visible() { return false; } };
 
   const grupo = feito.grupo;

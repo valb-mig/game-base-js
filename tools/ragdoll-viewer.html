@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ragdoll</title>
+<style>body{margin:0;background:#8fb0c8;overflow:hidden}</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { carregarSoldado } from '../src/bots/model.js';
+import { createSoldier } from '../src/bots/soldier.js';
+import { GRUPOS } from '../src/game/hitboxes.js';
+import { criarRig } from '../src/bots/rig.js';
+import { createRagdoll } from '../src/bots/ragdoll.js';
+
+const busca = new URLSearchParams(location.search);
+const segundos = Number(busca.get('t') ?? 2);
+
+const cena = new THREE.Scene();
+cena.add(new THREE.HemisphereLight(0xbfe3ff, 0x3a3a34, 1.2));
+const sol = new THREE.DirectionalLight(0xffffff, 1.6);
+sol.position.set(2, 4, 3);
+cena.add(sol);
+
+const chao = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshLambertMaterial({ color: 0x5e7a3a })
+);
+chao.rotation.x = -Math.PI / 2;
+cena.add(chao);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 60);
+// ?cam=lado|cima|frente — corpo caído se julga mal de um ângulo só.
+const VISTAS = {
+  lado: [[2.6, 0.95, 2.8], [0.6, 0.25, 0]],
+  cima: [[0.4, 4.2, 0.01], [0.4, 0, 0]],
+  frente: [[0.2, 0.7, 3.6], [0.2, 0.3, 0]]
+};
+const vista = VISTAS[busca.get('cam') ?? 'lado'] ?? VISTAS.lado;
+camera.position.set(...vista[0]);
+camera.lookAt(...vista[1]);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Arrastar gira, roda aproxima, botão direito arrasta o alvo. As vistas de
+// `?cam=` continuam sendo o ponto de PARTIDA (e é o que a captura headless
+// fotografa, que não tem mouse); a órbita é pra quem está com a página aberta
+// procurando o ângulo em que a perna atravessa o chão.
+const orbita = new OrbitControls(camera, renderer.domElement);
+orbita.target.set(...vista[1]);
+// Amortecimento exige `update()` todo quadro — ver o laço de render abaixo.
+orbita.enableDamping = true;
+orbita.update();
+
+await carregarSoldado();
+
+// O CAMINHO DO JOGO, e não um harness ao lado: soldado de verdade, morto por
+// `damage`, avançado por `bot.update`. Foi a diferença entre os dois que fez
+// eu declarar consertado o que na tela continuava igual.
+const piso = { heightAt: () => 0 };
+const bot = createSoldier(cena, [], {
+  id: 1, team: 'karnia', x: 0, z: 0, terrain: piso,
+  weapons: [{ id: 'mp40', name: 'MP40', firearm: { damage: 24 }, ammo: { loaded: 32, reserve: 0 } }]
+});
+bot.update(1 / 60);
+
+// ?onde=capacete|perna|tronco decide a região, e com ela o ponto do acerto.
+const ONDE = {
+  capacete: { regiao: GRUPOS.capacete, ponto: [0, 1.6, 0.18] },
+  cabeca: { regiao: GRUPOS.cabeca, ponto: [0, 1.45, 0.15] },
+  tronco: { regiao: GRUPOS.tronco, ponto: [0, 1.15, 0.2] },
+  perna: { regiao: GRUPOS.perna, ponto: [0.11, 0.5, 0.1] }
+};
+const alvo = ONDE[busca.get('onde') ?? 'tronco'] ?? ONDE.tronco;
+bot.damage(999, alvo.regiao, {
+  dir: new THREE.Vector3(0, 0, 1),   // bala vinda do sul, corpo cai pro norte
+  ponto: new THREE.Vector3(...alvo.ponto)
+});
+
+// Laço SÍNCRONO: sob tempo virtual o requestAnimationFrame quase não roda.
+for (let i = 0; i < Math.ceil(segundos * 60); i++) bot.update(1 / 60);
+
+renderer.setAnimationLoop(() => {
+  orbita.update();   // o amortecimento só existe se alguém pedir por quadro
+  renderer.render(cena, camera);
+});
+</script>
