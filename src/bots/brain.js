@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { AIM, createAim, turnToward, angleGap } from './aiming.js';
 import { postOwner, activePostFor } from '../game/teams.js';
+import {
+  SUPRIMENTO, secou, abastecido, temCorpoACorpo, reabastecer
+} from '../game/suprimento.js';
 
 /**
  * O que um bot decide fazer.
@@ -153,13 +156,35 @@ export function createBrain(bot, mundo, rng = Math.random) {
   let trocaDesvio = 0;
   let varredura = 0;
 
+  /**
+   * Ele está no meio de uma ida ao paiol.
+   *
+   * Trava de propósito: `secou` deixa de ser verdadeiro na PRIMEIRA bala que
+   * entra, e sem isto o bot largava o posto com uma no bolso pra secar de
+   * novo dez metros à frente. Só solta quando está abastecido — ou quando
+   * levar tiro, porque aí a decisão deixou de ser dele.
+   */
+  let buscandoBala = false;
+
+  // Reaproveitado: a busca por cobertura roda em quadro de combate, e alocar
+  // um array de colisores ali é alocar no laço quente.
+  const emVolta = [];
+
   /** Ponto de cobertura: quina de colisor que corta a linha até o alvo. */
   function acharCobertura(deQuem) {
     bot.eye(olho);
     let melhor = null;
     let menor = Infinity;
 
-    for (const { box } of mundo.colliders) {
+    // Só os colisores da vizinhança. Varrer a lista inteira eram 5505 caixas
+    // por bot por quadro — 1,6 milhão com 300 bots — pra achar uma esquina a
+    // catorze metros. Quem não responde `emVolta` (dublê de teste) devolve a
+    // lista toda, e o resultado é o mesmo, só mais caro.
+    const perto = mundo.colliders.emVolta
+      ? mundo.colliders.emVolta(bot.x, bot.z, BRAIN.COBERTURA_BUSCA, emVolta)
+      : mundo.colliders;
+
+    for (const { box } of perto) {
       if (box.max.y - box.min.y < 0.8) continue;        // baixo demais pra cobrir
       const cx = (box.min.x + box.max.x) / 2;
       const cz = (box.min.z + box.max.z) / 2;
@@ -188,6 +213,27 @@ export function createBrain(bot, mundo, rng = Math.random) {
    */
   function objetivo() {
     return activePostFor(mundo.outposts, bot.team);
+  }
+
+  /**
+   * O posto dominado mais perto — o paiol dele.
+   *
+   * `postoDeSuprimento` responde por RAIO porque é assim que o jogador
+   * reabastece: parado perto do mastro. Aqui a pergunta é outra — qual buscar
+   * — então a busca é sobre o mapa inteiro e o raio só serve pra saber que
+   * chegou.
+   */
+  function paiolMaisPerto() {
+    let melhor = null;
+    let menor = Infinity;
+    for (const posto of mundo.outposts ?? []) {
+      if (postOwner(posto) !== bot.team) continue;
+      const distancia = Math.hypot(posto.x - bot.x, posto.z - bot.z);
+      if (distancia >= menor) continue;
+      menor = distancia;
+      melhor = posto;
+    }
+    return melhor;
   }
 
   /** Bandeira do posto que ainda não é dele. */
@@ -261,17 +307,48 @@ export function createBrain(bot, mundo, rng = Math.random) {
       const arma = bot.weapon;
       const semMunicao = arma?.ammo && arma.ammo.loaded <= 0;
 
-      if (visto && !semMunicao) estado = 'combate';
+      const temAviso = bot.ameaca && bot.ameaca.ate > 0;
+
+      // Secou de vez: sem bala no carregador E sem reserva, em nenhuma arma.
+      // Diferente de `semMunicao`, que é só o carregador vazio e se resolve
+      // recarregando.
+      if (secou(bot.weapons)) buscandoBala = true;
+      else if (buscandoBala && abastecido(bot.weapons)) buscandoBala = false;
+      const secado = buscandoBala;
+
+      if (visto && (!semMunicao || secado)) estado = 'combate';
       else if ((sobFogo || semMunicao) && alvo) estado = 'cobertura';
-      else if (sobFogo) estado = 'alerta';
+      else if (sobFogo || temAviso) estado = 'alerta';
+      else if (secado) estado = 'reabastecendo';
       else if (alvo) estado = 'procurando';
       else estado = 'avancando';
+
+      // Quem está trocando tiro não é distraído por barulho: ele já sabe
+      // onde o inimigo está, e `bots.js` pula os avisos pra ele.
+      bot.emContato = estado === 'combate';
 
       // Troca de arma: sem munição vai pra próxima que tenha; colado no
       // inimigo, a faca ganha da arma comprida.
       if (visto) {
         const distancia = Math.hypot(alvo.x - bot.x, alvo.z - bot.z);
-        const querFaca = distancia < BRAIN.PERTO_DEMAIS;
+
+        /**
+         * A faca entra em dois casos, e o segundo é o que faltava.
+         *
+         * Colado no inimigo, a lâmina ganha da arma comprida — isso já
+         * existia. O caso novo é ter SECADO: sem bala em lugar nenhum, ficar
+         * apontando um cano vazio é o bot virar alvo parado. Com inimigo à
+         * vista ele parte pra cima; é uma decisão ruim e é a única que
+         * sobrou, que é exatamente o que ficar sem munição deveria custar.
+         */
+        const semNada = secou(bot.weapons);
+        const querFaca = distancia < BRAIN.PERTO_DEMAIS
+          || (semNada && temCorpoACorpo(bot.weapons));
+
+        // Ele procura arma com o CARREGADOR cheio, não com reserva: trocar
+        // serve pra atirar agora, e a recarga corre por fora em qualquer
+        // estado. Aceitar reserva fazia ele ficar com a arma vazia na mão
+        // esperando o próprio recarregamento.
         const escolha = bot.weapons.findIndex((a) => (querFaca
           ? !a.firearm
           : a.firearm && (!a.ammo || a.ammo.loaded > 0)));
@@ -333,17 +410,85 @@ export function createBrain(bot, mundo, rng = Math.random) {
       if (estado === 'alerta') {
         bot.crouching = true;
         bot.speed = 0;
+
+        // Com aviso, ele olha PRA LÁ. Sem aviso, varre.
+        //
+        // Levar tiro sem ver ninguém continua sendo cego de propósito — é o
+        // que dá a vantagem a quem atirou primeiro. Mas ouvir o tiro que
+        // pegou o companheiro do lado é outra coisa: dali se sabe a direção,
+        // e é isso que faz o pelotão inteiro virar pro mesmo lado em vez de
+        // continuar andando de costas.
+        if (temAviso) {
+          bot.yaw = turnToward(bot.yaw,
+            Math.atan2(bot.ameaca.x - bot.x, bot.ameaca.z - bot.z),
+            AIM.GIRO_ALERTA * delta);
+          return;
+        }
+
         varredura += delta * AIM.GIRO * 0.55;
         bot.yaw = turnToward(bot.yaw, bot.yaw + Math.sin(varredura) * 1.2,
           AIM.GIRO * delta);
         return;
       }
 
+      /**
+       * Sem bala em lugar nenhum: ele volta pra buscar.
+       *
+       * O posto que o time DOMINA é o paiol. Isso fecha o círculo do modo:
+       * perder postos deixa de ser só perder spawn, passa a ser perder
+       * munição — e defender um ponto passa a valer por dois motivos.
+       *
+       * Ele vai pro posto dominado mais PERTO, não pra linha de frente:
+       * quem está sem bala não avança, recua.
+       */
+      if (estado === 'reabastecendo') {
+        bot.crouching = false;
+
+        const paiol = paiolMaisPerto();
+        if (!paiol) {
+          // Sem posto nenhum do time no mapa: não há o que buscar. Ele segue
+          // pra frente com a faca em vez de ficar parado esperando.
+          estado = 'avancando';
+        } else {
+          const falta = Math.hypot(paiol.x - bot.x, paiol.z - bot.z);
+          if (falta <= SUPRIMENTO.RAIO) {
+            bot.speed = 0;
+            reabastecer(bot.weapons, SUPRIMENTO.POR_SEGUNDO * delta);
+            return;
+          }
+          bot.yaw = turnToward(bot.yaw,
+            Math.atan2(paiol.x - bot.x, paiol.z - bot.z), AIM.GIRO * delta);
+          andarPara(paiol.x, paiol.z, delta, 3.4);
+          return;
+        }
+      }
+
       if (estado === 'procurando') {
         bot.crouching = false;
-        const paraLa = Math.atan2(memoria.x - bot.x, memoria.z - bot.z);
-        bot.yaw = turnToward(bot.yaw, paraLa, AIM.GIRO * delta);
-        if (andarPara(memoria.x, memoria.z, delta, 2.6) < BRAIN.CHEGOU) {
+
+        // Ele vai pro LADO da última posição conhecida, não em cima dela.
+        //
+        // Quem se cobriu está olhando pra linha por onde foi visto pela
+        // última vez; chegar por ali é entregar-se. A abertura encolhe
+        // conforme ele se aproxima — de longe o arco compensa, colado ele
+        // vira só um desvio inútil.
+        const dx = memoria.x - bot.x;
+        const dz = memoria.z - bot.z;
+        const distancia = Math.hypot(dx, dz) || 1;
+
+        let destinoX = memoria.x;
+        let destinoZ = memoria.z;
+        if (distancia > BRAIN.FLANCO_ATE) {
+          const abre = Math.min(BRAIN.FLANCO, distancia * 0.55) * desvio;
+          destinoX += (-dz / distancia) * abre;
+          destinoZ += (dx / distancia) * abre;
+        }
+
+        // O olhar continua na MEMÓRIA, não no ponto de flanqueio: ele anda
+        // pro lado com a arma apontada pra onde o inimigo estava.
+        bot.yaw = turnToward(bot.yaw, Math.atan2(dx, dz), AIM.GIRO * delta);
+        andarPara(destinoX, destinoZ, delta, 2.6);
+        if (distancia < BRAIN.CHEGOU) {
           alvo = null;
           aim.reset();
         }

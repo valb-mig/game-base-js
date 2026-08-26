@@ -555,7 +555,14 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
           bot.downFor += delta;
           if (bot.downFor >= RENASCE_APOS) {
             const onde = pontoDeNascimento(bot.team);
-            if (onde) bot.respawn(onde.x, onde.z);
+            if (onde) {
+              // Arsenal NOVO: as armas dele viraram espólio no chão quando
+              // caiu, e uma delas pode estar na mão do jogador. Reaproveitar
+              // os mesmos objetos faria o carregador do jogador se encher
+              // sozinho no quadro em que o bot renascesse.
+              bot.weapons = arsenal();
+              bot.respawn(onde.x, onde.z);
+            }
           }
           bot.update(delta);
           continue;

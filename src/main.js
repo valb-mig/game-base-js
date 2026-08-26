@@ -32,6 +32,9 @@ import { carregarSoldado, caixasDoModelo } from './bots/model.js';
 import { usarMedidasDoModelo } from './game/hitboxes.js';
 import { buildTrainingWorld } from './world/training-world.js';
 import { enemyOf, postOwner } from './game/teams.js';
+import {
+  SUPRIMENTO, reabastecer, postoDeSuprimento
+} from './game/suprimento.js';
 
 /**
  * Fiação e laço de render.
@@ -290,6 +293,24 @@ function frame() {
   }
   document.body.classList.toggle('aiming', player.gun.aim > 0.5);
   for (const target of world.targets) target.update(delta);
+
+  /**
+   * Posto dominado é paiol.
+   *
+   * Parado perto de um posto do seu time, a reserva volta — e é o que fecha o
+   * círculo do modo: perder posto deixa de ser só perder spawn e passa a ser
+   * perder munição. Posto em disputa não serve, então negar o ponto é negar a
+   * bala de quem está atacando.
+   *
+   * Sem aviso na tela de propósito: o contador de reserva do HUD subindo já
+   * conta o que está acontecendo, e o HUD não inventa número nem mensagem.
+   */
+  if (player.alive && !player.spectating) {
+    const p = player.object.position;
+    const paiol = postoDeSuprimento(
+      world.outposts, player.team, p.x, p.z, postOwner);
+    if (paiol) reabastecer(player.carried, SUPRIMENTO.POR_SEGUNDO * delta);
+  }
 
   world.water.update(clock.elapsedTime);
   applyUnderwater(scene, player.headUnderwater);
