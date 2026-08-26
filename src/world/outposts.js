@@ -70,14 +70,30 @@ function assertPontos(pontos, terrain, ocupado) {
 }
 
 /**
+ * Distância do leito em que o ponto da ponte assenta, em metros.
+ *
+ * 72 e não 44: com o rio cheio d'água, 44 m do leito é margem AFUNDADA — o
+ * terreno ali está a 7,8 m e a lâmina a 7,9, ou seja o posto nasceria dentro
+ * do rio. A 72 m o chão está a 23 m e seco, e o posto fica na cabeceira,
+ * atrás da ponta da ponte: quem defende o ponto defende a travessia.
+ */
+const DO_LEITO = 72;
+
+/**
  * O ponto da ponte fica ONDE A PONTE ESTÁ, e a ponte sai do leito do rio.
  * Fixar o z na tabela criaria uma segunda fonte de verdade sobre onde o rio
  * passa, e as duas se separariam no primeiro ajuste do leito.
+ *
+ * Das três pontes ele guarda a do MEIO, não a primeira da lista: a frente
+ * anda de norte pra sul e o ponto 05 é o penúltimo, então ele tem que estar
+ * no caminho — numa ponta do mapa, o atacante contorna por qualquer das
+ * outras duas travessias e o ponto vira enfeite.
  */
 function posicionar(pontos, campo) {
-  const ponte = campo.bridges()[0];
+  const pontes = campo.bridges();
+  const ponte = pontes[Math.floor(pontes.length / 2)];
   return pontos.map((ponto) => (ponto.id === 'ponte'
-    ? { ...ponto, x: ponte.x, z: ponte.z + 44 }
+    ? { ...ponto, x: ponte.x, z: ponte.z + DO_LEITO }
     : ponto));
 }
 

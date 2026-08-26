@@ -55,8 +55,18 @@ export function createTerrain(flatZones = [], deform = null, perfil = 'sainte-me
 
     /** Pinta o vértice pelo tipo de chão, escurecendo onde foi mexido. */
     function pintar(i, x, z, altura, declividade) {
-      color.set(colorAt(altura, declividade));
-      if (altura < WORLD.WATER_LEVEL) color.multiplyScalar(0.62);
+      // Sob a lâmina LOCAL, não sob a constante: o leito do rio está a 10 m,
+      // muito acima do zero do mar, e comparado com `WATER_LEVEL` ele saía
+      // com cor de capim seco por baixo de dois metros e meio de água.
+      const submerso = altura < field.nivelDaAguaAt(x, z);
+
+      // Estrada não é pintada debaixo d'água. A pista cruza o rio POR CIMA,
+      // na ponte, e asfaltar o leito contaria a mentira de que dá pra passar
+      // ali a pé — que é exatamente o que a ponte existe pra desmentir.
+      const estrada = submerso ? 0 : field.estradaAt(x, z);
+      color.set(colorAt(altura, declividade, estrada,
+        estrada > 0 ? field.corDeEstradaAt(x, z) : null));
+      if (submerso) color.multiplyScalar(0.62);
       if (deform) {
         color.lerp(SOIL, turnedSoil(deform.deltaAt(x, z), deform.revolvidoAt(x, z)));
       }

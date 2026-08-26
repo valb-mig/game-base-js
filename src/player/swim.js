@@ -1,7 +1,7 @@
 import { WORLD } from '../config.js';
 import { isDown } from '../core/input.js';
 import { horizontalRight, forwardX, forwardZ } from './heading.js';
-import { collides, terrainUnder } from './collision.js';
+import { collides, terrainUnder, waterLevelUnder } from './collision.js';
 import { JUMP_KEYS, RUN_KEYS, CROUCH_KEYS, FORWARD_KEYS, BACK_KEYS, RIGHT_KEYS, LEFT_KEYS } from './constants.js';
 import { axis } from '../core/input.js';
 
@@ -17,24 +17,34 @@ import { axis } from '../core/input.js';
  * bate na canela e freia, depois o pé não alcança e ele passa a nadar.
  */
 
-/** Fundo do mar sob o jogador, ignorando caixa: água é sempre sobre terreno. */
+/** Fundo da água sob o jogador, ignorando caixa: água é sempre sobre terreno. */
 export function waterDepthUnder(player, x, z) {
-  return WORLD.WATER_LEVEL - terrainUnder(player, x, z);
+  return waterLevelUnder(player, x, z) - terrainUnder(player, x, z);
 }
 
-/** Decide, a cada frame, se o jogador está nadando, com água pela cintura, ou seco. */
+/**
+ * Decide, a cada frame, se o jogador está nadando, com água pela cintura, ou
+ * seco — e guarda em `player.waterY` a lâmina d'água DELE.
+ *
+ * O nível fica no jogador em vez de ser lido da constante em cinco lugares
+ * porque ele depende de onde o jogador está: o mar corre a zero e o rio a
+ * 7,9 m. Lido uma vez por quadro, ninguém pode discordar de ninguém no meio
+ * do mesmo frame.
+ */
 export function updateWaterState(player) {
   const position = player.object.position;
-  const bottom = waterDepthUnder(player, position.x, position.z);
+  const nivel = waterLevelUnder(player, position.x, position.z);
+  const bottom = nivel - terrainUnder(player, position.x, position.z);
 
+  player.waterY = nivel;
   player.waterDepth = Math.max(0, bottom);
-  player.submerged = Math.max(0, WORLD.WATER_LEVEL - player.feetY);
-  player.headUnderwater = player.eyeY < WORLD.WATER_LEVEL;
+  player.submerged = Math.max(0, nivel - player.feetY);
+  player.headUnderwater = player.eyeY < nivel;
 
   // Só nada onde o pé não alcança. Sair da água é o mesmo teste ao contrário,
   // então o jogador volta a andar sozinho ao chegar no raso.
   player.swimming = bottom > player.stats.SWIM_DEPTH
-    && player.feetY < WORLD.WATER_LEVEL;
+    && player.feetY < nivel;
 }
 
 export function swim(player, delta) {
@@ -74,7 +84,7 @@ export function swim(player, delta) {
   if (isDown(...JUMP_KEYS)) verticalTarget += stats.SWIM_RISE_SPEED;
   if (isDown(...CROUCH_KEYS)) verticalTarget -= stats.SWIM_RISE_SPEED;
 
-  const surfaceEye = WORLD.WATER_LEVEL + stats.FLOAT_EYE;
+  const surfaceEye = player.waterY + stats.FLOAT_EYE;
   if (verticalTarget === 0) {
     // boiar: sobe até os olhos ficarem na linha d'água e para
     const error = surfaceEye - player.eyeY;

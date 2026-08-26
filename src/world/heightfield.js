@@ -1,6 +1,7 @@
 import { WORLD } from '../config.js';
 import { declividadeAt, tipoDoChao } from './ground.js';
 import { fbm, smoothstep } from './noise.js';
+import { createEstradas } from './estradas.js';
 
 /**
  * Campo de altura de Sainte-Mère. Matemática pura, sem three: é a fonte de
@@ -28,16 +29,6 @@ export function createHeightfield(flatZones = [], deform = null, perfil = 'saint
   function leitoDoRio(x) {
     return WORLD.RIO_Z + WORLD.RIO_INCLINACAO * x
       + Math.sin(x * 0.0042) * WORLD.RIO_ONDA;
-  }
-
-  /** Perto de uma ponte o rio não é cavado: é por ali que se atravessa. */
-  function fatorDePonte(x) {
-    let aberto = 0;
-    for (const ponte of WORLD.PONTES) {
-      const perto = 1 - Math.min(1, Math.abs(x - ponte) / WORLD.PONTE_LARGURA);
-      aberto = Math.max(aberto, smoothstep(perto));
-    }
-    return aberto;
   }
 
   /**
@@ -94,12 +85,30 @@ export function createHeightfield(flatZones = [], deform = null, perfil = 'saint
     // ---------------------------------------------------------------- rio
     // Cavado por último, pra que ele corte colina e ondulação em vez de ser
     // apagado por elas — rio que some numa lombada não é gargalo de nada.
+    //
+    // Dois cortes, nesta ordem: primeiro o VALE, largo e raso, que baixa o
+    // planalto inteiro numa rampa suave o bastante pra grama pegar; depois o
+    // CANAL, estreito e fundo, onde está a água. Com um corte só a margem
+    // ficava íngreme demais em toda a largura e o rio corria dentro de um
+    // paredão de barro — vala, não vale.
     const doLeito = Math.abs(z - leitoDoRio(x));
+
+    if (doLeito < WORLD.VALE_MARGEM) {
+      const dentro = 1 - smoothstep(
+        Math.max(0, doLeito - WORLD.RIO_MARGEM)
+        / (WORLD.VALE_MARGEM - WORLD.RIO_MARGEM));
+      base -= WORLD.VALE_PROFUNDIDADE * dentro;
+    }
+
     if (doLeito < WORLD.RIO_MARGEM) {
       const dentro = 1 - smoothstep(
         Math.max(0, doLeito - WORLD.RIO_LARGURA)
         / (WORLD.RIO_MARGEM - WORLD.RIO_LARGURA));
-      const corte = (base - WORLD.RIO_FUNDO) * dentro * (1 - fatorDePonte(x));
+      // O rio é cavado até o fim, inclusive sob as pontes: elas o ATRAVESSAM
+      // por cima, em concreto. Abrir um vão no leito onde a ponte passa dava
+      // uma língua de grama cortando o rio — e aí a ponte não segurava nada,
+      // porque dava pra andar por baixo dela em terra seca.
+      const corte = (base - WORLD.RIO_FUNDO) * dentro;
       base -= Math.max(0, corte);
     }
 
@@ -141,14 +150,43 @@ export function createHeightfield(flatZones = [], deform = null, perfil = 'saint
     return deform ? base + deform.deltaAt(x, z) : base;
   }
 
+  // O campo de treino não tem rede viária: ele é plano e medido de propósito,
+  // e uma estrada cruzando a linha de tiro seria enfeite no único lugar do
+  // jogo em que tudo tem que ser medida.
+  const estradas = perfil === 'treino' ? null : createEstradas(leitoDoRio);
+
+  /**
+   * Altura da lâmina d'água em (x, z). Duas águas, não uma.
+   *
+   * O mar está no zero e o rio corre a 7,9 m — rio corre EM CIMA do
+   * continente, e tratar tudo como um nível só deixava o leito seco (o mar
+   * não sobe até lá) ou afogava a ilha inteira (se o nível subisse até o
+   * rio). Quem pergunta a profundidade pergunta aqui, e não pra a constante:
+   * `WATER_LEVEL` sozinho é a resposta certa em todo lugar menos no rio.
+   */
+  function nivelDaAguaAt(x, z) {
+    if (perfil === 'treino') return WORLD.WATER_LEVEL;
+    const doLeito = Math.abs(z - leitoDoRio(x));
+    if (doLeito > WORLD.RIO_MARGEM) return WORLD.WATER_LEVEL;
+    return WORLD.RIO_NIVEL;
+  }
+
   /** Profundidade da água em (x, z). 0 em terra seca. */
   function waterDepthAt(x, z) {
-    return Math.max(0, WORLD.WATER_LEVEL - heightAt(x, z));
+    return Math.max(0, nivelDaAguaAt(x, z) - heightAt(x, z));
   }
 
   return {
     heightAt,
+    nivelDaAguaAt,
     waterDepthAt,
+
+    // A rede viária. Quem pinta o chão e quem semeia mato leem daqui, e é a
+    // mesma fonte: estrada que aparece na malha mas não afasta a árvore
+    // deixaria pinheiro plantado no meio do asfalto.
+    estradaAt: (x, z) => (estradas ? estradas.estradaAt(x, z) : 0),
+    corDeEstradaAt: (x, z) => (estradas ? estradas.corDeEstradaAt(x, z) : null),
+    trechosDeEstrada: () => (estradas ? estradas.trechos : []),
     naturalHeight,
     riverBedAt: leitoDoRio,
     bridges: pontes,
@@ -158,7 +196,9 @@ export function createHeightfield(flatZones = [], deform = null, perfil = 'saint
     // Duas fontes de verdade sobre o mesmo chão se separariam no primeiro
     // ajuste da declividade.
     declividadeAt: (x, z) => declividadeAt(heightAt, x, z),
-    tipoAt: (x, z) => tipoDoChao(heightAt(x, z), declividadeAt(heightAt, x, z))
+    tipoAt: (x, z) => tipoDoChao(
+      heightAt(x, z), declividadeAt(heightAt, x, z), waterDepthAt(x, z),
+      estradas ? estradas.estradaAt(x, z) : 0)
   };
 }
 

@@ -7,6 +7,8 @@ import { createHeightfield, assertFlatZones } from './heightfield.js';
 import { PLAYER } from '../config.js';
 import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
+import { createRiver } from './river.js';
+import { addBridges } from './bridge.js';
 import { addForest } from './forest.js';
 import { addBushes } from './bushes.js';
 import { sorteioFixo } from './props.js';
@@ -61,6 +63,10 @@ export function buildWorld(scene) {
   const water = createWater();
   scene.add(water.mesh);
 
+  // O rio tem lâmina própria, 7,9 m acima do mar. Duas malhas porque são duas
+  // águas: um plano só não pode estar em dois níveis.
+  const river = createRiver(terrain.riverBedAt);
+  scene.add(river.mesh);
 
   const colliders = new ListaDeColisores();
 
@@ -94,6 +100,19 @@ export function buildWorld(scene) {
   // contrário. `occupied` cresce dentro de addOutposts com o raio de cada um.
   const outposts = addOutposts(scene, colliders,
     { terrain, settling, occupied, campo: probe });
+  // As pontes entram DEPOIS dos postos: o ponto 05 é posicionado pelo leito e
+  // teria estourado o teste de ocupação contra a própria ponte que ele guarda.
+  // Elas entram no `occupied` logo em seguida, e como `blocked` lê a lista na
+  // hora da chamada, a floresta (montada abaixo) já as respeita.
+  const bridges = addBridges(scene, colliders, { terrain });
+  for (const ponte of bridges) {
+    occupied.push({
+      x: ponte.x, z: ponte.z, name: 'ponte',
+      radius: ponte.comprimento / 2 + 14
+    });
+  }
+
+
   const blocked = (x, z) => occupied.some(
     (zone) => Math.hypot(x - zone.x, z - zone.z) < zone.radius
   );
@@ -159,6 +178,8 @@ export function buildWorld(scene) {
     },
 
     water,
+    river,
+    bridges,
     bushes,
     targets,
     outposts,
@@ -170,7 +191,7 @@ export function buildWorld(scene) {
     spawn: new THREE.Vector3(north.x, northGround, north.z + 12),
     stats: {
       ...counts, arbustos: bushes.count,
-      alvos: targets.length, postos: outposts.length,
+      alvos: targets.length, postos: outposts.length, pontes: bridges.length,
       colliders: colliders.length
     }
   };

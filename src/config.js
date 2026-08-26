@@ -88,15 +88,35 @@ export const WORLD = {
   RIO_Z: 194,             // z do leito em x=0
   RIO_INCLINACAO: -0.224, // quanto o leito desce por metro de x
   RIO_ONDA: 34,           // amplitude da serpentina: rio reto lê como vala
-  RIO_LARGURA: 34,
-  RIO_MARGEM: 78,         // a rampa das margens
-  RIO_FUNDO: 5.5,         // altura do leito
+  // O rio corre no fundo de um VALE, e são dois cortes, não um.
+  //
+  // Com um corte só, a margem tinha que vencer 18,5 m em 44, ou seja 0,42 de
+  // declividade — muito acima de DECLIVE_TERRA. O rio saía dentro de um
+  // paredão de barro de ponta a ponta do mapa, e o que se via não era um vale
+  // com rio: era uma vala. Medido no vale novo: 0,05 na descida larga (grama
+  // até a beira) e 0,27 na barranca do canal, uma faixa de 26 m de terra
+  // exposta rente à água — que é onde barranca de rio fica mesmo.
+  VALE_MARGEM: 190,       // meia-largura do vale inteiro
+  VALE_PROFUNDIDADE: 7,   // quanto o vale afunda o planalto
 
-  // Pontes: buracos no rio onde o terreno não é cavado. Só o X entra aqui —
-  // o Z sai do próprio leito, senão o mapa teria duas fontes de verdade
-  // sobre onde o rio passa, e elas se separariam no primeiro ajuste.
-  PONTES: [-473, 330],
-  PONTE_LARGURA: 26,
+  RIO_LARGURA: 20,        // leito plano, meia-largura
+  RIO_MARGEM: 46,         // a barranca do canal
+  RIO_FUNDO: 10,          // altura do leito
+
+  // O rio TEM água, e ela corre acima do mar: 2,4 m de lâmina sobre o leito.
+  // Fundo seco não é rio, é vala — e a vala não é gargalo de nada, porque se
+  // atravessa correndo. Acima de SWIM_DEPTH (1,3 m) de propósito: atravessar
+  // a nado custa mais que o dobro do tempo e deixa o corpo à mostra, e é
+  // isso que faz a ponte valer a briga.
+  RIO_NIVEL: 12.4,
+
+  // Três pontes de concreto, e agora o rio passa POR BAIXO delas: antes o
+  // terreno simplesmente não era cavado ali, o que dava uma língua de grama
+  // atravessando o rio e ponte nenhuma. Só o X entra aqui — o Z sai do
+  // próprio leito, senão o mapa teria duas fontes de verdade sobre onde o
+  // rio passa, e elas se separariam no primeiro ajuste.
+  PONTES: [-600, -100, 430],
+  PONTE_LARGURA: 9,       // largura do tabuleiro, de guarda-corpo a guarda-corpo
 
   // ------------------------------------------------------------- colinas
   COLINAS: [
@@ -134,6 +154,9 @@ export const WORLD = {
   // ------------------------------------------------------------- cores
   SKY_COLOR: 0x9ec6dd,
   WATER_COLOR: 0x2e6d80,
+  // Rio é mais verde e mais opaco que o mar: água rasa sobre leito de lodo,
+  // não vinte metros de oceano.
+  RIO_COR: 0x3c6a5e,
   DEEP_WATER_COLOR: 0x14323d,
   SAND_COLOR: 0xd8c89a,
   GRASS_COLOR: 0x5f8b3c,
@@ -144,6 +167,11 @@ export const WORLD = {
   BUSH_COLOR: 0x40702f,
   BUSH_COLOR_DARK: 0x2d5222,
   SOIL_COLOR: 0x6b5334,   // terra revolvida, onde a pá passou
+  // Asfalto de 1945 é macadame betuminoso: cinza-pardo gasto, não piche novo.
+  // Em 0x4a4a48 a pista lia como uma faixa preta no meio do capim, e é o
+  // contraste que fazia ela parecer o dobro da largura que tem.
+  ASFALTO: 0x5d5b55,      // estrada e tabuleiro de ponte
+  TERRA_BATIDA: 0x9c8763, // caminho de terra
 
   // A névoa fecha bem mais longe que na ilha: num mapa de dois quilômetros,
   // 320 m de alcance esconderia o mapa inteiro do jogador.

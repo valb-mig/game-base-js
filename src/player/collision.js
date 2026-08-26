@@ -1,4 +1,4 @@
-import { PLAYER } from '../config.js';
+import { PLAYER, WORLD } from '../config.js';
 
 // O player é um cilindro. Em vez de testar cilindro-vs-caixa, a AABB do
 // colisor é inflada em RADIUS no plano XZ e o centro do player vira um
@@ -94,6 +94,16 @@ export function ceilingAbove(colliders, x, z, feetY, fromHeadY, toHeadY) {
 /** Altura do terreno sob o player, ou 0 se ele não tem terreno. */
 export function terrainUnder(player, x, z) {
   return player.terrain ? player.terrain.heightAt(x, z) : 0;
+}
+
+/**
+ * Altura da lâmina d'água em (x, z). O mapa tem DUAS: o mar no zero e o rio
+ * a 7,9 m. Perguntar pra `WORLD.WATER_LEVEL` dava a resposta certa em todo
+ * lugar menos dentro do rio, que é justamente onde ela importa — o jogador
+ * atravessava a água do rio como se fosse ar.
+ */
+export function waterLevelUnder(player, x, z) {
+  return player.terrain ? player.terrain.nivelDaAguaAt(x, z) : WORLD.WATER_LEVEL;
 }
 
 /** O player cabe na altura pedida, aqui onde ele está? */

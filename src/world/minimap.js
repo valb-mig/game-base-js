@@ -20,6 +20,25 @@ function shade(hex, factor) {
 }
 
 /**
+ * A ilha desenhada, por terreno.
+ *
+ * Montá-la custa uma amostragem de 260 × 260 do campo de altura, e agora há
+ * DOIS consumidores — o mapa tático e o radar do HUD. Sem isto o mesmo
+ * desenho seria feito duas vezes no boot, que é exatamente onde o gargalo
+ * deste projeto está.
+ */
+const cache = new WeakMap();
+
+export function islandFor(terrain) {
+  let pronta = cache.get(terrain);
+  if (!pronta) {
+    pronta = renderIsland(terrain);
+    cache.set(terrain, pronta);
+  }
+  return pronta;
+}
+
+/**
  * @param {{heightAt: Function}} terrain
  * @returns {HTMLCanvasElement} imagem da ilha, pronta pra desenhar em cima
  */
@@ -47,15 +66,21 @@ export function renderIsland(terrain) {
       const index = (row * RESOLUTION + col) * 4;
 
       let rgb;
-      if (height >= WORLD.WATER_LEVEL) {
+      if (height >= terrain.nivelDaAguaAt(x, z)) {
         // Duas medidas de inclinação, e elas são coisas diferentes: a cor sai
         // da declividade do TERRENO, medida no passo da malha, senão o mapa
         // tático discordaria dela sobre onde acaba a grama. O sombreado sai
         // da diferença entre pixels vizinhos, que é o que dá relevo à imagem
         // — sem ele a ilha vira uma mancha chapada.
         const rampa = terrain.heightAt(x + step, z) - height;
-        rgb = shade(colorAt(height, terrain.declividadeAt(x, z)),
-          1 + Math.max(-0.35, Math.min(0.35, rampa * 0.5)));
+        // A estrada entra aqui pelo mesmo `colorAt` da malha, não desenhada
+        // por cima: duas fontes de verdade sobre onde passa a rota se
+        // separariam no primeiro ajuste do traçado, e o mapa tático passaria
+        // a prometer um caminho que o terreno não tem.
+        const estrada = terrain.estradaAt(x, z);
+        rgb = shade(colorAt(height, terrain.declividadeAt(x, z), estrada,
+          estrada > 0 ? terrain.corDeEstradaAt(x, z) : null),
+        1 + Math.max(-0.35, Math.min(0.35, rampa * 0.5)));
       } else {
         const depth = Math.min(1, -height / WORLD.SEA_DEPTH);
         rgb = [
