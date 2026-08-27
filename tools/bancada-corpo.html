@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: corpo em 1ª pessoa</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { carregarSoldado } from '../src/bots/model.js';
+import { initPlayerBody } from '../src/player/body.js';
+import { Player } from '../src/player/player.js';
+import { initInput } from '../src/core/input.js';
+
+/**
+ * O corpo do jogador tapa a tela em alguma postura?
+ *
+ * Ele é ancorado no OLHO, não no chão: o que decide se ele aparece na lente
+ * é a altura do peito CONTRA a altura da câmera, e isso não se julga por
+ * foto — de pé o corpo está fora do quadro e a foto sai limpa nas três
+ * posturas mesmo com uma delas quebrada. O que responde é a coordenada em
+ * espaço de CÂMERA: z negativo é à frente da lente.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log(t); };
+
+initInput();
+await carregarSoldado();
+
+const cena = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 400);
+// Dublê com o contrato INTEIRO. Falso incompleto quebra a três camadas de
+// distância da causa: aqui foi `nivelDaAguaAt`, dentro de `collision.js`.
+const mundo = {
+  colliders: [],
+  terrain: {
+    heightAt: () => 0,
+    nivelDaAguaAt: () => -100,
+    declividadeAt: () => 0,
+    tipoDoChao: () => 'GRAMA'
+  },
+  spawn: new THREE.Vector3(0, 0, 0)
+};
+const player = new Player(camera, document.body, mundo);
+const corpo = initPlayerBody(cena, player, { team: 'vestria' });
+
+const paraCamera = new THREE.Matrix4();
+const noMundo = new THREE.Vector3();
+const naCamera = new THREE.Vector3();
+const f = (n) => n.toFixed(3).padStart(7);
+
+function medir(nome, prone, agachado) {
+  player.prone = prone;
+  player.crouchLatched = agachado;
+  for (let i = 0; i < 60; i++) { player.update(1 / 60); corpo.update(1 / 60); }
+
+  camera.updateMatrixWorld(true);
+  paraCamera.copy(camera.matrixWorld).invert();
+  corpo.grupo.updateMatrixWorld(true);
+
+  diz(`--- ${nome}  altura ${f(player.height)}  olho ${f(camera.position.y)}`
+    + `  escala ${f(corpo.grupo.scale.y)}`);
+  for (const osso of ['chest', 'spine', 'hips', 'knee_L', 'foot_L']) {
+    const o = corpo.grupo.getObjectByName(osso);
+    if (!o) continue;
+    o.getWorldPosition(noMundo);
+    naCamera.copy(noMundo).applyMatrix4(paraCamera);
+    // z na câmera: NEGATIVO é à frente da lente. Positivo é atrás dela, que
+    // é onde o corpo do próprio jogador tem que estar.
+    const atras = naCamera.z > 0;
+    diz(`  ${osso.padEnd(8)} mundo y ${f(noMundo.y)}  ·  câmera z ${f(naCamera.z)}`
+      + ` y ${f(naCamera.y)}  ${atras ? 'atrás da lente' : 'NA FRENTE DA LENTE'}`);
+  }
+}
+
+medir('de pé', false, false);
+medir('agachado', false, true);
+medir('deitado', true, false);
+diz('FIM');
+</script>
+</body></html>

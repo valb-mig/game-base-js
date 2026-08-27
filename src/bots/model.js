@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as clonarComEsqueleto } from 'three/addons/utils/SkeletonUtils.js';
 import { teamOf } from '../game/teams.js';
+import { POSTURAS } from './posturas.js';
+import { NOMES, RAIOS } from './esqueleto.js';
 
 /**
  * O modelo do soldado, carregado uma vez e clonado por soldado.
@@ -246,15 +248,49 @@ function grupoDaMalha(nome) {
  * o gabarito é o mesmo pra todos, e posar cada soldado igual é o que garante
  * que a caixa vale pra qualquer um deles.
  */
-let gabarito = null;
-export function caixasDoModelo() {
-  if (gabarito || !molde) return gabarito;
+const gabaritos = new Map();
+export function caixasDoModelo(postura = 'pe') {
+  if (gabaritos.has(postura)) return gabaritos.get(postura);
+  if (!molde) return null;
 
   // O molde, posado igual ao soldado de verdade e na escala do jogo. Ele
   // nunca entra numa cena: existe pra ser medido e descartado.
   const raiz = molde.clone(true);
   raiz.scale.setScalar(ALTURA_JOGO / ALTURA_MODELO);
   posar(raiz);
+
+  // E posado NA POSTURA, pela mesma tabela que posa o soldado na tela.
+  //
+  // Enquanto agachar e deitar eram escala em Y, a hitbox era a de pé
+  // achatada: funcionava pra agachar e mentia pra deitar, onde o corpo tem
+  // dois metros de comprimento e a caixa tinha meio metro de lado. Medir o
+  // corpo DEITADO é a única coisa que faz o tiro acertar onde ele está.
+  // SOMADA ao repouso, como `rig.aplicarPose` faz — nunca absoluta.
+  //
+  // Escrita como `rotation.set` ela DESCARTA o que `posar` deixou no osso, e
+  // aí o gabarito fica numa pose que o soldado na tela não tem: medido, o
+  // corpo agachado do gabarito afundava 20,7 cm enquanto o da tela pousava
+  // no chão, e a correção calculada num levantava o outro. Duas poses com a
+  // mesma tabela é o mesmo que duas tabelas.
+  const pose = POSTURAS[postura] ?? POSTURAS.pe;
+  const euler = new THREE.Euler();
+  const giro = new THREE.Quaternion();
+  for (const [nome, angulos] of Object.entries(pose.ossos)) {
+    const osso = raiz.getObjectByName(nome);
+    if (!osso) continue;
+    euler.set(angulos[0], angulos[1], angulos[2]);
+    osso.quaternion.multiply(giro.setFromEuler(euler));
+  }
+  const quadril = raiz.getObjectByName('hips');
+  if (quadril && pose.quadril) {
+    // Em unidades do MOLDE: ele carrega a escala do arquivo, e somar metros
+    // de jogo aqui daria um deslocamento 3% maior que o do soldado na tela.
+    const escala = ALTURA_JOGO / ALTURA_MODELO;
+    quadril.position.x += pose.quadril[0] / escala;
+    quadril.position.y += pose.quadril[1] / escala;
+    quadril.position.z += pose.quadril[2] / escala;
+  }
+
   raiz.position.set(0, 0, 0);
   raiz.rotation.set(0, 0, 0);
   raiz.updateMatrixWorld(true);
@@ -276,8 +312,63 @@ export function caixasDoModelo() {
     });
   });
 
-  gabarito = encontradas.length ? encontradas : null;
-  return gabarito;
+  // O corpo POUSA no chão, e o quanto sai dos OSSOS, não da malha.
+  //
+  // A pose baixa o quadril e dobra a perna, e as duas juntas enterram o
+  // corpo. Mas a correção não pode ser medida da malha DESTE arquivo: são
+  // três soldados de `.glb` e quem vai pra tela é outro, o skinnado. Medido
+  // pela malha do gabarito, a correção levantava o soldado da tela quase
+  // trinta centímetros do chão — cada modelo tem a bota onde tem.
+  //
+  // Os OSSOS os dois compartilham, e `RAIOS` já diz a meia espessura do
+  // corpo em cada junta — é a mesma tabela de que o ragdoll tira o volume do
+  // cadáver. Junta menos raio é onde a carne encosta no chão, e isso vale
+  // igual nos dois arquivos.
+  let piso = 0;
+  const daJunta = new THREE.Vector3();
+  for (const nome of NOMES) {
+    const osso = raiz.getObjectByName(nome);
+    if (!osso) continue;
+    const baixo = osso.getWorldPosition(daJunta).y - (RAIOS[nome] ?? 0.08);
+    if (baixo < piso) piso = baixo;
+  }
+  if (piso < 0) {
+    for (const m of encontradas) { m.minY -= piso; m.maxY -= piso; }
+  }
+
+  const medido = encontradas.length ? encontradas : null;
+  gabaritos.set(postura, medido);
+  apoios.set(postura, -piso);
+  return medido;
+}
+
+/**
+ * Quanto o corpo posado nesta postura precisa SUBIR pra pousar no chão.
+ *
+ * Zero até a postura ser medida — quem desenha chama depois de a hitbox
+ * existir, e sem modelo carregado não há pose nenhuma pra corrigir.
+ */
+/**
+ * Altura total do corpo NESTA postura, em metros de jogo.
+ *
+ * Medida das mesmas caixas de que a hitbox sai, e não escrita: agachado o
+ * corpo posado tem uns 1,05 m, e quem precisa saber disso é quem vai
+ * encaixá-lo numa altura declarada — o corpo em primeira pessoa, que fica
+ * ancorado no OLHO. Sem ela, o jogador agachado (0,95 m de olho) carregava
+ * um tronco de 1,05 m: o peito ficava na altura da lente e tapava a tela.
+ */
+export function alturaDaPostura(postura = 'pe') {
+  const caixas = caixasDoModelo(postura);
+  if (!caixas?.length) return null;
+  let topo = 0;
+  for (const m of caixas) if (m.maxY > topo) topo = m.maxY;
+  return topo > 0 ? topo : null;
+}
+
+const apoios = new Map();
+export function apoioDaPostura(postura = 'pe') {
+  if (!apoios.has(postura)) caixasDoModelo(postura);
+  return apoios.get(postura) ?? 0;
 }
 
 /**

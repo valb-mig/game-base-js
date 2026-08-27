@@ -5,6 +5,8 @@ import { MP40, PISTOL, KNIFE } from '../items/classes.js';
 import { enemyOf } from '../game/teams.js';
 import { corpoDe } from '../game/hitboxes.js';
 import { createVizinhanca } from './vizinhanca.js';
+import { posturaDe } from './posturas.js';
+import { SOLDIER } from './soldier.js';
 import { createPelotoes } from './pelotao.js';
 import { spawnIsClear } from '../player/collision.js';
 import { PLAYER, BULLET, CAMERA } from '../config.js';
@@ -49,6 +51,13 @@ const DETALHE_RAIO = 45;
 const DETALHE_MAX = 24;
 const DETALHE_INTERVALO = 0.25;   // segundos entre reavaliações
 
+/**
+ * Desconto na distância de quem JÁ tem detalhe, pra vaga não trocar à toa.
+ *
+ * 0,7 no quadrado da distância são uns 16% de folga em metros: o vizinho
+ * precisa estar claramente mais perto pra tomar a vaga, não um centímetro.
+ */
+const DETALHE_FIDELIDADE = 0.7;
 /**
  * Com que frequência cada bot SONDA o campo, por distância do olho do jogador.
  *
@@ -176,7 +185,16 @@ export function playerAsTarget(player, onDeath) {
      * assimetria estaria escondida no código, que é o pior lugar pra ela.
      */
     body(saida) {
-      return corpoDe(player.height, saida);
+      // A postura do jogador sai da ALTURA dele: ele não tem estado de
+      // postura exposto, tem uma altura que anda entre as três enquanto
+      // agacha ou deita. É a mesma tabela que posa o corpo dele na tela.
+      const caixas = corpoDe(
+        player.height, saida, posturaDe(player.height, SOLDIER.ALTURA));
+      // E a hitbox INCLINA com ele. Sem isto, espiar por trás da quina seria
+      // imunidade: a cabeça aparece na tela do outro e a caixa dela continua
+      // atrás da parede. É a mesma rotação que desloca o olho, aplicada aqui
+      // no sistema do corpo — quem só inclina a câmera está mentindo.
+      return inclinarCaixas(caixas, player);
     },
 
     /** Onde os pés dele estão: a caixa é medida a partir daí. */
@@ -365,7 +383,18 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
       if (d2 <= DETALHE_RAIO * DETALHE_RAIO) candidatos.push({ bot, d2 });
     }
 
-    candidatos.sort((a, b) => a.d2 - b.d2);
+    // HISTERESE: quem já tinha detalhe entra na fila mais barato.
+    //
+    // Sem ela, vinte e quatro vagas pra sessenta candidatos dentro dos 45 m
+    // fazem os bots da fronteira trocarem de lugar a cada reavaliação —
+    // medido numa briga de trezentos, o mesmo bot a 15 m tinha detalhe em
+    // 220 de 1500 quadros e o vizinho em 988, os dois piscando a 4 Hz. O que
+    // pisca junto é a MALHA da arma na mão, e arma que aparece e some lê como
+    // bug. Com o desconto, a vaga só troca quando o outro está claramente
+    // mais perto, e não quando um centímetro os separa.
+    candidatos.sort((a, b) =>
+      a.d2 * (a.bot.detalhe ? DETALHE_FIDELIDADE : 1)
+      - b.d2 * (b.bot.detalhe ? DETALHE_FIDELIDADE : 1));
     const quantos = Math.min(candidatos.length, DETALHE_MAX);
     for (let i = 0; i < quantos; i++) candidatos[i].bot.detalhado = true;
   }
@@ -378,6 +407,8 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
   function temLinha(de, para, quemOlha, alvo) {
     cegos.clear();
     if (quemOlha?.collider) cegos.add(quemOlha.collider);
+    // `detalhe` é a memória da decisão passada; `detalhado` é a de agora.
+    for (const bot of soldiers) bot.detalhe = bot.detalhado;
     if (alvo?.collider) cegos.add(alvo.collider);
     return !ballistics.blocked(de, para, cegos);
   }

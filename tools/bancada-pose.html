@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: taxa de pose</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { carregarSoldado } from '../src/bots/model.js';
+import { createSoldier } from '../src/bots/soldier.js';
+
+/**
+ * Quantas vezes o corpo é posado por CICLO de passada, e qual o maior salto
+ * que a coxa dá entre duas poses.
+ *
+ * O salto é a medida que importa: "posa 8 vezes por segundo" não diz nada
+ * sem saber quão rápido a perna está andando. É o salto que o olho vê.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log(t); };
+
+await carregarSoldado();
+const piso = { heightAt: () => 0 };
+
+function medir(velocidade, detalhado) {
+  const bot = createSoldier(new THREE.Scene(), [], {
+    id: 1, team: 'karnia', x: 0, z: 0, terrain: piso, weapons: []
+  });
+  bot.detalhado = detalhado;
+  bot.update(1 / 60);
+
+  const coxa = bot.group.getObjectByName('thigh_L');
+  const passo = 1 / 60;
+  let anterior = coxa.rotation.x;
+  let poses = 0;
+  let maior = 0;
+  const faseInicial = bot.fase;
+  let voltas = 0;
+  let antesDaFase = bot.fase;
+
+  for (let i = 0; i < 600; i++) {
+    bot.x += velocidade * passo;
+    bot.update(passo);
+    if (bot.fase < antesDaFase) voltas++;
+    antesDaFase = bot.fase;
+
+    const agora = coxa.rotation.x;
+    if (Math.abs(agora - anterior) > 1e-9) {
+      poses++;
+      const salto = Math.abs(agora - anterior) * 180 / Math.PI;
+      if (salto > maior) maior = salto;
+      anterior = agora;
+    }
+  }
+  return { poses, voltas, maior, porCiclo: voltas ? poses / voltas : poses };
+}
+
+for (const [nome, vel] of [['andando (2,6 m/s)', 2.6], ['correndo (3,4 m/s)', 3.4]]) {
+  for (const detalhado of [true, false]) {
+    const r = medir(vel, detalhado);
+    diz(`${nome.padEnd(20)} ${detalhado ? 'perto' : 'LONGE'}  `
+      + `${String(r.poses).padStart(3)} poses em ${r.voltas} ciclos = `
+      + `${r.porCiclo.toFixed(1)} por ciclo  ·  maior salto da coxa ${r.maior.toFixed(1)}°`);
+  }
+}
+const parado = medir(0, false);
+diz(`parado, longe        ${parado.poses} poses (nada a atualizar)`);
+diz('FIM');
+</script>
+</body></html>

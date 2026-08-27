@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: postura</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { carregarSoldado, caixasDoModelo } from '../src/bots/model.js';
+import { createSoldier, SOLDIER } from '../src/bots/soldier.js';
+import { usarMedidasDoModelo, corpoDe } from '../src/game/hitboxes.js';
+import { alturaDaPostura } from '../src/bots/model.js';
+
+/**
+ * A hitbox cobre o corpo em CADA postura?
+ *
+ * Comparada com a MALHA, que é a única fonte que não concorda por engano:
+ * comparar a caixa com a altura esperada testa a fórmula que produziu a
+ * caixa. Foi assim que 91 cm de colisor no ar passaram batido por uma suíte
+ * verde, em `settling.js`.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log(t); };
+
+await carregarSoldado();
+usarMedidasDoModelo(caixasDoModelo);
+
+const piso = { heightAt: () => 0 };
+const caixa = new THREE.Box3();
+const f = (n) => n.toFixed(3).padStart(7);
+
+for (const [nome, estado, altura] of [
+  ['de pé', {}, SOLDIER.ALTURA],
+  ['agachado', { crouching: true }, SOLDIER.ALTURA_AGACHADO],
+  ['deitado', { deitado: true }, SOLDIER.ALTURA_DEITADO]
+]) {
+  const bot = createSoldier(new THREE.Scene(), [], {
+    id: 1, team: 'karnia', x: 0, z: 0, terrain: piso, weapons: []
+  });
+  Object.assign(bot, estado);
+  bot.update(1 / 60);
+  bot.update(1 / 60);
+
+  // A malha, sem a arma: o que se quer medir é o CORPO.
+  caixa.makeEmpty();
+  bot.group.traverse((o) => { if (o.isMesh) caixa.expandByObject(o); });
+
+  const partes = bot.body([]);
+  let minY = Infinity; let maxY = -Infinity;
+  let minZ = Infinity; let maxZ = -Infinity;
+  let minX = Infinity; let maxX = -Infinity;
+  for (const p of partes) {
+    minY = Math.min(minY, p.minY); maxY = Math.max(maxY, p.maxY);
+    minZ = Math.min(minZ, p.minZ); maxZ = Math.max(maxZ, p.maxZ);
+    minX = Math.min(minX, p.minX); maxX = Math.max(maxX, p.maxX);
+  }
+
+  diz(`--- ${nome} (altura declarada ${altura})`);
+  diz(`  malha   y ${f(caixa.min.y)}..${f(caixa.max.y)}  z ${f(caixa.min.z)}..${f(caixa.max.z)}  x ${f(caixa.min.x)}..${f(caixa.max.x)}`);
+  diz(`  hitbox  y ${f(minY)}..${f(maxY)}  z ${f(minZ)}..${f(maxZ)}  x ${f(minX)}..${f(maxX)}`);
+  diz(`  comprimento: malha ${f(caixa.max.z - caixa.min.z)}  hitbox ${f(maxZ - minZ)}`);
+  diz(`  peças: ${partes.length}`);
+  // A altura NATURAL da pose contra a declarada. Longe uma da outra, alguém
+  // esmaga o corpo em y pra compensar — e esse alguém é a hitbox e o corpo
+  // em primeira pessoa.
+  const natural = alturaDaPostura(nome === 'de pé' ? 'pe' : nome);
+  if (natural) {
+    diz(`  altura natural da pose: ${f(natural)}  ·  declarada ${f(altura)}`
+      + `  ·  esmagamento ${(altura / natural).toFixed(3)}`);
+  }
+}
+diz('FIM');
+</script>
+</body></html>

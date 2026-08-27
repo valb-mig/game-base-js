@@ -5,10 +5,14 @@ import { teamOf } from '../game/teams.js';
 import { createItemModel } from '../items/models.js';
 import { SWAP } from '../config.js';
 import { corpoDe } from '../game/hitboxes.js';
-import { criarSoldado, soldadoPronto } from './model.js';
+import { criarSoldado, soldadoPronto, apoioDaPostura } from './model.js';
 import { criarRig } from './rig.js';
 import { createRagdoll } from './ragdoll.js';
 import { JUNTAS_PADRAO } from './esqueleto.js';
+import { porteDe, MAOS } from './porte.js';
+import { avancarFase, passoEm, embalarPara } from './passada.js';
+import { POSTURAS } from './posturas.js';
+import { ossoDoLado } from './esqueleto.js';
 
 /**
  * O corpo de um bot: modelo, colisor, vida e o andar dele.
@@ -81,6 +85,14 @@ const DEITADO = Math.PI / 2;
 const RAIO_ALVO = 0.5;       // esfera de acerto, do quadril à cabeça
 const ALTURA = 1.75;
 const ALTURA_AGACHADO = 1.15;
+/**
+ * Deitado. O bot ainda não decide deitar sozinho — o cérebro não tem esse
+ * estado —, mas a postura existe aqui porque quem a usa hoje é o corpo em
+ * primeira pessoa do jogador, que é o MESMO modelo posado pela MESMA tabela.
+ * Duas alturas de deitado, uma pra cada corpo, divergiriam no primeiro
+ * ajuste.
+ */
+const ALTURA_DEITADO = 0.52;
 
 /**
  * Intervalo entre poses de um bot SEM detalhe, em segundos.
@@ -89,6 +101,75 @@ const ALTURA_AGACHADO = 1.15;
  * a sessenta — é ali que se enxerga a passada.
  */
 const POSE_INTERVALO = 1 / 8;
+
+/**
+ * Quanto do CICLO a passada pode andar entre duas poses.
+ *
+ * O intervalo de cima é um relógio, e relógio não sabe se a perna está
+ * parada ou correndo. Enquanto a pose era estática isso não importava — nada
+ * se mexia entre uma e outra. Com o ciclo de passada, importa: a 3,4 m/s a
+ * passada mede 2,3 m, ou seja 1,48 ciclos por segundo, e a 8 Hz são 5,4
+ * poses por ciclo — a coxa salta 15° por amostra e o que se vê é a perna
+ * teleportando. Somado ao `detalhado`, que é reavaliado a cada 0,25 s e vira
+ * e desvira na fronteira dos 45 m, o resultado é um bot que anda, congela um
+ * oitavo de segundo e volta a andar de repente.
+ *
+ * Amarrando ao ciclo em vez de ao relógio, quem está parado continua posando
+ * oito vezes por segundo (não há o que atualizar) e quem corre posa quantas
+ * vezes o passo pedir. É a mesma ideia da fase sair da distância.
+ *
+ * O número saiu MEDINDO o salto, não a taxa: "posa oito vezes por segundo"
+ * não diz nada sem saber quão rápido a perna anda, e o que o olho vê é o
+ * salto. Medido num bot correndo, a coxa pulava 28,8° por amostra com o
+ * relógio de 8 Hz, 23,9° com 1/20 e 16° com este número.
+ *
+ * E ele não vira taxa direto: o QUADRO é a granularidade. A 3,4 m/s a fase
+ * anda 0,023 de ciclo por quadro, então um limiar de 1/20 só dispara a cada
+ * três quadros e entrega 14 poses por ciclo em vez de 20. O limiar se escolhe
+ * medindo o que sai, não o que ele parece prometer.
+ *
+ * O custo continua vindo de quem se MEXE: bot parado longe não paga pose
+ * nenhuma, que é onde a economia de verdade sempre esteve.
+ */
+const CICLO_POR_POSE = 1 / 30;
+
+/**
+ * Velocidade em que a passada do bot já é a de corrida cheia, em m/s.
+ *
+ * Sai das velocidades que `brain.js` pede — 2,6 a andar e 3,6 no avanço sob
+ * fogo —, e não de `config.js`: o jogador corre a 8,4, e usar o número dele
+ * deixaria todo bot do mapa em passo de caminhada.
+ */
+const CORRIDA_ACIMA = 3.4;
+
+/**
+ * Onde as mãos pegam cada arma, em coordenadas do modelo dela.
+ *
+ * Uma vez por TIPO de arma, no mundo inteiro: os marcadores não se mexem, e
+ * lê-los do modelo que está na mão amarrava a pose do braço à existência
+ * daquele modelo — ou seja, ao LOD. Medido numa briga de trezentos, `detalhado`
+ * pisca 4 vezes por segundo num bot a 15 m (24 vagas pra 60 candidatos), e
+ * com ele piscavam os braços: erguidos na arma num quadro, caídos no seguinte.
+ * O LOD tem que tirar a MALHA da arma, não a pose de quem a segura.
+ */
+const PUNHOS = new Map();
+function punhosDe(arma) {
+  if (!arma) return null;
+  if (PUNHOS.has(arma.id)) return PUNHOS.get(arma.id);
+
+  const modelo = createItemModel(arma);
+  const achados = [];
+  for (const mao of MAOS) {
+    const marca = modelo?.getObjectByName(mao.marcador);
+    if (!marca) continue;
+    achados.push({ mao, x: marca.position.x, y: marca.position.y, z: marca.position.z });
+  }
+  PUNHOS.set(arma.id, achados);
+  return achados;
+}
+
+/** Qual sufixo de osso é a perna direita dele. O arquivo nomeia ao contrário. */
+const PERNAS = { dir: ossoDoLado(1), esq: ossoDoLado(-1) };
 
 const PELE = 0xc9a978;
 const BOTA = 0x4a3526;
@@ -131,6 +212,10 @@ function construirCorpo(time) {
       grupo: doArquivo.grupo,
       painted: [proprio],
       maos: doArquivo.maos,
+      // As malhas, e não só o material: o corpo caído vive em coordenadas de
+      // MUNDO com o grupo na origem, e o recorte de câmera precisa saber
+      // disso. Ver `acompanharRecorte`.
+      malhas: doArquivo.pintados,
       // O rig vem daqui e não do soldado: quem tem osso é o modelo do
       // arquivo. O corpo de caixas não tem, e por isso ele tomba inteiro.
       rig: criarRig(doArquivo.grupo)
@@ -201,7 +286,9 @@ function construirCorpo(time) {
 export function createSoldier(scene, colliders, {
   id, team, x, z, terrain, weapons
 }) {
-  const { grupo, painted, maos: maosDoModelo, rig = null } = construirCorpo(teamOf(team));
+  const {
+    grupo, painted, rig = null, malhas = []
+  } = construirCorpo(teamOf(team));
 
   // A escala do arquivo mora no grupo (o modelo tem 1,80 m e o jogo trata o
   // soldado como 1,75). Agachar multiplica ELA, e não a substitui: escrever
@@ -221,13 +308,21 @@ export function createSoldier(scene, colliders, {
   // Um modelo por arma, criado uma vez e escondido: trocar de arma é ligar e
   // desligar visibilidade. Criar e destruir a cada troca daria churn de GPU
   // num bot que troca de arma no meio do tiroteio.
-  // A arma pendura no nó `weapon` do modelo quando ele existe: é o lugar que
-  // o artista marcou, e adivinhar outro seria pôr o cano na barriga.
-  const maos = maosDoModelo ?? new THREE.Group();
-  if (!maosDoModelo) {
-    maos.position.set(0.21, 0.92, 0.26);
-    grupo.add(maos);
-  }
+  /**
+   * A arma NÃO pendura mais no nó `weapon_R` do arquivo.
+   *
+   * Ali ela ia parar onde a pose de repouso tivesse deixado a mão, e a mão
+   * de repouso está ao lado do corpo: medido, o cano apontava 30° pro chão e
+   * a mão esquerda ficava a 58,5 cm da arma. O soldado arrastava a arma.
+   *
+   * Hoje o nó é NOSSO e vive no corpo do soldado — `porte.js` diz onde —, e
+   * são as mãos que vão até a arma por IK. É a mesma inversão das mãos no
+   * volante do jipe: o alvo é um ponto da coisa segurada, não um ângulo de
+   * braço escrito à mão.
+   */
+  const maos = new THREE.Group();
+  maos.name = 'porte';
+  grupo.add(maos);
 
   /**
    * O modelo da arma nasce quando ela vai pra MÃO, não quando o bot nasce.
@@ -273,6 +368,97 @@ export function createSoldier(scene, colliders, {
   const CIMA = new THREE.Vector3(0, 1, 0);
   const collider = { box: caixa, standable: false };
   colliders.push(collider);
+
+  /**
+   * Leva o RECORTE DE CÂMERA junto com o corpo caído.
+   *
+   * O ragdoll resolve as juntas em coordenadas de MUNDO e por isso o grupo
+   * fica na origem enquanto o corpo está a duzentos metros dali. O three
+   * recorta a malha skinnada pela `boundingSphere` DELA multiplicada pela
+   * matriz do objeto — que aqui é a identidade —, então o corpo era
+   * descartado como se estivesse no ponto zero do mapa: sumia inteiro, e o
+   * que sobrava na tela eram a bandeira do peito e o vivo do capacete, que
+   * penduram nos ossos e carregam matriz própria. Foi exatamente o que
+   * apareceu na captura: um retângulo vermelho flutuando sobre a grama.
+   *
+   * Desligar o recorte resolveria e custaria trezentos corpos desenhados
+   * fora de quadro. Mover a esfera custa quatro números por quadro, e só
+   * enquanto o corpo se mexe.
+   */
+  /**
+   * Põe a arma no corpo e as MÃOS na arma.
+   *
+   * Duas metades. A primeira assenta o nó de porte onde `porte.js` manda —
+   * é ela que faz o cano apontar pra frente em vez de pro chão. A segunda
+   * leva cada mão até o marcador da PRÓPRIA arma (`mao_dir`, `mao_esq`), que
+   * é o mesmo par que o viewmodel já usa em primeira pessoa.
+   *
+   * Só pra bot `detalhado`: a IK são duas contas de triângulo e quatro ossos
+   * reorientados, e a duzentos metros o que se lê é a silhueta. E ela roda
+   * DEPOIS de `repousar`, porque repousar reescreve os mesmos ossos.
+   */
+  let eraX = x;
+  let eraZ = z;
+  let balancoDaArma = 0;
+  let porteDaPostura = POSTURAS.pe;
+  const noMundo = new THREE.Vector3();
+  const doPolo = new THREE.Vector3();
+  function segurarArma() {
+    if (!rig) return;
+
+    const porte = porteDe(soldier.weapon);
+    const punhos = punhosDe(soldier.weapon);
+    if (!porte || !punhos?.length) return;
+    // O porte vive no GRUPO e não no peito, então o balanço do corpo não
+    // chega nele sozinho: sem esta linha a arma fica parada no ar enquanto o
+    // soldado sobe e desce por baixo dela.
+    const daPostura = porteDaPostura;
+    maos.position.set(
+      porte.posicao[0] + daPostura.porte[0],
+      porte.posicao[1] + daPostura.porte[1] + balancoDaArma,
+      porte.posicao[2] + daPostura.porte[2]
+    );
+    maos.rotation.set(
+      porte.giro[0] + daPostura.caimento, porte.giro[1], porte.giro[2], 'YXZ'
+    );
+
+    // As posições dos marcadores saem em MUNDO, e o nó de porte acabou de
+    // se mexer: sem esta atualização a mão mira onde a arma estava no quadro
+    // passado, e num bot que gira isso é a arma inteira de atraso.
+    //
+    // Só o RAMO da arma, nunca `grupo.updateMatrixWorld(true)`: aquele
+    // varre o soldado inteiro — a malha skinnada e os dezenove ossos — pra
+    // atualizar um nó e os poucos filhos dele. Medido pelo relógio da
+    // suíte, era o bastante pra estourar o orçamento de tempo virtual da
+    // página e derrubar o carregamento do `.glb` do jipe dez suítes adiante,
+    // com um erro que não fala nem de tempo nem de braço.
+    maos.updateWorldMatrix(true, true);
+
+    for (const punho of punhos) {
+      const mao = punho.mao;
+      if (!mao.principal && !porte.ambasAsMaos) continue;
+      // Do NÓ de porte, não do modelo: é o mesmo ponto, e assim o braço
+      // continua na arma mesmo quando a malha dela não está na cena.
+      noMundo.set(punho.x, punho.y, punho.z);
+      maos.localToWorld(noMundo);
+      // O polo é declarado no sistema do soldado e o alvo está em mundo: o
+      // corpo gira, e um polo de mundo mandaria o cotovelo pra um lado fixo
+      // do MAPA em vez de pra fora do corpo.
+      doPolo.set(...mao.polo).applyQuaternion(grupo.quaternion);
+      rig.apontarBraco(mao.osso, noMundo, doPolo);
+    }
+  }
+
+  const RAIO_CAIDO = 1.6;   // em unidades da malha, com folga pra braço aberto
+  function acompanharRecorte() {
+    ragdoll.posicaoDe('hips', centroQueda);
+    for (const malha of malhas) {
+      if (!malha.boundingSphere) malha.boundingSphere = new THREE.Sphere();
+      malha.boundingSphere.center.copy(centroQueda);
+      malha.worldToLocal(malha.boundingSphere.center);
+      malha.boundingSphere.radius = RAIO_CAIDO;
+    }
+  }
 
   /**
    * Começa o tombo. O eixo sai do RUMO do golpe, não de dedução: quem gira em
@@ -399,7 +585,12 @@ export function createSoldier(scene, colliders, {
     height: ALTURA,
     yaw: 0,
     speed: 0,          // m/s andados no último quadro, lido pela mira do outro
+    fase: 0,           // onde a passada está, de 0 a 1
+    faseNaPose: 0,     // e onde ela estava quando o corpo foi posado
+    embalo: 0,         // quanto da passada está valendo, de 0 a 1
+    postura: 'pe',     // pe · agachado · deitado, derivada da altura
     crouching: false,
+    deitado: false,
 
     maxHealth: VIDA,
     health: VIDA,
@@ -433,7 +624,7 @@ export function createSoldier(scene, colliders, {
      * valer o mesmo.
      */
     body(saida) {
-      return corpoDe(soldier.height, saida);
+      return corpoDe(soldier.height, saida, soldier.postura);
     },
 
     /** Centro do tronco: é onde a bala do outro tem que passar. */
@@ -527,7 +718,16 @@ export function createSoldier(scene, colliders, {
     },
 
     update(delta) {
-      soldier.height = soldier.crouching ? ALTURA_AGACHADO : ALTURA;
+      // A altura sai da POSTURA, e não o contrário. Derivá-la ao contrário
+      // foi o que fez a postura escrita de fora durar um quadro: `update`
+      // reescrevia a altura a partir de `crouching` e a pose voltava pra
+      // de pé sem nada no console.
+      soldier.postura = soldier.deitado
+        ? 'deitado'
+        : (soldier.crouching ? 'agachado' : 'pe');
+      soldier.height = soldier.deitado
+        ? ALTURA_DEITADO
+        : (soldier.crouching ? ALTURA_AGACHADO : ALTURA);
 
       if (soldier.swapping > 0) {
         soldier.swapping -= delta;
@@ -557,7 +757,15 @@ export function createSoldier(scene, colliders, {
         modelo.visible = querNaMao;
       }
 
-      grupo.scale.set(escalaBase.x, escalaBase.y * (soldier.height / ALTURA), escalaBase.z);
+      // Com esqueleto, agachar e deitar são POSE, e a malha não encolhe.
+      //
+      // A escala em Y foi o que houve enquanto não havia pose: ela funcionava
+      // pra agachar — um homem agachado ocupa mais ou menos a mesma planta —
+      // e mentia pra deitar, onde o corpo tem dois metros de comprimento e o
+      // que estava em jogo era um tijolo de meio metro. Sem rig não há pose
+      // pra aplicar, e aí o achatamento continua sendo o melhor que dá.
+      const achatar = rig ? 1 : soldier.height / ALTURA;
+      grupo.scale.set(escalaBase.x, escalaBase.y * achatar, escalaBase.z);
 
       if (soldier.alive) {
         grupo.position.set(soldier.x, soldier.feetY, soldier.z);
@@ -571,10 +779,76 @@ export function createSoldier(scene, colliders, {
         // igual: o que se vê a essa distância é ele mudar de lugar, não a
         // perna dele mudar de fase.
         soldier.atePose = (soldier.atePose ?? 0) - delta;
-        const refazPose = soldier.detalhado || soldier.atePose <= 0;
-        if (refazPose) soldier.atePose = POSE_INTERVALO;
+        // A fase é circular: quem cruza o 1 volta pro 0, e a diferença crua
+        // daria 0,99 de salto onde houve 0,01 de passo.
+        const bruto = Math.abs(soldier.fase - (soldier.faseNaPose ?? 0));
+        const andouNoCiclo = Math.min(bruto, 1 - bruto);
+        const refazPose = soldier.detalhado
+          || soldier.atePose <= 0
+          || andouNoCiclo >= CICLO_POR_POSE;
+        if (refazPose) {
+          soldier.atePose = POSE_INTERVALO;
+          soldier.faseNaPose = soldier.fase;
+        }
+
+        // A fase da passada anda com a DISTÂNCIA, e a distância é medida
+        // aqui em vez de lida de `soldier.speed`: aquele é escrito pelo
+        // cérebro, e alvo de treino, bot empurrado por veículo e qualquer
+        // corpo sem cérebro andariam com as pernas paradas. Se o corpo saiu
+        // do lugar, a perna se mexeu.
+        const andou = Math.hypot(soldier.x - eraX, soldier.z - eraZ);
+        eraX = soldier.x;
+        eraZ = soldier.z;
+        const indo = delta > 0 ? andou / delta : 0;
+        soldier.fase = avancarFase(soldier.fase, andou, indo, CORRIDA_ACIMA);
+        // O embalo roda TODO quadro, não só quando a pose é refeita: ele é
+        // a suavização, e amostrá-la a 8 Hz seria suavizar aos trancos.
+        soldier.embalo = embalarPara(soldier.embalo, indo, delta);
 
         if (rig && refazPose) rig.repousar();
+        if (rig && refazPose) {
+          const deitado = soldier.postura === 'deitado';
+          // Deitado o ciclo de passada não vale: rastejar é outro movimento,
+          // e a passada em pé aplicada a um corpo no chão vira perna
+          // pedalando no ar. Até rastejar existir, quem está no chão fica
+          // com a pose da postura e mais nada.
+          const passo = passoEm(
+            soldier.fase, deitado ? 0 : indo, CORRIDA_ACIMA, PERNAS,
+            deitado ? 0 : soldier.embalo
+          );
+          rig.aplicarPose(passo.pose);
+          // A rolagem vai no TRONCO, não no quadril: no quadril ela levaria
+          // as duas pernas junto, e o que balança andando é o tronco sobre
+          // as pernas, não as pernas sobre o chão.
+          if (passo.rolagem) rig.aplicarPose({ spine: [0, 0, passo.rolagem] });
+          rig.erguerQuadril(passo.subida);
+          balancoDaArma = passo.arma;
+
+          // A postura entra DEPOIS da passada e por cima dela: ela é o
+          // desvio maior, e o quadril dela é deslocamento de corpo, não
+          // balanço de passo.
+          const pose = POSTURAS[soldier.postura] ?? POSTURAS.pe;
+          if (soldier.postura !== 'pe') {
+            rig.aplicarPose(pose.ossos);
+            // O apoio vem MEDIDO do mesmo gabarito de que a hitbox sai: se a
+            // caixa pousa no chão e a malha não, a bala acerta acima do
+            // corpo. Um número, uma fonte, os dois de acordo por construção.
+            rig.moverQuadril(
+              pose.quadril[0],
+              pose.quadril[1] + apoioDaPostura(soldier.postura),
+              pose.quadril[2]
+            );
+          }
+          porteDaPostura = pose;
+        }
+        // A arma vem ANTES do solavanco: o solavanco é um desvio por cima da
+        // pose, e por cima de uma pose que ainda não existe ele não desvia
+        // nada. Só quem tem detalhe segura de verdade — longe é silhueta.
+        // Sem `detalhado`: o LOD decide se a MALHA da arma existe, não se o
+        // soldado a está segurando. Amarrar a pose do braço ao LOD fazia o
+        // bot a quinze metros erguer e baixar os braços quatro vezes por
+        // segundo, e isso lê como animação quebrada — foi a queixa.
+        if (rig && refazPose) segurarArma();
         if (rig && refazPose && soldier.solavanco) {
           soldier.solavanco.restante -= delta;
           if (soldier.solavanco.restante <= 0) {
@@ -603,6 +877,16 @@ export function createSoldier(scene, colliders, {
           soldier.impacto.restante--;
         }
 
+        // Corpo assentado custa ZERO. Enquanto ele se mexe são os dezenove
+        // ossos resolvidos por quadro mais a varredura de colisores em volta;
+        // depois que o solver dorme nada disso muda de resultado, e um corpo
+        // fica cinco segundos na tela — com o tiroteio inteiro caído ao mesmo
+        // tempo, isso é a conta que sobra do combate.
+        //
+        // A pose é aplicada DEPOIS do passo, ou seja o quadro em que ele
+        // dorme ainda desenha a posição final. Quem acordar o solver de novo
+        // — `empurrar`, o dia em que cadáver levar coice de granada — volta a
+        // pagar sozinho, sem nada aqui precisar saber disso.
         if (!ragdoll.dormindo) {
           ragdoll.posicaoDe('hips', centroQueda);
           perto.length = 0;
@@ -611,8 +895,9 @@ export function createSoldier(scene, colliders, {
             if (outro.box.distanceToPoint(centroQueda) < PERTO_DO_CORPO) perto.push(outro);
           }
           ragdoll.passo(delta, { alturaEm: terrain.heightAt, caixas: perto });
+          rig.aplicarRagdoll(ragdoll);
+          acompanharRecorte();
         }
-        rig.aplicarRagdoll(ragdoll);
       } else if (queda.angulo < DEITADO) {
         grupo.position.set(soldier.x, soldier.feetY, soldier.z);
         // Pêndulo em torno dos PÉS: a origem do grupo está neles, então
@@ -664,9 +949,19 @@ export function createSoldier(scene, colliders, {
       soldier.health = VIDA;
       soldier.alive = true;
       soldier.crouching = false;
+      soldier.deitado = false;
       soldier.downFor = 0;
       soldier.solavanco = null;
       soldier.impacto = null;
+      soldier.fase = 0;
+      soldier.faseNaPose = 0;
+      soldier.embalo = 0;
+      eraX = nx;
+      eraZ = nz;
+      // De volta em pé o corpo volta a viver no grupo, e a esfera que o
+      // ragdoll deixou apontando pro chão barraria o soldado inteiro. Nula,
+      // o three remede na primeira consulta.
+      for (const malha of malhas) malha.boundingSphere = null;
       queda.angulo = 0;
       queda.velocidade = 0;
       grupo.quaternion.identity();
@@ -685,4 +980,6 @@ export function createSoldier(scene, colliders, {
   return soldier;
 }
 
-export const SOLDIER = { ALTURA, ALTURA_AGACHADO, RAIO_ALVO, VIDA, CORPO_TEMPO };
+export const SOLDIER = {
+  ALTURA, ALTURA_AGACHADO, ALTURA_DEITADO, RAIO_ALVO, VIDA, CORPO_TEMPO
+};

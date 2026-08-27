@@ -933,3 +933,139 @@ perto, engaja quem vê pela frente, troca de arma quando o carregador acaba ou
 quando o inimigo cola, procura cobertura sob fogo, captura bandeira e larga
 tudo pra brigar. Faltam os outros dezenove. Não existe captura de base: elas são sempre do dono. Só a Assault é jogável; as
 outras três estão no catálogo, bloqueadas.
+**A grade de combatentes é REFEITA todo quadro; a de colisores, não.** São
+trezentas inserções contra os 45 mil pares que ela evita, e manter índice de
+coisa que anda toda hora custa mais em remoção do que refazer. O contrário
+vale pro índice de colisores, que quase nunca se mexe — ali a inserção é uma
+vez e o `moveu` é exceção.
+
+**A ordem das peneiras é a regra, não detalhe.** Distância ao QUADRADO (sem
+raiz), depois cone de visão (um `atan2`), e só então raycast — que é centenas
+de vezes mais caro que os dois juntos. E os candidatos são ordenados por
+distância e testados NESSA ORDEM, parando no primeiro que tem linha: o
+resultado é o mesmo (o mais perto que se vê) com um raycast no caso comum, em
+vez de um por inimigo. Medido: 14,01 ms de IA com 300 bots viraram 1,9–2,5.
+
+**Sondar não acontece todo quadro.** O intervalo sai da distância ao olho do
+jogador: 30 Hz perto, 10 Hz no meio, 3 Hz longe — e com sorteio no intervalo,
+senão os trezentos caem no mesmo quadro e o custo que se queria diluir vira
+pico. No quadro sem sondagem o alvo ANTERIOR continua valendo: zerá-lo faria
+o bot piscar entre combate e avanço, e `semVer` acumularia tempo que não
+passou. SEM olho — teste, bancada, antes do desembarque — todo mundo sonda
+todo quadro, e é isso que a suíte mede.
+
+**Reescrever a pose custa mais que pensar.** `rig.repousar()` reescreve os
+dezenove ossos e o solavanco reescreve por cima, e isso rodava pros trezentos
+corpos sessenta vezes por segundo: medido, `bot.update` era 3,71 dos 5,61 ms
+de IA — mais que o cérebro inteiro. Bot sem detalhe posa a 8 Hz e anda igual;
+o que se vê a duzentos metros é ele mudar de lugar, não a perna mudar de fase.
+
+**`acharCobertura` varria o mapa inteiro.** Ela percorria os 5505 colisores
+por bot por quadro — 1,6 milhão de caixas visitadas pra achar uma esquina a
+catorze metros. `ListaDeColisores.emVolta` responde por vizinhança.
+
+**Medir o minuto ZERO não é medir a partida.** A primeira bancada punha 300
+bots nos seis postos e rodava noventa quadros: quase ninguém se vê, quase
+ninguém atira, e ela dizia 3 ms. Com os dois times frente a frente a 70 m o
+mesmo código dava 258 ms por quadro. O que trava é o TIROTEIO, e tiroteio só
+aparece numa bancada que deixa a briga engrenar.
+
+**O colisor do bot anda todo quadro, e é o único que anda.** Ele era reescrito
+sem avisar o índice espacial, então a grade continuava apontando pro lugar
+onde o bot NASCEU: o jogador esbarrava em bot que não estava mais lá e
+atravessava o que estava, e as células de nascimento acumulavam trezentas
+caixas mortas que toda consulta percorria. `moveu` só faz trabalho quando o
+corpo muda de célula — sem essa guarda seriam seiscentos `indexOf` mais
+`splice` por segundo.
+
+**A bala também precisa do índice.** `wallHit` percorria os 5505 colisores por
+bala por quadro: com 747 balas no ar são 4,1 milhões de testes raio-caixa, e o
+quadro ia a 258 ms. `aoLongoDe` é um DDA de grade que visita exatamente as
+células que o trecho cruza.
+
+**E DDA não precisa de vizinha.** A primeira versão amostrava o trecho em
+passos e pegava as oito células vizinhas de cada amostra pra não perder nada:
+nove vezes mais células, com busca linear pra desduplicar. Era redundante — a
+inserção já registra o colisor em TODAS as células que a caixa inflada toca,
+então um raio que passa pela célula C só pode acertar caixa registrada em C.
+
+**MAS o DDA pula a ÚLTIMA célula do trecho, e isso está aberto.** Medido em
+`aoLongoDe`: um trecho de (0,4; 0) a (0,4; −9) sobre sete colisores em z ≈ −4
+devolve ZERO candidatos. O culpado é o `if (proximoX > 1 && proximoZ > 1)
+break;` no fim do laço — ele dispara depois de o passo entrar na célula nova e
+antes de ela ser visitada, uma iteração mais cedo que o `cx === fimX && cz ===
+fimZ` que já fazia o mesmo serviço. Na prática o trecho de um quadro tem 4,2 m
+contra 32 m de célula, então quase todo trecho que cruza fronteira perde o
+resto de si: a bala atravessa parede que esteja nos metros seguintes à
+fronteira e só a acerta no quadro seguinte. **E é uma armadilha de TESTE antes
+de ser de jogo**: o primeiro teste da lona passou verde por vácuo, porque o
+probe de doze metros cruzava fronteira de célula e `blocked` devolvia falso sem
+olhar colisor nenhum. Teste de parede tem que ser CURTO e dentro de uma célula
+— ou ter a contraprova junto, que é o que pegou isto.
+
+**Numa briga densa a grade não filtra nada.** Com 300 bots num quadrado de
+100 m, todo mundo está dentro dos 78 m de visão de todo mundo: a consulta
+devolve os 300. Por isso `avistar` guarda só os QUATRO mais perto em arrays de
+tamanho fixo — a inserção ordenada na lista inteira fazia `splice` num array
+de 300 por candidato. E o cone de visão saiu de `atan2` pra produto escalar,
+que é a mesma raiz que a distância já precisava.
+
+**Traçante vem de PISCINA.** Cada bala com risco criava uma geometria e um
+material e os descartava ao morrer; com mil tiros por segundo são mil buffers
+criados e destruídos na GPU por segundo, cada `dispose` custando sincronia de
+driver. A geometria é uma só (o comprimento sai da escala) e o material é por
+risco, porque a opacidade é dele.
+
+**MEÇA O QUADRO INTEIRO, não os componentes.** A IA caiu de 14 pra 2 ms e o
+quadro não melhorou na proporção, porque o render sempre foi maior e ninguém
+tinha medido: com 300 bots são 3,39 ms só de matriz de cena e 7,63 ms de
+travessia e recorte SEM desenhar um triângulo. Foi medindo o todo que
+apareceram as armas no coldre, e é medindo o todo que se sabe de quem é a
+conta agora.
+
+**E software raster não é GPU.** A bancada roda em swiftshader, que rasteriza
+em CPU: numa tela grande o número vira o custo de não ter placa. Ela mede em
+320x180 e separa as duas coisas apontando a câmera pro CÉU — zero triângulo
+transformado, e o que sobra é o trabalho de CPU, que é o mesmo em qualquer
+máquina.
+
+**Arma no coldre custa mais que o corpo inteiro.** Medido contando objeto na
+cena: um bot eram 89 malhas — 27 de corpo e 62 de ARMA GUARDADA (MP40 32,
+Colt 26, faca 4). Os três modelos nasciam no construtor e ficavam invisíveis,
+e invisível não é de graça: o objeto segue na árvore e a matriz dele é
+recalculada todo quadro. Hoje o modelo nasce quando a arma vai pra mão, e as
+outras saem da árvore — só esconder deixava o bot acumulando um modelo por
+arma que já sacou.
+
+**Isso só aparece CONTANDO objeto na cena.** Duas análises concluíram "o
+problema é o modelo, cada peça é um objeto" olhando o número 89 — e o GLB tem
+36 primitivas. A conta não fechava, e o que faltava eram as armas.
+
+**São TRÊS soldados de arquivo, e cada um existe por um motivo.**
+`soldado-skinned.glb` é malha única com 19 ossos e pesos rígidos: é o dos
+bots, e leva um corpo de 27 malhas pra 1 (4 com as marcas de time). O
+`soldado-tpose.glb` tem as 36 caixas nomeadas e serve a duas coisas que a
+malha fundida não pode fazer: medir a hitbox (`capacete_topo`, `cabeca`) e
+ser o corpo em PRIMEIRA PESSOA, que remove a cabeça por nome pra que o
+jogador não veja o próprio crânio por dentro. Ali é um corpo só, e 36 malhas
+não custam nada.
+
+**Hitbox não pode sair de agrupar vértice por OSSO.** Cabeça e capacete são
+regiões separadas com dano diferente e as duas penduram no osso `head` —
+medido, ele carrega 96 vértices, que são quatro caixas. E elas se sobrepõem
+3,9 cm em altura (cabeça vai a 1,653 e o capacete começa em 1,614), o que já
+é resolvido por `ORDEM`: empate vai pra mais valiosa.
+
+**`clone(true)` de malha skinnada compartilha o `Skeleton`.** `SkinnedMesh.copy`
+leva o esqueleto por REFERÊNCIA: as trezentas cópias apontariam pros mesmos
+dezenove ossos e os trezentos bots posariam idêntico, no mesmo quadro.
+`SkeletonUtils.clone` do three religa. A cópia caseira que fazia isso saiu:
+ela casava osso por NOME e ligava com `matrixWorld`, e a de upstream casa por
+IDENTIDADE e liga com o `bindMatrix` da malha, que é a matriz certa. Geometria
+e material continuam compartilhados de propósito — só o esqueleto é por bot.
+
+**`soldadoPronto()` devolve BOOLEANO, não promessa.** Uma bancada com
+`await soldadoPronto()` passa reto, o GLB nunca carrega, e `createSoldier`
+cai no soldado de reserva feito de caixas — a medida sai de um corpo que o
+jogo não usa. Quem quer esperar chama `carregarSoldado()`.
+

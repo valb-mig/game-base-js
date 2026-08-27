@@ -1,0 +1,222 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: andar no jogo</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { createBallistics } from '../src/items/ballistics.js';
+import { createCapture } from '../src/game/capture.js';
+import { createBots } from '../src/bots/bots.js';
+import { carregarSoldado } from '../src/bots/model.js';
+
+/**
+ * A perna do bot se mexe NO JOGO?
+ *
+ * O teste da suíte empurra o bot pela coordenada; aqui quem anda é o cérebro,
+ * pelo mapa de verdade. A diferença entre os dois caminhos já escondeu bug
+ * duas vezes nesta base.
+ */
+// ?quadros=N&foto=1 — simula N quadros e RENDERIZA, em vez de só medir.
+// Duas capturas com N diferente mostram a perna em pontos diferentes do
+// ciclo: é a prova que a medida não dá, porque o que se discute é o que se vê.
+const busca = new URLSearchParams(location.search);
+const QUADROS = Number(busca.get('quadros') ?? 420);
+const FOTO = busca.get('foto') === '1';
+
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log(t); };
+
+const DT = 1 / 60;
+await carregarSoldado();
+
+const scene = new THREE.Scene();
+const world = buildWorld(scene);
+const ballistics = createBallistics(scene, world.colliders, {});
+const capture = createCapture(world.outposts);
+let semente = 7;
+const rng = () => { semente = (Math.imul(semente, 1664525) + 1013904223) >>> 0; return semente / 4294967296; };
+const bots = createBots(scene, world, { ballistics, capture, rng });
+
+const CX = -44;
+const CZ = -173;
+
+// ?como=formar usa o povoamento DO JOGO — nascer nos postos que o time já
+// domina —, em vez de duas linhas frente a frente. É a diferença entre medir
+// bot que tem pra onde ir e bot que já chegou, e ela decide se "a perna não
+// se mexe" é defeito ou é o bot parado no posto dele.
+if (busca.get('como') === 'formar') {
+  const quantos = Number(busca.get('quantos') ?? 5);
+  bots.formar({ team: 'karnia', quantos, id0: 1 });
+  bots.formar({ team: 'vestria', quantos, id0: 10000 });
+} else {
+  for (let i = 0; i < 10; i++) {
+    bots.spawn({
+      id: i + 1, team: i < 5 ? 'karnia' : 'vestria',
+      x: CX + (i % 5) * 4, z: CZ + (i < 5 ? -40 : 40)
+    });
+  }
+}
+
+// ?olho=perto gruda a câmera no primeiro bot, que é o caso que o jogador
+// realmente vê: dentro dos 45 m de `DETALHE_RAIO`, com modelo de arma e IK.
+// Longe é o outro caso. Os dois têm que animar, por motivos diferentes.
+const PERTO = busca.get('olho') === 'perto';
+// ?onde=x,y,z põe o olho num ponto do mapa — o do jogador na hora da queixa.
+const ONDE = (busca.get('onde') ?? '').split(',').map(Number);
+const olho = ONDE.length === 3 && ONDE.every(Number.isFinite)
+  ? new THREE.Vector3(ONDE[0], ONDE[1], ONDE[2])
+  : new THREE.Vector3(CX, 30, CZ + 300);
+const FIXO = ONDE.length === 3;
+
+// COM alvos: sem isto ninguém vê ninguém, não há combate, e todo bot só
+// avança em linha reta — que é o caminho em que a passada sempre pareceu
+// certa. O jogo tem briga, e briga é onde o bot PARA.
+if (busca.get('briga') === '1') bots.setTargets([...bots.soldiers]);
+
+const lista = bots.soldiers ?? bots.todos ?? [];
+diz(`bots: ${lista.length}`);
+
+const estado = lista.map((bot) => ({
+  bot,
+  coxa: bot.group.getObjectByName('thigh_L'),
+  pe: bot.group.getObjectByName('foot_L'),
+  quadril: bot.group.getObjectByName('hips'),
+  antes: 0, poses: 0, andou: 0, maiorSalto: 0, detalhado: 0, quadros: 0,
+  // O que se VÊ é o pé andando em relação ao corpo, não o ângulo do osso.
+  peMin: Infinity, peMax: -Infinity, alturaMin: Infinity, alturaMax: -Infinity,
+  // O que o olho vê não é quantos quadros o bot teve detalhe, é quantas
+  // vezes ele TROCOU: cada troca é a arma aparecendo ou sumindo da mão.
+  piscadas: 0, tinha: false,
+  // Quadros em que o corpo andou o bastante pra a passada existir. É o
+  // número que separa "a animação não roda" de "o bot está parado".
+  andando: 0, ultimaFase: 0, faseAndou: 0
+}));
+const aqui = new THREE.Vector3();
+const noQuadril = new THREE.Vector3();
+
+for (let q = 0; q < QUADROS; q++) {
+  const antesX = estado.map((e) => e.bot.x);
+  const antesZ = estado.map((e) => e.bot.z);
+  // COM olho: sem ele todo bot fica `detalhado` e o LOD nunca é exercitado —
+  // que é exatamente o caminho em que o defeito mora.
+  if (!FIXO && PERTO && estado?.length) olho.set(estado[0].bot.x + 8, estado[0].bot.feetY + 1.6, estado[0].bot.z);
+  bots.update(DT, olho);
+  ballistics.update(DT, [], world.terrain);
+
+  estado.forEach((e, i) => {
+    if (!e.coxa) return;
+    e.quadros++;
+    if (e.bot.detalhado) e.detalhado++;
+    if (e.bot.detalhado !== e.tinha) { e.piscadas++; e.tinha = e.bot.detalhado; }
+    const deu = Math.hypot(e.bot.x - antesX[i], e.bot.z - antesZ[i]);
+    e.andou += deu;
+    if (deu / DT >= 0.15) e.andando++;
+    if (Math.abs(e.bot.fase - e.ultimaFase) > 1e-9) e.faseAndou++;
+    e.ultimaFase = e.bot.fase;
+    const agora = e.coxa.rotation.x;
+    if (q > 0 && Math.abs(agora - e.antes) > 1e-9) {
+      e.poses++;
+      e.maiorSalto = Math.max(e.maiorSalto, Math.abs(agora - e.antes));
+    }
+    e.antes = agora;
+
+    if (e.pe && e.quadril) {
+      e.pe.getWorldPosition(aqui);
+      e.quadril.getWorldPosition(noQuadril);
+      // Distância do pé ao quadril NO PLANO: é a passada que se vê de fora.
+      const passada = Math.hypot(aqui.x - noQuadril.x, aqui.z - noQuadril.z);
+      e.peMin = Math.min(e.peMin, passada);
+      e.peMax = Math.max(e.peMax, passada);
+      e.alturaMin = Math.min(e.alturaMin, aqui.y - e.bot.feetY);
+      e.alturaMax = Math.max(e.alturaMax, aqui.y - e.bot.feetY);
+    }
+  });
+}
+
+const f = (n, c = 2) => n.toFixed(c).padStart(7);
+
+// Com trezentos corpos, linha por bot é ruído. O que a pergunta pede é a
+// REPARTIÇÃO: quantos andaram e quantos ficaram parados.
+if (estado.length > 20) {
+  const andaram = estado.filter((e) => e.andou > 5);
+  const parados = estado.filter((e) => e.andou <= 0.5);
+  const posaram = estado.filter((e) => e.poses > 20);
+  const det = estado.filter((e) => e.detalhado > 0);
+  const media = (lista, campo) => lista.length
+    ? lista.reduce((s, e) => s + e[campo], 0) / lista.length : 0;
+  diz(`de ${estado.length} bots, em ${QUADROS} quadros:`);
+  diz(`  andaram mais de 5 m ....... ${andaram.length}  (média ${f(media(andaram, 'andou'))} m)`);
+  diz(`  ficaram parados ........... ${parados.length}`);
+  diz(`  posaram mais de 20 vezes .. ${posaram.length}  (média ${f(media(posaram, 'poses'), 0)} poses)`);
+  diz(`  tiveram detalhe ........... ${det.length}`);
+  const piscou = estado.reduce((t, e) => t + e.piscadas, 0);
+  diz(`  trocas de detalhe (total) . ${piscou}`);
+  const media2 = (campo) => estado.reduce((t, e) => t + e[campo], 0) / estado.length;
+  diz(`  quadros ANDANDO (média) ... ${f(media2('andando'), 0)} de ${QUADROS}`
+    + `  (${f(100 * media2('andando') / QUADROS, 0)}%)`);
+  const quaseParados = estado.filter((e) => e.andando < QUADROS * 0.1).length;
+  diz(`  bots andando <10% do tempo  ${quaseParados}`);
+  const posturas = {};
+  for (const e of estado) posturas[e.bot.postura] = (posturas[e.bot.postura] ?? 0) + 1;
+  diz(`  postura no fim ............ ${JSON.stringify(posturas)}`);
+  const amplitude = estado.filter((e) => e.peMax > -Infinity);
+  diz(`  passada do pé (amplitude) . média ${f(media(amplitude.map((e) => ({ a: e.peMax - e.peMin })), 'a'))} m`);
+
+  // O que está NA TELA é o que importa: os vinte mais perto do olho.
+  const perto = [...estado].sort((a, b) =>
+    Math.hypot(a.bot.x - olho.x, a.bot.z - olho.z) - Math.hypot(b.bot.x - olho.x, b.bot.z - olho.z)
+  ).slice(0, 20);
+  diz('');
+  diz('os 20 mais perto do olho:');
+  for (const e of perto) {
+    const d = Math.hypot(e.bot.x - olho.x, e.bot.z - olho.z);
+    diz(`  ${f(d, 1)} m · andou ${f(e.andou)} m · poses ${String(e.poses).padStart(4)}`
+      + ` · detalhe ${String(e.detalhado).padStart(4)}/${e.quadros}`
+      + ` · piscou ${String(e.piscadas).padStart(3)}x`
+      + ` · passada do pé ${f(e.peMax - e.peMin)} m · ${e.bot.postura}`);
+  }
+  if (!FOTO) { diz('FIM'); throw new Error('parar aqui'); }
+}
+
+for (const e of estado) {
+  diz(`bot ${String(e.bot.id).padStart(2)} ${e.bot.team.padEnd(8)}`
+    + ` andou ${f(e.andou)} m · poses ${String(e.poses).padStart(4)}/${e.quadros}`
+    + ` · detalhado ${String(e.detalhado).padStart(4)}`
+    + ` · maior salto ${f(e.maiorSalto * 180 / Math.PI, 1)}°`
+    + ` · fase ${f(e.bot.fase, 3)} · ${e.bot.postura}`);
+  diz(`       pé: passada ${f(e.peMin)}..${f(e.peMax)} m (amplitude ${f(e.peMax - e.peMin)})`
+    + ` · altura ${f(e.alturaMin)}..${f(e.alturaMax)} m`);
+}
+if (FOTO) {
+  out.style.display = 'none';
+  scene.background = new THREE.Color(0x8fb0c8);
+  scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x3a3a34, 2.2));
+  const sol = new THREE.DirectionalLight(0xffffff, 1.4);
+  sol.position.set(2, 5, 3);
+  scene.add(sol);
+
+  // Com `?onde=` a câmera vai pro OLHO, e não pro lado de um bot: é a vista
+  // do jogador que se quer conferir, com o LOD decidido a partir dela.
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 900);
+  if (FIXO) {
+    camera.position.copy(olho);
+    camera.lookAt(olho.x, olho.y - 0.1, olho.z + 40);
+  } else {
+    const alvo = estado[0].bot;
+    camera.position.set(alvo.x + 5, alvo.feetY + 1.0, alvo.z + 1.5);
+    camera.lookAt(alvo.x, alvo.feetY + 0.85, alvo.z);
+  }
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+}
+
+diz('FIM');
+</script>
+</body></html>

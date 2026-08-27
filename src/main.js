@@ -223,6 +223,24 @@ function boot(modo = 'batalha') {
   const killfeed = initKillFeed(player);
   ballistics.onHit((r) => {
     if (!r.killed) return;
+
+  /**
+   * Quem o laço de render ATUALIZA — e é uma lista à parte de propósito.
+   *
+   * `world.targets` é a lista de quem a bala pode ACERTAR, e os bots entram
+   * nela logo abaixo. Ela também vinha sendo usada como lista de update, e
+   * com isso todo bot era atualizado DUAS vezes por quadro: uma por
+   * `bots.update`, depois de o cérebro tê-lo movido, e outra aqui — quando
+   * ele já não tinha andado nada desde a primeira.
+   *
+   * Enquanto a pose do soldado era estática isso não custava nada e ninguém
+   * viu. Com a passada, a segunda chamada lê deslocamento zero, conclui que
+   * o corpo está parado e devolve a perna ao repouso — todo quadro, apagando
+   * a animação que a primeira acabara de escrever. O sintoma era um exército
+   * inteiro deslizando de pernas retas, com a fase do passo correndo por
+   * baixo. Duas listas, dois propósitos.
+   */
+  const paraAtualizar = [...world.targets];
     killfeed.register({
       matador: r.owner, vitima: r.target, regiao: r.regiao,
       arma: r.owner?.weapon?.name ?? player.equipped?.name ?? null
@@ -242,7 +260,7 @@ function boot(modo = 'batalha') {
 
   game = {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging, watchdog,
-    capture, bots, sparks, spoils, veiculos,
+    capture, bots, sparks, spoils, veiculos, paraAtualizar, tratamento,
     updateObjective: initObjective(player, capture),
     updateFlagPrompt: initFlagPrompt(player, capture),
 
@@ -312,7 +330,8 @@ if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
-    watchdog, capture, bots, snapshot, killfeed, corpo, sparks, spoils, veiculos
+    watchdog, capture, bots, snapshot, killfeed, corpo, sparks, spoils, veiculos,
+    paraAtualizar
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -413,7 +432,9 @@ function frame() {
     camera.updateProjectionMatrix();
   }
   document.body.classList.toggle('aiming', player.gun.aim > 0.5);
-  for (const target of world.targets) target.update(delta);
+  // `paraAtualizar`, nunca `world.targets`: bot já foi atualizado por
+  // `bots.update` neste quadro, e atualizá-lo de novo apaga a passada.
+  for (const target of paraAtualizar) target.update(delta);
 
   corpo.update();
   /**

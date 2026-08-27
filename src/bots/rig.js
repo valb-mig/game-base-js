@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NOMES, OSSOS } from './esqueleto.js';
+import { cotoveloEm } from './ik.js';
 
 /**
  * A camada entre os OSSOS do modelo e quem quer mexer neles.
@@ -165,9 +166,143 @@ export function criarRig(raiz) {
   }
   const porOsso = new Map(miras.map((m) => [m.nome, m]));
 
+  /**
+   * Comprimento de cada braço, MEDIDO na pose de repouso.
+   *
+   * Escrito à mão ele desalinha na primeira vez que o modelo muda, e o
+   * sintoma é a mão parando a alguns centímetros da arma — que é exatamente
+   * o defeito que a IK existe pra consertar.
+   */
+  const bracos = new Map();
+  for (const lado of ['L', 'R']) {
+    const ombro = ossos.get(`shoulder_${lado}`);
+    const cotovelo = ossos.get(`elbow_${lado}`);
+    const mao = ossos.get(`hand_${lado}`);
+    if (!ombro || !cotovelo || !mao) continue;
+    const o = ombro.getWorldPosition(new THREE.Vector3());
+    const c = cotovelo.getWorldPosition(new THREE.Vector3());
+    const m = mao.getWorldPosition(new THREE.Vector3());
+
+    // A TORÇÃO do braço não sai de rotação mínima.
+    //
+    // Dois pontos definem pra onde o osso aponta e não definem o giro em
+    // torno dele próprio: com rotação mínima o osso escolhe uma torção
+    // qualquer, e num braço feito de CAIXA isso vira uma tábua atravessada
+    // no peito. Foi o primeiro resultado desta IK.
+    //
+    // A referência é o PLANO DA DOBRA — pro ombro, pra onde o antebraço sai;
+    // pro cotovelo, de onde o braço veio. Ela não precisa ser declarada por
+    // quem chama: a própria solução da IK já a produz.
+    const paraCotovelo = c.clone().sub(o).normalize();
+    const paraMao = m.clone().sub(c).normalize();
+    bracos.set(lado, {
+      a: o.distanceTo(c),
+      b: c.distanceTo(m),
+      ombro: baseInversa(paraCotovelo, paraMao),
+      cotovelo: baseInversa(paraMao, paraCotovelo)
+    });
+  }
+
+  /**
+   * A base ortonormal de repouso de um osso, já invertida.
+   *
+   * Invertida porque é o que a aplicação multiplica, e montar matriz por
+   * quadro seria trabalho repetido à toa. Devolve null quando direção e
+   * referência ficam paralelas — aí não há plano, e quem chama cai na
+   * rotação mínima.
+   */
+  function baseInversa(frente, referencia) {
+    if (!base(baseRepouso, frente, referencia)) return null;
+    return new THREE.Quaternion().setFromRotationMatrix(baseRepouso).invert();
+  }
+
+  /**
+   * Aponta um osso numa direção de MUNDO, mantendo a torção de repouso.
+   *
+   * É a mesma conta que `aplicarRagdoll` faz osso a osso, e por isso ela mora
+   * numa função só: duas cópias divergiriam no primeiro ajuste. Rotação
+   * mínima basta aqui — o que ela não define é o giro em torno do próprio
+   * osso, e num braço isso não se vê (num capacete sim, e é por isso que a
+   * queda usa base ortonormal).
+   */
+  function orientarPara(nome, rumoMundo, referencia = null, repousoInverso = null) {
+    const mira = porOsso.get(nome);
+    const osso = ossos.get(nome);
+    if (!mira || !osso) return false;
+
+    if (repousoInverso && referencia && base(baseAgora, rumoMundo, referencia)) {
+      // base ortonormal: ela fixa a torção junto com a direção
+      daBase.setFromRotationMatrix(baseAgora).multiply(repousoInverso);
+      mundo.copy(daBase).multiply(repouso.get(nome).mundo);
+    } else {
+      giro.setFromUnitVectors(mira.direcao, rumoMundo);
+      mundo.copy(giro).multiply(repouso.get(nome).mundo);
+    }
+    osso.parent.updateWorldMatrix(true, false);
+    osso.parent.getWorldQuaternion(doPai);
+    osso.quaternion.copy(doPai.invert()).multiply(mundo);
+    osso.updateWorldMatrix(false, false);
+    return true;
+  }
+
+  const doOmbro = new THREE.Vector3();
+  const doCotovelo = new THREE.Vector3();
+  const noAlvo = new THREE.Vector3();
+  const doPolo = new THREE.Vector3();
+  const doAntebraco = new THREE.Vector3();
+
   const rig = {
     raiz,
     ossos,
+
+    /**
+     * Leva a mão de um braço até um ponto do MUNDO.
+     *
+     * `polo` é pra que lado o cotovelo sai — o grau de liberdade que dois
+     * pontos e dois comprimentos não resolvem. Sem ele o cotovelo cai num
+     * lugar qualquer do círculo e o braço entra no peito.
+     *
+     * Devolve o quanto FALTOU pro alvo, em metros: zero quando a mão chegou.
+     * Quem chama precisa saber — mão que não chega é mão fora da arma, e o
+     * conserto é mudar onde a arma está, não esticar o braço.
+     *
+     * O ombro é reorientado primeiro e o cotovelo depois, relendo a posição
+     * dele: orientar o ombro MOVE o cotovelo, e mirar a partir de onde ele
+     * estava antes erra pela metade da dobra.
+     */
+    apontarBraco(lado, alvo, polo) {
+      const medida = bracos.get(lado);
+      const ombro = ossos.get(`shoulder_${lado}`);
+      const cotovelo = ossos.get(`elbow_${lado}`);
+      if (!medida || !ombro || !cotovelo) return null;
+
+      ombro.getWorldPosition(doOmbro);
+      doPolo.copy(polo);
+      const faltou = cotoveloEm(noAlvo, doOmbro, alvo, medida.a, medida.b, doPolo);
+
+      // Direção de cada osso e o plano da dobra, os dois em mundo. O plano
+      // é o que fixa a torção — ver `baseInversa`.
+      doCotovelo.copy(noAlvo).sub(doOmbro);
+      if (doCotovelo.lengthSq() < 1e-10) return faltou;
+      doCotovelo.normalize();
+      doAntebraco.copy(alvo).sub(noAlvo);
+      if (doAntebraco.lengthSq() < 1e-10) return faltou;
+      doAntebraco.normalize();
+
+      orientarPara(`shoulder_${lado}`, doCotovelo, doAntebraco, medida.ombro);
+
+      // Reler o cotovelo: orientar o ombro MOVE o cotovelo, e mirar a partir
+      // de onde ele estava antes erra pela metade da dobra.
+      cotovelo.getWorldPosition(doCotovelo);
+      doAntebraco.copy(alvo).sub(doCotovelo);
+      if (doAntebraco.lengthSq() < 1e-10) return faltou;
+      doAntebraco.normalize();
+      ombro.getWorldPosition(doOmbro);
+      noAlvo.copy(doCotovelo).sub(doOmbro).normalize();
+      orientarPara(`elbow_${lado}`, doAntebraco, noAlvo, medida.cotovelo);
+
+      return faltou;
+    },
 
     /**
      * Onde está cada junta agora, no sistema do soldado (pé no zero).
@@ -190,6 +325,45 @@ export function criarRig(raiz) {
         saida[nome] = [local.x, local.y, local.z];
       }
       return saida;
+    },
+
+    /**
+     * Sobe o quadril alguns centímetros, em metros de MUNDO.
+     *
+     * O balanço vertical da passada não pode sair da posição do GRUPO: ele
+     * está nos pés, e subi-lo levanta o soldado inteiro do chão — 5,5 cm de
+     * pé flutuando quando ele corre. Subindo o quadril, o pé de apoio fica
+     * onde está e quem sobe é o corpo, que é o que acontece de verdade.
+     *
+     * Os metros são convertidos pela escala do pai porque o modelo tem 1,80 m
+     * e o jogo trata o soldado como 1,75: escrever no osso sem converter
+     * daria um balanço 3% maior, e com o agachamento em cima disso, mais.
+     */
+    erguerQuadril(metros) {
+      const osso = ossos.get('hips');
+      if (!osso || !metros) return;
+      osso.parent.updateWorldMatrix(true, false);
+      osso.parent.getWorldScale(local);
+      osso.position.y += metros / (local.y || 1);
+    },
+
+    /**
+     * Desloca o quadril, em metros de MUNDO nos três eixos.
+     *
+     * Irmã de `erguerQuadril`, e separada dela de propósito: aquela é o
+     * balanço da passada, que roda todo quadro e só mexe no y; esta é a
+     * postura, que muda de vez em quando e move o corpo inteiro pra baixo e
+     * pra trás. Somar as duas num método só faria a passada e a postura
+     * disputarem o mesmo número.
+     */
+    moverQuadril(dx, dy, dz) {
+      const osso = ossos.get('hips');
+      if (!osso) return;
+      osso.parent.updateWorldMatrix(true, false);
+      osso.parent.getWorldScale(local);
+      osso.position.x += dx / (local.x || 1);
+      osso.position.y += dy / (local.y || 1);
+      osso.position.z += dz / (local.z || 1);
     },
 
     /** Devolve todo osso à pose de repouso. */

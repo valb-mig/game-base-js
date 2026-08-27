@@ -22,7 +22,10 @@ export async function run() {
   suite('modelo da faca');
 
   const knife = createKnife();
-  const blade = knife.children[0];
+  // A lâmina pelo TIPO, não pelo índice: o Object3D da mão entrou no grupo
+  // antes dela e `children[0]` virou um marcador sem geometria. Índice em
+  // lista de filhos é ordem de construção, e ordem de construção muda.
+  const blade = knife.children.find((filho) => filho.isMesh);
   const position = blade.geometry.attributes.position;
 
   const a = new THREE.Vector3();

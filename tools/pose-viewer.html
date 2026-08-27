@@ -1,0 +1,172 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pose</title>
+<style>
+body{margin:0;background:#8fb0c8;overflow:hidden}
+pre{position:fixed;right:0;top:0;margin:0;padding:6px 9px;background:#000a;
+color:#dfe6e2;font:10px/1.35 ui-monospace,monospace}
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script>
+<body>
+<pre id="medida"></pre>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { carregarSoldado } from '../src/bots/model.js';
+import { createSoldier } from '../src/bots/soldier.js';
+import { MP40, PISTOL, KNIFE, SHOVEL } from '../src/items/classes.js';
+import { MAOS } from '../src/bots/porte.js';
+
+/**
+ * O soldado DE PÉ, com arma na mão, pra autorar pose.
+ *
+ * Pose de corpo se julga olhando, e olhando de mais de um ângulo: de lado a
+ * arma parece encaixada e de cima ela está atravessando o antebraço. As
+ * vistas de `?cam=` são o ponto de partida da captura headless — a órbita é
+ * pra quem está com a página aberta procurando o ângulo que denuncia.
+ *
+ * `?arma=mp40|m1911|kabar|m1943` · `?cam=lado|frente|cima|tres-quartos`
+ * `?ossos=1` desenha o esqueleto por cima do corpo.
+ *
+ * `?vel=3.4&fase=0.25` congela a passada num ponto do ciclo. A velocidade
+ * decide a AMPLITUDE (andar e correr são um contínuo) e a fase decide onde
+ * no ciclo — é assim que se fotografa a tira de quatro poses que denuncia
+ * perna atravessando perna.
+ */
+const busca = new URLSearchParams(location.search);
+
+const cena = new THREE.Scene();
+cena.background = new THREE.Color(0x8fb0c8);
+cena.add(new THREE.HemisphereLight(0xbfe3ff, 0x3a3a34, 1.6));
+const sol = new THREE.DirectionalLight(0xffffff, 1.5);
+sol.position.set(2.5, 4, 3);
+cena.add(sol);
+
+const chao = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshLambertMaterial({ color: 0x5e7a3a })
+);
+chao.rotation.x = -Math.PI / 2;
+cena.add(chao);
+
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.05, 40);
+const ALVO = [0, 0.95, 0];
+const VISTAS = {
+  lado: [[4.4, 0.95, 0.05], ALVO],
+  frente: [[0.05, 1.15, 3.6], ALVO],
+  cima: [[0.02, 4.0, 0.6], [0, 0.9, 0]],
+  'tres-quartos': [[2.6, 1.5, 2.6], ALVO]
+};
+const vista = VISTAS[busca.get('cam') ?? 'tres-quartos'] ?? VISTAS['tres-quartos'];
+camera.position.set(...vista[0]);
+camera.lookAt(...vista[1]);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const orbita = new OrbitControls(camera, renderer.domElement);
+orbita.target.set(...vista[1]);
+orbita.enableDamping = true;
+orbita.update();
+
+await carregarSoldado();
+
+const ARMAS = { mp40: MP40, m1911: PISTOL, kabar: KNIFE, m1943: SHOVEL };
+const arma = ARMAS[busca.get('arma') ?? 'mp40'] ?? MP40;
+
+const piso = { heightAt: () => 0 };
+const bot = createSoldier(cena, [], {
+  id: 1, team: 'karnia', x: 0, z: 0, terrain: piso, weapons: [arma]
+});
+bot.update(1 / 60);
+bot.update(1 / 60);
+
+// Andar é ANDAR: a fase sai da distância, então pra congelar o ciclo o corpo
+// tem que ter percorrido os metros que levam até ali. Escrever a fase na mão
+// mentiria sobre o caminho que a levou àquele ponto.
+const velocidade = Number(busca.get('vel') ?? 0);
+const fase = Number(busca.get('fase') ?? 0);
+if (velocidade > 0) {
+  const passo = 1 / 240;
+  for (let i = 0; i < 2400; i++) {
+    bot.x += velocidade * passo;
+    bot.update(passo);
+    if (fase > 0 && Math.abs(bot.fase - fase) < 0.004 && i > 60) break;
+  }
+  // A câmera vai ATRÁS dele em vez de o corpo voltar pra origem: teleportar
+  // o bot pro zero contaria como distância andada e chutaria a fase pro
+  // outro lado do ciclo, que é o oposto de congelar.
+  camera.position.x += bot.x;
+  orbita.target.x += bot.x;
+  orbita.update();
+}
+
+// A postura é do SOLDADO, não do visor: ele a deriva da altura, como o jogo
+// faz. Posá-la aqui à mão seria uma segunda cópia da tabela — e a foto
+// mostraria uma pose que o jogo não desenha.
+bot.crouching = busca.get('postura') === 'agachado';
+bot.deitado = busca.get('postura') === 'deitado';
+bot.update(1 / 60);
+bot.update(1 / 60);
+
+if (busca.get('ossos')) {
+  const esqueleto = new THREE.SkeletonHelper(bot.group);
+  esqueleto.material.depthTest = false;
+  cena.add(esqueleto);
+}
+
+// O que a foto não diz: onde as mãos estão em relação à ARMA. Os nós do
+// arquivo (`weapon_R`) não são mais usados — quem manda é o nó `porte`.
+const p = new THREE.Vector3();
+const q = new THREE.Vector3();
+const linhas = [];
+const porte = bot.group.getObjectByName('porte');
+const modelo = porte?.children.find((o) => o.visible);
+
+for (const nome of ['shoulder_L', 'shoulder_R', 'elbow_L', 'elbow_R', 'hand_L', 'hand_R']) {
+  const osso = bot.group.getObjectByName(nome);
+  if (!osso) continue;
+  osso.getWorldPosition(p);
+  linhas.push(`${nome.padEnd(9)} ${p.toArray().map((v) => v.toFixed(3).padStart(7)).join(' ')}`);
+}
+
+if (modelo) {
+  // O par sai de `MAOS`, nunca escrito à mão: o arquivo nomeia os lados ao
+  // contrário, e um par escrito aqui mede a mão errada e acusa 15 cm de erro
+  // numa IK exata. Aconteceu.
+  for (const mao of MAOS) {
+    const marca = modelo.getObjectByName(mao.marcador);
+    if (!marca) continue;
+    marca.getWorldPosition(p);
+    linhas.push(`${mao.marcador.padEnd(9)} ${p.toArray().map((v) => v.toFixed(3).padStart(7)).join(' ')}`);
+    const osso = bot.group.getObjectByName(`hand_${mao.osso}`);
+    if (!osso) continue;
+    osso.getWorldPosition(q);
+    linhas.push(`  \u2514 hand_${mao.osso} a ${p.distanceTo(q).toFixed(3)} m`);
+  }
+  const bocaMarca = modelo.getObjectByName('boca');
+  if (bocaMarca) {
+    bocaMarca.getWorldPosition(p);
+    linhas.push(`boca      ${p.toArray().map((v) => v.toFixed(3).padStart(7)).join(' ')}`);
+  }
+  const giro = new THREE.Quaternion();
+  modelo.getWorldQuaternion(giro);
+  const cano = new THREE.Vector3(0, 0, -1).applyQuaternion(giro);
+  const graus = Math.asin(-cano.y) * 180 / Math.PI;
+  linhas.push(`cano      ${cano.toArray().map((v) => v.toFixed(3).padStart(7)).join(' ')}`);
+  linhas.push(`  \u2514 ${graus >= 0 ? 'caindo' : 'subindo'} ${Math.abs(graus).toFixed(1)}\u00b0`);
+} else {
+  linhas.push('NENHUMA arma na mão');
+}
+
+document.getElementById('medida').textContent = `${arma.name}\n${linhas.join('\n')}`;
+console.log(linhas.join(' | '));
+
+renderer.setAnimationLoop(() => {
+  orbita.update();
+  renderer.render(cena, camera);
+});
+</script>

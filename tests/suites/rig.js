@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { carregarSoldado, soldadoPronto, criarSoldado } from '../../src/bots/model.js';
 import { criarRig } from '../../src/bots/rig.js';
 import { createRagdoll } from '../../src/bots/ragdoll.js';
-import { SOLDIER } from '../../src/bots/soldier.js';
+import { SOLDIER, createSoldier } from '../../src/bots/soldier.js';
 import { suite, ok, eq, near, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -129,4 +129,75 @@ function rodar() {
 
   eq('o soldado continua com a altura do jogo', SOLDIER.ALTURA, 1.75);
   rig.repousar();
+
+  corpoCaido();
+}
+
+/**
+ * O corpo caído: ele tem que ficar VISÍVEL onde caiu, e tem que parar de
+ * custar quadro depois de assentar.
+ *
+ * O ragdoll resolve as juntas em coordenadas de MUNDO, e por isso o grupo do
+ * soldado morto fica na origem. O three recorta a malha skinnada pela esfera
+ * DELA multiplicada pela matriz do objeto — que aí é a identidade —, então o
+ * corpo era descartado como se estivesse no ponto zero do mapa: sumia
+ * inteiro, e o que sobrava eram a bandeira do peito e o vivo do capacete,
+ * que penduram nos ossos e carregam matriz própria.
+ *
+ * Isto NÃO se prova olhando se a malha existe: ela existe, está no lugar
+ * certo e é o RECORTE que aponta pro lugar errado. O que prova é a esfera
+ * levada pra mundo pela mesma matriz que o renderer usa.
+ */
+function corpoCaido() {
+  suite('o corpo caído fica onde caiu, e para de custar quadro');
+
+  const cena = new THREE.Scene();
+  const chao = { heightAt: () => 0 };
+  const colisores = [];
+  // LONGE da origem: em cima dela um recorte errado acerta por acidente, e
+  // foi assim que o defeito passou despercebido.
+  const bot = createSoldier(cena, colisores, {
+    id: 1, team: 'karnia', x: 240, z: -180, terrain: chao,
+    weapons: [{ id: 'mp40', name: 'MP40', firearm: { damage: 24 },
+      ammo: { loaded: 32, reserve: 0 } }]
+  });
+  bot.update(DT);
+
+  // O renderer mede a esfera UMA VEZ, no primeiro quadro em que testa a
+  // malha contra a câmera, e guarda — bone que se mexe depois não remede
+  // nada. Sem imitar esse cache o teste chama `computeBoundingSphere` na
+  // hora de conferir, mede a pose de agora e passa verde com o defeito
+  // inteiro no lugar. Aconteceu.
+  let malha = null;
+  bot.group.traverse((o) => { if (o.isMesh && !malha) malha = o; });
+  ok('há malha de corpo', !!malha);
+  malha.computeBoundingSphere();
+
+  bot.damage(999, { nome: 'tronco', multiplicador: 1 }, {
+    dir: new THREE.Vector3(0, 0, 1), ponto: new THREE.Vector3(240, 1.15, -180.2)
+  });
+  for (let i = 0; i < 240; i++) bot.update(DT);
+
+  const quadril = bot.group.getObjectByName('hips')
+    .getWorldPosition(new THREE.Vector3());
+  ok('o corpo saiu do lugar', Math.abs(quadril.z + 180) > 0.3,
+    `quadril em z ${quadril.z.toFixed(2)}`);
+
+  const recorte = new THREE.Sphere()
+    .copy(malha.boundingSphere).applyMatrix4(malha.matrixWorld);
+  const desvio = recorte.center.distanceTo(quadril);
+  ok('e o recorte de câmera foi junto com ele', desvio < 1,
+    `esfera a ${desvio.toFixed(2)} m do quadril, raio ${recorte.radius.toFixed(2)}`);
+  note('por que importa', 'esfera parada na origem = corpo invisível no mapa inteiro');
+
+  suite('e o solver dorme quando o corpo assenta');
+
+  // Depois de assentado, mais um quadro não pode mexer em osso nenhum: é isso
+  // que faz um corpo caído custar zero pelos cinco segundos em que ele fica
+  // na tela, com o tiroteio inteiro no chão ao mesmo tempo.
+  const cabeca = bot.group.getObjectByName('head');
+  const antes = cabeca.getWorldPosition(new THREE.Vector3());
+  for (let i = 0; i < 30; i++) bot.update(DT);
+  const depois = cabeca.getWorldPosition(new THREE.Vector3());
+  eq('nenhum osso é reescrito depois disso', depois.distanceTo(antes), 0);
 }

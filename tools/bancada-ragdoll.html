@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: ragdoll</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildTrainingWorld } from '../src/world/training-world.js';
+import { createBallistics } from '../src/items/ballistics.js';
+import { carregarSoldado } from '../src/bots/model.js';
+
+/**
+ * Três perguntas sobre o corpo caído, medidas no CAMPO DE TREINO — que é
+ * onde se atira de frente, de lado e de costas de propósito.
+ *
+ *  1. a queda muda com o rumo do tiro e com a região atingida?
+ *  2. o solver DORME depois de assentar, ou paga quadro pra sempre?
+ *  3. a esfera de recorte acompanha o corpo, ou ele é descartado como se
+ *     estivesse no ponto zero do mapa?
+ *
+ * Bala de verdade, alvo de verdade, corpo medido pelos OSSOS na tela.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log(t); };
+
+const DT = 1 / 60;
+await carregarSoldado();
+
+const scene = new THREE.Scene();
+const world = buildTrainingWorld(scene);
+const ballistics = createBallistics(scene, world.colliders, {});
+// Só os alvos que são SOLDADO: o curso de obstáculos tem boneco de palha, que
+// não tem osso nem ragdoll.
+const alvos = world.targets.filter((a) => a.group && a.group.getObjectByName('hips'));
+
+const ALTURAS = { capacete: 1.62, tronco: 1.15, perna: 0.5 };
+const v = new THREE.Vector3();
+const esfera = new THREE.Sphere();
+
+function ossoEm(alvo, nome) {
+  return alvo.group.getObjectByName(nome).getWorldPosition(v).clone();
+}
+
+/** Onde o three vai testar a malha contra a câmera, em MUNDO. */
+function recorteEm(alvo) {
+  let achado = null;
+  alvo.group.traverse((o) => {
+    if (!o.isMesh || achado || !o.boundingSphere) return;
+    achado = esfera.copy(o.boundingSphere).applyMatrix4(o.matrixWorld).clone();
+  });
+  return achado;
+}
+
+function derrubar(alvo, graus, alturaAlvo) {
+  const a = graus * Math.PI / 180;
+  const pe = alvo.feetY;
+  const de = new THREE.Vector3(
+    alvo.x - Math.sin(a) * 9, pe + alturaAlvo, alvo.z - Math.cos(a) * 9
+  );
+  ballistics.spawn(de, new THREE.Vector3(Math.sin(a), 0, Math.cos(a)),
+    { damage: 999, range: 60, dig: 0 });
+
+  for (let i = 0; i < 120 && alvo.alive; i++) ballistics.update(DT, alvos, world.terrain);
+  const morto = !alvo.alive;
+
+  // Quantos quadros até o corpo PARAR de se mexer na tela: é o que o sono do
+  // solver tem que comprar.
+  let ultima = ossoEm(alvo, 'head');
+  let dormiu = -1;
+  for (let i = 0; i < 240; i++) {
+    alvo.update(DT);
+    const agora = ossoEm(alvo, 'head');
+    if (dormiu < 0 && i > 2 && agora.distanceTo(ultima) === 0) dormiu = i;
+    ultima = agora;
+  }
+
+  const head = ossoEm(alvo, 'head');
+  const hips = ossoEm(alvo, 'hips');
+  const bolha = recorteEm(alvo);
+  return {
+    morto, dormiu,
+    hx: head.x - alvo.x, hz: head.z - alvo.z, hy: head.y - pe,
+    qx: hips.x - alvo.x, qz: hips.z - alvo.z,
+    fora: bolha ? bolha.center.distanceTo(hips) : NaN
+  };
+}
+
+const f = (n) => n.toFixed(2).padStart(6);
+let i = 0;
+for (const [onde, altura] of Object.entries(ALTURAS)) {
+  for (const g of [0, 90, 180, 270]) {
+    const alvo = alvos[i++ % alvos.length];
+    if (!alvo.alive) for (let k = 0; k < 700; k++) alvo.update(DT);
+    const r = derrubar(alvo, g, altura);
+    diz(`${onde.padEnd(9)} tiro ${String(g).padStart(3)}°  morto ${r.morto ? 'sim' : 'NÃO'}`
+      + `  dormiu ${String(r.dormiu).padStart(4)}  cabeça(${f(r.hx)},${f(r.hy)},${f(r.hz)})`
+      + `  quadril(${f(r.qx)},${f(r.qz)})  recorte a ${f(r.fora)} m do corpo`);
+    for (let k = 0; k < 700; k++) alvo.update(DT);
+  }
+}
+diz('FIM');
+</script>
+</body></html>

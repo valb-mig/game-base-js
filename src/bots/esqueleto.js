@@ -18,6 +18,28 @@
 
 export const ALTURA_BASE = 1.75;
 
+/**
+ * De que lado do corpo mora cada sufixo de osso, em x.
+ *
+ * MEDIDO no arquivo: `shoulder_L` está em +0,301 e `shoulder_R` em −0,301.
+ * O jogo trata +x como a DIREITA do soldado (ver a hitbox e o rumo do
+ * impacto), então o `.glb` nomeia os lados ao contrário — o osso `_L` é o
+ * braço direito dele.
+ *
+ * Isto não se conserta renomeando o arquivo: o nome é contrato com o
+ * artista, com o Mixamo e com as trinta e seis malhas nomeadas de que a
+ * hitbox é medida. Conserta-se declarando a verdade UMA vez, aqui, e fazendo
+ * todo mundo ler daqui — senão cada consumidor descobre sozinho, e metade
+ * deles descobre errado. Já descobriu: o solavanco de tiro no braço direito
+ * sacudia o esquerdo.
+ */
+export const LADO_EM_X = { L: 1, R: -1 };
+
+/** O sufixo de osso que fica no lado do corpo indicado por `x`. */
+export function ossoDoLado(x) {
+  return x >= 0 ? 'L' : 'R';
+}
+
 /** T-pose de reserva, medida das mesmas peças que a hitbox usa. */
 export const JUNTAS_PADRAO = {
   hips: [0, 0.95, 0],
