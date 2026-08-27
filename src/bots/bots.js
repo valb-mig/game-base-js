@@ -28,6 +28,10 @@ const olho = new THREE.Vector3();
 const direcao = new THREE.Vector3();
 const scratch = new THREE.Vector3();
 const paraAmigo = new THREE.Vector3();
+// Eixo do giro do erro de mira. Constante de módulo porque o desvio é sorteado
+// por TIRO: numa briga de trezentos são mais de mil vetores por segundo jogados
+// no coletor, e é o mesmo motivo pelo qual os quatro de cima existem.
+const CIMA = new THREE.Vector3(0, 1, 0);
 
 // Tempo caído antes de voltar. Curto o bastante pra que a frente não esvazie,
 // longo o bastante pra que matar alguém signifique alguma coisa.
@@ -472,7 +476,7 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
     const angulo = rng() * Math.PI * 2;
     const raio = Math.sqrt(rng()) * abertura;
     scratch.set(Math.cos(angulo), Math.sin(angulo), 0)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), bot.yaw);
+      .applyAxisAngle(CIMA, bot.yaw);
     direcao.addScaledVector(scratch, Math.tan(raio)).normalize();
 
     ballistics.spawn(olho, direcao, {
