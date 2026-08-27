@@ -888,74 +888,9 @@ body.spectating #hitfeed {
 
 
 
-/* ------------------------------------------------------------------ mapa
-   O mapa grande de M. A linha da grade é `minmax(0, 1fr)` e não `auto` pelo
-   mesmo motivo do deploy: linha `auto` CRESCE com o conteúdo, e um canvas
-   dentro dela resolvia `height: 100%` contra a linha em vez da janela — o
-   mapa nascia com o dobro da altura da tela e o rodapé saía do quadro. */
-.map-inner {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 14px;
-  width: min(94vw, 1100px);
-  height: min(92vh, 1000px);
-}
-
-.map-head h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: 0.06em;
-}
-
-.map-head p {
-  margin: 2px 0 0;
-  font-size: 13px;
-  opacity: 0.62;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* O canvas é quadrado (a ilha é quadrada) e cabe na menor dimensão da
-   moldura: esticar deformaria a escala, e escala errada num mapa é pior que
-   mapa nenhum. */
-.map-holder {
-  display: grid;
-  place-items: center;
-  min-height: 0;
-}
-
-/* `width: 100%` e não só `max-width`: o canvas tem 260 px nativos (é a
-   resolução da amostragem da ilha), e `max-width` sozinho nunca o faz
-   CRESCER — ele ficava do tamanho de um selo no meio da tela.
-
-   Mas quem manda é a ALTURA, não a largura: a linha da grade é
-   `minmax(0, 1fr)`, então `height: 100%` resolve contra a janela e o
-   `aspect-ratio` dá a largura. Pela largura ele estourava a linha pra baixo e
-   o rodapé ia parar em cima do mapa — o mesmo tropeço que a tela de deploy
-   já tinha tido, do outro lado. */
-#map-canvas {
-  height: 100%;
-  width: auto;
-  max-width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 6px;
-  border: 1px solid rgba(220, 235, 225, 0.16);
-  cursor: crosshair;
-  image-rendering: pixelated;
-}
-
-/* Um véu por trás: o mapa é HUD, não pausa — o jogo continua correndo atrás
-   dele —, mas sem escurecer o fundo os losangos amarelos disputam a leitura
-   com a mata. */
-#map-screen .screen-inner {
-  background: rgba(10, 14, 12, 0.82);
-  border-radius: 10px;
-  padding: 18px 20px;
-}
-
-.map-foot {
-  margin: 0;
-  font-size: 12px;
-  opacity: 0.5;
-  letter-spacing: 0.06em;
-}
+/* O mapa grande de M NÃO tem CSS: ele deixou de ser uma tela.
+   Hoje é uma textura num papel que o soldado levanta na frente do rosto —
+   `items/mapamao.js` e `ui/mapadesenho.js`. O que havia aqui (a linha
+   `minmax(0, 1fr)`, o canvas dimensionado pela ALTURA, o véu de fundo) saiu
+   junto com a `.screen`. A lição da linha `auto` que CRESCE continua valendo
+   pra tela de deploy, que é onde ela ainda mora. */

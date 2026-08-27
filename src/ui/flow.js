@@ -36,8 +36,7 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   const screens = {
     start: document.getElementById('start-screen'),
     deploy: document.getElementById('deploy-screen'),
-    pause: document.getElementById('pause-screen'),
-    mapa: document.getElementById('map-screen')
+    pause: document.getElementById('pause-screen')
   };
 
   const playButton = document.getElementById('play');
@@ -210,6 +209,9 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   }
 
   function openDeployScreen() {
+    // O papel some junto. Sem isto, quem morresse com o mapa aberto voltaria
+    // do deploy congelado — `lendoMapa` continua ligado e ele não anda.
+    fecharMapa({ devolverPonteiro: false });
     phase = PHASE.DEPLOY;
     deployTitle.textContent = died ? 'Você caiu' : 'Preparar';
 
@@ -257,16 +259,6 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   }
 
   /**
-   * O mapa grande de M.
-   *
-   * Ele solta o mouse porque marcar ponto é clicar, e quem tranca e destranca
-   * o ponteiro é este arquivo e só ele. `abrindoMapa` existe pra que o
-   * `unlock` que ele mesmo provoca não vire tela de pausa três linhas abaixo.
-   *
-   * Não é pausa: o jogo continua correndo atrás, e é isso que faz abrir o
-   * mapa no meio de um tiroteio ser uma decisão em vez de um botão grátis.
-   */
-  /**
    * Quem solta o mouse DE PROPÓSITO se anota aqui.
    *
    * O mapa foi o primeiro caso e tinha dois flags só pra ele; o painel de
@@ -290,13 +282,45 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
 
   let mapaAberto = false;
 
+  /**
+   * O mapa de M NÃO é uma tela.
+   *
+   * Ele era: uma `.screen` por cima do jogo, com o mouse solto pra clicar no
+   * canvas. Hoje o soldado LEVANTA um mapa de papel na frente do rosto — o
+   * ponteiro continua travado, o jogo continua correndo atrás, e quem marca
+   * ponto é a mira pousada no papel (ver `items/mapamao.js`). Por isso este
+   * lugar não fala mais em `show` nem em `soltarMouse`: não há tela nenhuma
+   * pra mostrar, e soltar o mouse aqui abriria a pausa por baixo.
+   *
+   * Continua não sendo pausa, e agora menos ainda: o jogador está de pé no
+   * mapa, visível, parado e sem arma na mão. Abrir isso no meio de um tiroteio
+   * é uma decisão cara, que é exatamente o que se queria.
+   *
+   * Ele SOLTA o ponteiro, porque marcar ponto é apontar e clicar — e é por
+   * isso que ele entra no conjunto `soltos`: enquanto estiver ali, o `unlock`
+   * que ele mesmo provoca não vira tela de pausa. Fechar devolve o ponteiro
+   * pro jogo.
+   */
   function alternarMapa() {
     if (phase !== PHASE.PLAYING) return false;
-
     mapaAberto = !mapaAberto;
     soltarMouse('mapa', mapaAberto);
-    show(mapaAberto ? 'mapa' : null);
     return mapaAberto;
+  }
+
+  /**
+   * Fecha o mapa sem perguntar. Quem sai do jogo por qualquer porta chama.
+   *
+   * `devolverPonteiro` é falso pra quem está indo pra uma TELA: a tela quer o
+   * mouse solto, e devolvê-lo aqui pediria o lock um instante antes de a tela
+   * pedir o unlock — dois pedidos opostos no mesmo quadro, que é o tipo de
+   * briga que o navegador resolve do jeito que quiser.
+   */
+  function fecharMapa({ devolverPonteiro = true } = {}) {
+    if (!mapaAberto) return;
+    mapaAberto = false;
+    if (devolverPonteiro) soltarMouse('mapa', false);
+    else soltos.delete('mapa');
   }
 
   function onUnlock() {
@@ -305,6 +329,10 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
     if (phase === PHASE.DEPLOY) return;
     // nem o mapa, nem o painel de ajustes: eles soltam o mouse de propósito
     if (soltos.size) return;
+
+    // Pausa de verdade: o papel some junto. Sem isto o jogador voltaria da
+    // pausa congelado, com o mapa aberto e sem saber por que não anda.
+    fecharMapa({ devolverPonteiro: false });
 
     resumeHint.textContent = `${selectedClass.name} · ${selectedClass.role}`;
     show('pause');
@@ -344,6 +372,7 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   return {
     /** M abre e fecha. Devolve se ficou aberto. */
     alternarMapa,
+    fecharMapa,
     get mapaAberto() {
       return mapaAberto;
     },

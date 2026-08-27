@@ -5,7 +5,9 @@ import {
   CAMERA, VIEW, GRADE, SPREAD, BULLET, MELEE, STAMINA, SWAP, PLAYER, WORLD,
   INCLINACAO
 } from './config.js';
-import { initInput, endFrame, consumePress } from './core/input.js';
+import {
+  initInput, endFrame, consumePress, consumeClick, mousePosition
+} from './core/input.js';
 import { buildWorld } from './world/world.js';
 import { applyUnderwater } from './world/water.js';
 import { Player } from './player/player.js';
@@ -24,7 +26,10 @@ import { initDebugView } from './ui/debugview.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
 import { initRadar } from './ui/radar.js';
-import { initMapa } from './ui/mapa.js';
+import { criarMapaDesenho } from './ui/mapadesenho.js';
+import { criarMapaNaMao } from './items/mapamao.js';
+import { criarDeteccao, varrerCampo, DETECCAO } from './game/deteccao.js';
+import { alternar as alternarMarcacao, dentroDoMapa } from './ui/marcacoes.js';
 import { MAP_KEYS } from './player/constants.js';
 import { initRangefinder } from './ui/rangefinder.js';
 import { initCrosshair } from './ui/crosshair.js';
@@ -183,9 +188,19 @@ function boot(modo = 'batalha') {
   // é do jogador; de quem é cada posto é da partida.
   const capture = createCapture(world.outposts);
 
+  /**
+   * Quem o time VIU, e por quanto tempo isso ainda vale.
+   *
+   * É o que faz o inimigo aparecer no radar e no mapa sem que ninguém ganhe
+   * onisciência: cada contato entra porque um par de olhos do time o
+   * encontrou, e apaga trinta segundos depois de o último deles perdê-lo. O
+   * bot alimenta pelo cérebro (`vendo`), o jogador pela varredura logo abaixo.
+   */
+  const deteccao = criarDeteccao();
+
   // Um bot, por enquanto. Toda a mecânica dele já é a de muitos: o gerente
   // atualiza uma lista, e a lista tem um.
-  const bots = createBots(scene, world, { ballistics, capture });
+  const bots = createBots(scene, world, { ballistics, capture, deteccao });
   // O jogador como alvo: é isto que faz a bala de bot machucar de verdade,
   // pela mesma balística de todo mundo. Ele fica no `player` porque quem
   // atira precisa dele pra não se acertar mirando pro chão.
@@ -301,12 +316,20 @@ function boot(modo = 'batalha') {
     updateCompass: initCompass(camera, { player, world }),
     // Radar e telêmetro leem estado que já existe: o campo de altura, os
     // postos e a lista de alvos. Nenhum dos dois guarda mundo próprio.
-    updateRadar: initRadar(player, camera, world, bots).update,
+    updateRadar: initRadar(player, camera, world, bots, deteccao).update,
 
-    // O mapa grande de M. Ele desenha quando abre e enquanto está aberto —
-    // o jogador continua andando atrás, e uma seta parada mentiria sobre
-    // onde ele está.
-    mapa: initMapa(world.terrain, world, player),
+    /**
+     * O mapa que o soldado abre NA MÃO.
+     *
+     * São duas peças: o desenho (um canvas fora do documento, com a
+     * topografia, os pontos, a tropa e a rosa dos ventos) e o papel 3D que
+     * vive na cena do viewmodel. Ele não é HUD: se fosse, bastaria uma tela
+     * por cima do jogo — e era assim que era.
+     */
+    mapa: criarMapaNaMao(criarMapaDesenho({
+      terrain: world.terrain, world, player, bots, deteccao
+    })),
+    deteccao,
     updateRangefinder: initRangefinder(player, camera, world, world.targets).update,
     updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops, veiculos),
@@ -420,11 +443,87 @@ if (busca.has('treino')) flow.startTraining();
 const autoDeploy = busca.get('deploy');
 if (autoDeploy !== null) flow.enterMap(Number(autoDeploy) || 0);
 
+/**
+ * Raio, em metros de mundo, do toque que APAGA uma marca em vez de pôr outra.
+ *
+ * Marcar e desmarcar são o mesmo gesto: um botão separado pra tirar seria mais
+ * uma tecla pra decorar num jogo que já tem oito.
+ */
+const APAGA_RAIO = 55;
+
+/** Segundos entre dois redesenhos do papel. Ver o comentário no laço. */
+const MAPA_REDESENHO = 0.125;
+
+let ateRedesenhar = 0;
+let ateVarrer = 0;
+
+const olhoDoJogador = new THREE.Vector3();
+const frenteDoJogador = new THREE.Vector3();
+const cegoNaVarredura = new Set();
+
+const agoraMs = () => (typeof performance !== 'undefined' ? performance.now() : 0);
+
+/**
+ * O que o JOGADOR está vendo vira sinalização pro time dele.
+ *
+ * O bot sinaliza pelo cérebro; o jogador não tem cérebro de bot, então é aqui
+ * que os olhos dele entram na conta. A ordem das peneiras é a mesma de
+ * `avistar` (distância, cone, e só então a linha de visão), e a varredura roda
+ * a 6 Hz — todo quadro seria um raycast por inimigo à vista pra alimentar um
+ * dado que dura trinta segundos.
+ */
+function varrerParaOJogador(delta) {
+  const { player, world, ballistics, deteccao } = game;
+
+  ateVarrer -= delta;
+  if (ateVarrer > 0) return;
+  ateVarrer = DETECCAO.VARREDURA;
+  if (!player.alive || player.spectating) return;
+
+  camera.getWorldPosition(olhoDoJogador);
+  camera.getWorldDirection(frenteDoJogador);
+
+  // O rumo tem que ser UNITÁRIO NO PLANO: `getWorldDirection` é unitário em
+  // 3D, e olhando pro chão a componente horizontal encolhe — o cone fecharia
+  // sozinho, e quem olhasse pra baixo pararia de enxergar quem está na frente.
+  const plano = Math.hypot(frenteDoJogador.x, frenteDoJogador.z) || 1;
+
+  varrerCampo({
+    deteccao,
+    alvos: world.targets,
+    time: player.team,
+    x: olhoDoJogador.x,
+    z: olhoDoJogador.z,
+    dirX: frenteDoJogador.x / plano,
+    dirZ: frenteDoJogador.z / plano,
+    /**
+     * O alcance de vista É o alcance da bala, e sai da MESMA constante.
+     *
+     * `BULLET.RANGE_MAX` é o teto de 600 m que o sistema crava em toda bala.
+     * Sinalizar mais longe que isso marcaria no radar do time gente em que
+     * ninguém pode atirar; menos, esconderia alvo que a arma alcança. Um
+     * número próprio aqui seria a segunda fonte de verdade sobre distância, e
+     * as duas se separariam no primeiro ajuste — foi exatamente esse o defeito
+     * das armas que declaravam `range: Infinity`.
+     */
+    alcance: BULLET.RANGE_MAX,
+    campo: THREE.MathUtils.degToRad(DETECCAO.CAMPO),
+    temLinha: (alvo) => {
+      // Alvo não barra a linha até si mesmo. Sexta vez que este invariante
+      // aparece nesta base, e aqui o sintoma seria mudo: ninguém nunca
+      // apareceria no radar, e nada no console diria por quê.
+      cegoNaVarredura.clear();
+      if (alvo.collider) cegoNaVarredura.add(alvo.collider);
+      return !ballistics.blocked(olhoDoJogador, alvo.center(), cegoNaVarredura);
+    }
+  });
+}
+
 function frame() {
   const {
     world, player, viewmodel, drops, attack, ballistics, firearm, digging,
     watchdog, capture, bots, snapshot, killfeed, corpo, sparks, spoils, veiculos,
-    paraAtualizar
+    paraAtualizar, mapa, deteccao
   } = game;
 
   // clamp evita salto gigante quando a aba volta do background
@@ -433,6 +532,20 @@ function frame() {
   // A tecla é lida aqui e a foto é tirada depois do render: o canvas só tem
   // conteúdo entre uma coisa e outra.
   snapshot.poll();
+
+  // O relógio da sinalização anda pelo DELTA, não por `performance.now()`:
+  // sob tempo virtual aquele congela, e contato que não envelhece passaria
+  // verde em qualquer teste.
+  deteccao.avancar(delta);
+
+  /**
+   * M levanta e abaixa o mapa, e é lido ANTES do jogador.
+   *
+   * Ele decide se a entrada de andar vale neste quadro (`player.lendoMapa`),
+   * e lido no fim do laço a decisão chegaria um quadro atrasada — o soldado
+   * daria um passo depois de já estar com o papel na cara.
+   */
+  if (consumePress(...MAP_KEYS)) flow.alternarMapa();
 
   /**
    * Os veículos ANTES de tudo o que lê tecla, e antes do jogador.
@@ -458,21 +571,48 @@ function frame() {
    * do jipe é `veiculos/vista.js`.
    */
   const dirigindo = Boolean(player.vehicle);
-  if (player.isLocked && !dirigindo) {
+
+  /**
+   * Quem lê mapa está parado, com as duas mãos ocupadas.
+   *
+   * Dirigindo não dá: as mãos estão no volante, e o corpo não é dele. De
+   * fantasma também não — ele não tem mapa nem corpo pra segurar um.
+   */
+  player.lendoMapa = flow.mapaAberto && !dirigindo && !player.spectating;
+
+  // O ponteiro SOLTO esconde a mira e devolve o cursor do navegador: com o
+  // mapa aberto o jogador aponta pra folha, e duas miras na tela — o cursor
+  // e a cruz do HUD — são uma a mais.
+  document.body.classList.toggle('lendo-mapa', player.lendoMapa);
+
+  /**
+   * Lendo o mapa, `isLocked` é FALSO de propósito, e mesmo assim o jogador
+   * atualiza.
+   *
+   * O mapa solta o ponteiro, e a condição de sempre (`isLocked`) desligaria
+   * gravidade, piso e colisão junto — quem abrisse o mapa no meio de um pulo
+   * ficaria pendurado no ar. Só a ENTRADA é cortada, e quem corta é
+   * `locomotion.js`.
+   */
+  if ((player.isLocked || player.lendoMapa) && !dirigindo) {
     player.update(delta);
     if (!player.spectating) viewmodel.update(delta, player);
   }
 
   // Espectador não larga item, não golpeia e não atira: ele não está no jogo.
   // E quem está no VOLANTE tem as duas mãos ocupadas — passageiro atira.
-  const maosLivres = !dirigindo || !player.vehicle.lugar.def.dirige;
+  // Com o mapa aberto as mãos estão no papel: não se atira, não se golpeia,
+  // não se cava e não se apanha nada do chão. É a mesma regra do volante,
+  // pela mesma razão — e é o que faz abrir o mapa custar alguma coisa.
+  const maosLivres = (!dirigindo || !player.vehicle.lugar.def.dirige)
+    && !player.lendoMapa;
   if (!player.spectating) {
-    if (!dirigindo) drops.update(delta);
+    if (!dirigindo && !player.lendoMapa) drops.update(delta);
     if (maosLivres) {
       attack.update(delta);
       firearm.update(delta);
     }
-    if (!dirigindo) digging.update(delta);
+    if (!dirigindo && !player.lendoMapa) digging.update(delta);
   }
   if (dirigindo && maosLivres) viewmodel.update(delta, player);
 
@@ -492,6 +632,59 @@ function frame() {
     viewmodel.soltarVolante();
   }
   corpo.visible = !dirigindo;
+
+  /**
+   * O mapa de papel: sobe, desce, e enquanto está na mão é redesenhado.
+   *
+   * Redesenhar não é de graça — são 590 mil pixels de canvas por chamada —,
+   * então ele acontece a 8 Hz e não a 60. Nada no papel muda mais rápido que
+   * isso: tropa anda a 5 m/s e uma bandeira leva trinta segundos.
+   */
+  const mapaGuardado = mapa.animar(delta, player.lendoMapa);
+  if (!mapaGuardado) {
+    viewmodel.segurarMapa(mapa);
+
+    ateRedesenhar -= delta;
+    if (ateRedesenhar <= 0) {
+      ateRedesenhar = MAPA_REDESENHO;
+      mapa.redesenhar(agoraMs());
+    }
+
+    /**
+     * Apontar e clicar: o mapa aberto solta o ponteiro.
+     *
+     * O papel não é uma tela — é um objeto na frente do rosto —, então o que
+     * responde não é um `click` num canvas e sim um raio pelo CURSOR, contra a
+     * malha do papel. `mousePosition` só vale com o ponteiro solto, e é
+     * exatamente esse o caso aqui.
+     *
+     * E marcar não é instantâneo: a mão direita larga a borda, carimba o lugar
+     * e volta. A marca entra no papel no quadro em que ela ENCOSTA — mesma
+     * ideia do golpe e da pazada.
+     */
+    if (player.lendoMapa && !mapa.carimbando && consumeClick()) {
+      const cursor = mousePosition();
+      const ponto = mapa.sobPonteiro(
+        (cursor.x / innerWidth) * 2 - 1,
+        -(cursor.y / innerHeight) * 2 + 1,
+        viewmodel.camera
+      );
+      const alvo = ponto ? mapa.desenho.mundoDe(ponto.u, ponto.v) : null;
+      // Fora da ilha o dedo não faz nada: marca no mar aberto aponta pra um
+      // lugar aonde ele não pode ir.
+      if (alvo && dentroDoMapa(alvo.x, alvo.z)) {
+        mapa.carimbar(ponto.u, ponto.v, () => {
+          alternarMarcacao(alvo.x, alvo.z, APAGA_RAIO);
+          // Redesenho no quadro seguinte: a marca tem que aparecer junto com
+          // o carimbo, e não no próximo refresco de oito em oito quadros.
+          ateRedesenhar = 0;
+        });
+      }
+    }
+  }
+
+  varrerParaOJogador(delta);
+
   ballistics.update(delta, world.targets, world.terrain);
   sparks.update(delta);
   spoils.update(delta);
@@ -516,16 +709,6 @@ function frame() {
   bots.update(delta, camera.position);
 
   // tecla de teste enquanto nada causa dano de verdade ao jogador
-  /**
-   * M abre e fecha o mapa grande.
-   *
-   * Lido aqui e não em `flow.js` porque tecla de jogo é do laço: o fluxo
-   * conhece fases e telas, não `consumePress`. E ele é lido mesmo com a tela
-   * aberta — é assim que M fecha o que M abriu.
-   */
-  if (consumePress(...MAP_KEYS)) flow.alternarMapa();
-  if (flow.mapaAberto) game.mapa.desenhar();
-
   // F3 é lido no laço pelo mesmo motivo que o M: tecla de jogo é do laço, e
   // ele tem que responder com o painel já aberto pra poder fechar.
   game.ajustes.update();

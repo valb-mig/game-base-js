@@ -38,6 +38,49 @@ export function paraMundo(corpo, lx, ly, lz, saida = {}) {
 }
 
 /**
+ * O caminho de volta: um vetor do MUNDO trazido pro sistema do corpo.
+ *
+ * É a transposta de `paraMundo`, desfeita na ordem inversa (Ry, depois Rx,
+ * depois Rz). Escrita à mão e não por matriz: são nove multiplicações, roda
+ * por bala e por quadro, e um `Matrix4` aqui seria uma alocação por tiro.
+ *
+ * Ela existe porque a bala vai pro sistema do ALVO, e não as caixas pro mundo
+ * — a mesma decisão do soldado. Só que o soldado gira em UM eixo e o veículo
+ * gira em três, e é por isso que o yaw sozinho não servia: numa ladeira o
+ * jipe cai e rola, e a hitbox ficava reta enquanto a carroceria inclinava.
+ */
+export function vetorParaLocal(corpo, wx, wy, wz, saida = {}) {
+  const senR = Math.sin(corpo.roll);
+  const cosR = Math.cos(corpo.roll);
+  const senP = Math.sin(corpo.pitch);
+  const cosP = Math.cos(corpo.pitch);
+  const senY = Math.sin(corpo.yaw);
+  const cosY = Math.cos(corpo.yaw);
+
+  // Ry⁻¹
+  const x1 = wx * cosY - wz * senY;
+  const z2 = wx * senY + wz * cosY;
+  // Rx⁻¹
+  const y1 = wy * cosP + z2 * senP;
+  saida.z = -wy * senP + z2 * cosP;
+  // Rz⁻¹
+  saida.x = x1 * cosR + y1 * senR;
+  saida.y = -x1 * senR + y1 * cosR;
+  return saida;
+}
+
+/** Um PONTO do mundo em coordenadas do MODELO. O inverso de `pontoDoCasco`. */
+export function pontoParaLocal(ficha, corpo, wx, wy, wz, saida = {}) {
+  vetorParaLocal(corpo,
+    wx - corpo.x,
+    wy - (corpo.y + ficha.ALTURA_CM),
+    wz - corpo.z,
+    saida);
+  saida.y += ficha.ALTURA_CM;
+  return saida;
+}
+
+/**
  * O mesmo vetor, mas SEM o giro: só caimento e rolagem aplicados.
  *
  * É o braço de alavanca certo pro torque. `tRoll` e `tPitch` são momentos em

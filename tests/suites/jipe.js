@@ -15,12 +15,16 @@ import { MP40 } from '../../src/items/classes.js';
 import { resolverComandos } from '../../src/veiculos/piloto.js';
 import { tetoDeEsterco, forcaDoMotor } from '../../src/veiculos/atitude.js';
 import { createBallistics } from '../../src/items/ballistics.js';
+import { pontoDoCasco, pontoParaLocal } from '../../src/veiculos/casco.js';
 import * as THREE from 'three';
 import {
   criarDano, posturaDe, PNEU_INTEIRO, PNEU_FURADO, PNEU_ARREBENTADO,
   APRUMADO, CAPOTADO, INUTILIZADO, VIDA
 } from '../../src/veiculos/dano.js';
 import { GRAMA, ESTRADA, TERRA } from '../../src/world/ground.js';
+import { PLAYER } from '../../src/config.js';
+
+const PLAYER_STEP = PLAYER.STEP_HEIGHT;
 
 const DT = 1 / 60;
 const G = 9.81;
@@ -374,6 +378,85 @@ export async function run() {
   eq('sem furar os outros', jipe.dano.pneuDe('RR').estado, PNEU_INTEIRO);
   ok('e o veículo não morre de tiro no pneu', jipe.dano.andando);
 
+  suite('jipe · a hitbox INCLINA com a carroceria');
+
+  /**
+   * O jipe passa a partida numa ladeira, e a hitbox dele ficava RETA.
+   *
+   * A balística leva a bala pro sistema do ALVO com um yaw — e um yaw descreve
+   * a pose inteira de um soldado, que fica em pé. O veículo cai e rola: com o
+   * giro sozinho, as caixas ficavam niveladas por cima de uma carroceria
+   * pendida, e um tiro que a silhueta diz que acerta passava reto (e o
+   * contrário também). Hoje quem converte é o alvo, quando ele sabe —
+   * `paraLocal`/`vetorParaLocal` —, e o soldado continua caindo no yaw.
+   */
+
+  // A ida e a volta têm que fechar: sem isso, todo o resto mede outra coisa.
+  const provaCorpo = criarFisica(JIPE, {});
+  provaCorpo.x = 12;
+  provaCorpo.y = 3;
+  provaCorpo.z = -7;
+  provaCorpo.yaw = 0.9;
+  provaCorpo.pitch = -0.35;
+  provaCorpo.roll = 0.55;
+
+  const ida = pontoDoCasco(JIPE, provaCorpo, 0.31, 1.02, -0.77, {});
+  const volta = pontoParaLocal(JIPE, provaCorpo, ida.x, ida.y, ida.z, {});
+  near('a volta devolve o x local', volta.x, 0.31, 1e-9);
+  near('e o y', volta.y, 1.02, 1e-9);
+  near('e o z', volta.z, -0.77, 1e-9);
+
+  const mundoPendido = mundo();
+  const pendido = criarVeiculo(cena, mundoPendido, { ficha: JIPE, x: 0, z: 0, yaw: 0 });
+  // Posto rolado à mão: o que se quer provar é a GEOMETRIA da hitbox, e fazer
+  // a física achar uma ladeira com exatamente este ângulo seria medir outra
+  // coisa junto.
+  pendido.corpo.roll = 0.6;
+  pendido.desenhar();
+  pendido.moverColisor();
+
+  const latariaPendida = regioesDoVeiculo(JIPE).find((r) => r.regiao.nome === 'carroceria');
+  // Um ponto BEM dentro da caixa da carroceria, alto e do lado que a rolagem
+  // levanta (+x é a esquerda; rolagem positiva sobe esse lado).
+  const alvoLocal = { x: latariaPendida.maxX * 0.95, y: latariaPendida.maxY * 0.97, z: 0 };
+  const noMundo = pendido.paraMundo(alvoLocal.x, alvoLocal.y, alvoLocal.z, {});
+
+  /**
+   * Esta asserção é a prova de que o yaw sozinho não servia: a caixa NIVELADA
+   * acaba em `feetY + maxY`, e o ponto que se vai acertar está acima disso.
+   * Um teste que só disparasse e conferisse "acertou" passaria verde com a
+   * hitbox reta, porque o jipe é um volume grande e quase tudo acerta alguma
+   * coisa.
+   */
+  const tetoNivelado = pendido.feetY + latariaPendida.maxY;
+  ok('o ponto de prova está ACIMA de onde a caixa nivelada acabaria',
+    noMundo.y > tetoNivelado + 0.15,
+    `${noMundo.y.toFixed(3)} contra ${tetoNivelado.toFixed(3)} m`);
+
+  const balisticaPendida = createBallistics({ add() {}, remove() {} }, mundoPendido.colliders);
+  let regiaoDoPendido = null;
+  let acertouPendido = 0;
+  balisticaPendida.onHit((r) => {
+    if (r.target !== pendido) return;
+    acertouPendido++;
+    regiaoDoPendido = r.regiao?.nome ?? null;
+  });
+
+  // De cima pra baixo, curto: o ponto de prova é o mais alto naquela coluna, e
+  // um trecho curto não alcança mais nada se errar.
+  const deCima = new THREE.Vector3(noMundo.x, noMundo.y + 1.2, noMundo.z);
+  const paraBaixo = new THREE.Vector3(0, -1, 0);
+  balisticaPendida.spawn(deCima, paraBaixo, { damage: 5, range: 1.6, gravity: 0, owner: null });
+  for (let i = 0; i < 20 && balisticaPendida.bullets.length; i++) {
+    balisticaPendida.update(DT, [pendido], null);
+  }
+  eq('e a bala acerta a carroceria ali', regiaoDoPendido, 'carroceria');
+  ok('uma vez só', acertouPendido === 1);
+
+  note('hitbox inclinada',
+    `roda ${(0.6 * 180 / Math.PI).toFixed(0)}° · ponto a `
+    + `${(noMundo.y - tetoNivelado).toFixed(2)} m acima do teto nivelado`);
+
   suite('jipe · assentos');
 
   const lugares = criarAssentos(JIPE);
@@ -712,6 +795,53 @@ export async function run() {
   ok('e bater machuca a carroceria',
     bate.dano.componentes.carroceria < VIDA.carroceria,
     `${bate.dano.componentes.carroceria.toFixed(0)} de ${VIDA.carroceria}`);
+
+  suite('jipe · degrau: o que é piso não pode ser parede');
+
+  /**
+   * O jipe parava na frente de um meio-fio de 40 cm.
+   *
+   * Eram DOIS números pro mesmo corpo: `sondar` aceitava topo de colisor até
+   * `corpo.y + 0,45` como chão — o `STEP_HEIGHT` de 0,35 do JOGADOR mais uma
+   * folga de 0,1 — e `barrado` chamava de parede tudo acima de `corpo.y +
+   * 0,25`. Na faixa entre os dois a mesma laje era piso pra suspensão e muro
+   * pra colisão, e o veículo ficava encostado nela acelerando. Hoje as duas
+   * leem `ficha.DEGRAU`, que é o raio da roda.
+   */
+  const laje = (altura) => ({
+    box: new THREE.Box3(
+      new THREE.Vector3(-20, -2, 14), new THREE.Vector3(20, altura, 400)),
+    standable: true
+  });
+
+  const wDegrau = mundo();
+  wDegrau.colliders.push(laje(0.30));
+  const sobe = criarVeiculo(cena, wDegrau, { ficha: JIPE, x: 0, z: 0, yaw: 0 });
+  for (let i = 0; i < 60 * 8; i++) sobe.passo(DT, { acelerar: 1 }, []);
+  // A laje é LONGA de propósito: com ela acabando em 60 m, oito segundos de
+  // aceleração levavam o jipe pra fora dela e a medida da altura pegava o
+  // terreno do outro lado. O teste passava a primeira asserção e falhava a
+  // segunda, dizendo que ele não tinha subido — quando tinha subido e descido.
+  ok('um degrau de 30 cm é subido', sobe.corpo.z > 20, `z ${sobe.corpo.z.toFixed(1)}`);
+  near('e o veículo fica EM CIMA dele', sobe.corpo.y, 0.30, 0.12);
+  ok('sem decolar no caminho', sobe.corpo.y < 1.2, sobe.corpo.y.toFixed(2));
+
+  /**
+   * E o teto continua sendo teto: acima do raio da roda ela bate no flanco em
+   * vez de rolar por cima. Sem esta metade, "arrumar o degrau" viraria "o jipe
+   * escala muro", que é pior que o defeito.
+   */
+  const wMuroBaixo = mundo();
+  wMuroBaixo.colliders.push(laje(0.85));
+  const para = criarVeiculo(cena, wMuroBaixo, { ficha: JIPE, x: 0, z: 0, yaw: 0 });
+  for (let i = 0; i < 60 * 8; i++) para.passo(DT, { acelerar: 1 }, []);
+  ok('um degrau de 85 cm ainda barra', para.corpo.z < 14,
+    `z ${para.corpo.z.toFixed(1)}`);
+  ok('e ele não sobe nele', para.corpo.y < 0.3, para.corpo.y.toFixed(2));
+
+  note('degrau do veículo',
+    `${(JIPE.DEGRAU * 100).toFixed(0)} cm (raio da roda) contra `
+    + `${(PLAYER_STEP * 100).toFixed(0)} cm do soldado`);
 
   suite('jipe · a hitbox é medida da malha');
 

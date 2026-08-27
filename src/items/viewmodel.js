@@ -194,6 +194,32 @@ export class Viewmodel {
     return this.#alvoDaMao.set(ponto.x * fator, ponto.y * fator, ponto.z);
   }
 
+  /**
+   * As duas mãos no PAPEL, e a arma fora da mão.
+   *
+   * Mesma ideia do volante, e pela mesma razão: quem está lendo um mapa com as
+   * duas mãos não pode estar segurando uma MP40, e sem esconder o item ele
+   * ficaria congelado no meio da tela — `update` não roda pra quem está com o
+   * mapa aberto.
+   *
+   * Os pontos das mãos já vêm no espaço da câmera, que é o espaço desta cena.
+   * Ao contrário do volante, aqui não há conversão de FOV nenhuma pra fazer: o
+   * papel é desenhado por ESTA câmera, não pela do jogo.
+   */
+  segurarMapa(mapa) {
+    if (mapa.grupo.parent !== this.scene) this.scene.add(mapa.grupo);
+    if (!mapa.grupo.visible) {
+      this.soltarVolante();
+      return;
+    }
+    if (this.item) this.item.visible = false;
+    if (this.mag) this.mag.visible = false;
+    this.bracos.visible = true;
+    const { esq, dir } = mapa.maos();
+    this.bracos.esq.mirar(esq);
+    this.bracos.dir.mirar(dir);
+  }
+
   /** Devolve a arma pra mão. Idempotente: roda todo quadro fora do volante. */
   soltarVolante() {
     if (this.item && !this.item.visible) this.item.visible = true;

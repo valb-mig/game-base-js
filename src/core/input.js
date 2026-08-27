@@ -39,7 +39,26 @@ export function initInput() {
 const buttons = new Set();
 const freshButtons = new Set();
 
+/**
+ * Onde o ponteiro está na janela, em pixels.
+ *
+ * Só faz sentido com o ponteiro SOLTO: travado, o navegador para de mexer em
+ * `clientX`/`clientY` e só entrega `movementX`/`movementY` — que é o que o
+ * PointerLockControls consome pra girar a cabeça. Quem lê isto tem que saber
+ * em que dos dois estados está.
+ */
+const pointer = { x: 0, y: 0 };
+
+export function mousePosition() {
+  return pointer;
+}
+
 export function initMouse(target = window) {
+  target.addEventListener('mousemove', (event) => {
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+  });
+
   target.addEventListener('mousedown', (event) => {
     if (!buttons.has(event.button)) freshButtons.add(event.button);
     buttons.add(event.button);

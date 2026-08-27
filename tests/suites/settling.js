@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { createSettling } from '../../src/world/settling.js';
 import { createDeform, DEFORM } from '../../src/world/deform.js';
+import { collides, groundHeightAt } from '../../src/player/collision.js';
+import { intervaloVertical } from '../../src/world/caixagirada.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -28,18 +30,14 @@ function bancada() {
 }
 
 /**
- * O volume que a colisão enxerga de um prop: a união das caixas dele.
+ * A caixa ENVOLVENTE do prop, que é o que o índice espacial guarda.
  *
- * Um prop tombado tem VÁRIAS, fatiadas ao longo do corpo — comparar só
- * `prop.collider` com o desenho compara um oitavo dele com o todo.
+ * Ela deixou de ser o que a colisão consulta de fato — quem responde num prop
+ * tombado é a caixa GIRADA —, mas continua sendo a peneira e continua tendo
+ * que envolver o corpo inteiro.
  */
 function caixaDe(prop) {
-  const uniao = new THREE.Box3();
-  const caixas = prop.fatias
-    ? prop.fatias.map((f) => f.colisor.box)
-    : [prop.collider.box];
-  for (const caixa of caixas) uniao.union(caixa);
-  return uniao;
+  return prop.collider.box;
 }
 
 /** Prop de uma malha só, como uma parede. */
@@ -171,11 +169,20 @@ export function run() {
   note('caixa tombada', `${larguraCaida.toFixed(2)} m de largura,` +
     ` ${(caixa.max.y - caixa.min.y).toFixed(2)} m de altura`);
 
-  suite('corpo comprido tombado vira várias caixas');
+  suite('corpo comprido tombado ganha caixa GIRADA, não oito fatias');
 
-  // Reportado com foto: uma barra na diagonal virava uma caixa gigante
-  // alinhada aos eixos, e o jogador esbarrava em ar longe dela. Uma caixa só
-  // não representa corpo diagonal.
+  /**
+   * Reportado com foto, duas vezes.
+   *
+   * Na primeira, uma barra na diagonal virava uma caixa gigante alinhada aos
+   * eixos e o jogador esbarrava em ar longe dela; a resposta foi FATIAR o
+   * corpo em oito caixas curtas. Na segunda, a foto era da própria escada de
+   * fatias — oito caixas em degrau em volta de uma parede caída, cada uma
+   * ainda maior que o pedaço que representa.
+   *
+   * A resposta agora é a do veículo: uma caixa só, no sistema do corpo, e
+   * quem pergunta leva a pergunta pra lá. Exata, e uma.
+   */
   const mundo6 = bancada();
   const barra = new THREE.Mesh(new THREE.BoxGeometry(12, 1, 0.7));
   barra.position.set(0, 0.5, 0);
@@ -190,58 +197,116 @@ export function run() {
   });
 
   eq('em pé, ela é uma caixa só', mundo6.colliders.length, 1);
+  ok('e em pé ela não precisa de caixa girada', !colisorBarra.girado);
 
   mundo6.cavar(0, 0, -DEFORM.FUNDO * 4);
-  // giro PELA PONTA: é o caso da foto, e o que faz a caixa única inchar
+  // giro PELA PONTA: é o caso da foto, e o que faz a envolvente inchar
   mundo6.settling.update(DT);
   propBarra.eixoX = 0;
   propBarra.eixoZ = 1;
   mundo6.rodar(8);
 
-  ok('tombada, ela vira várias', mundo6.colliders.length > 1,
-    `${mundo6.colliders.length} caixas`);
-  eq('e o prop guarda as fatias', propBarra.fatias.length, mundo6.colliders.length);
+  eq('tombada, ela CONTINUA sendo uma caixa só', mundo6.colliders.length, 1);
+  ok('e ganha a conversão pro sistema dela', Boolean(colisorBarra.girado));
 
-  // O que não pode acontecer: buraco entre as fatias. Elas são pedaços
-  // contíguos da caixa de pé passados pela mesma matriz, então a união tem
-  // que conter o desenho inteiro — senão dá pra atravessar a barra.
   barra.updateMatrixWorld(true);
   const desenhoBarra = new THREE.Box3().setFromObject(barra);
-  const uniao = new THREE.Box3();
-  for (const fatia of propBarra.fatias) uniao.union(fatia.colisor.box);
-
-  const folga = 0.02;
-  ok('a união das fatias cobre o corpo inteiro',
-    uniao.min.x <= desenhoBarra.min.x + folga && uniao.max.x >= desenhoBarra.max.x - folga &&
-    uniao.min.y <= desenhoBarra.min.y + folga && uniao.max.y >= desenhoBarra.max.y - folga,
-    `união ${uniao.min.y.toFixed(2)}..${uniao.max.y.toFixed(2)}` +
-    ` · desenho ${desenhoBarra.min.y.toFixed(2)}..${desenhoBarra.max.y.toFixed(2)}`);
-
-  // E o ganho: somadas, as fatias ocupam muito menos ar que a caixa única.
   const volume = (b) => {
     const t = b.getSize(new THREE.Vector3());
     return t.x * t.y * t.z;
   };
-  const somaFatias = propBarra.fatias.reduce((n, f) => n + volume(f.colisor.box), 0);
-  ok('e elas ocupam bem menos ar que uma caixa só',
-    somaFatias < volume(uniao) * 0.55,
-    `${somaFatias.toFixed(1)} m³ contra ${volume(uniao).toFixed(1)} da caixa única`);
+  const corpo = 12 * 1 * 0.7;
+  const inchada = volume(colisorBarra.box);
+
+  // A ENVOLVENTE continua inchada — é o que ela é, e é por isso que ela não
+  // pode ser a resposta final. O índice espacial usa ela e está certo.
+  ok('a envolvente é bem maior que o corpo', inchada > corpo * 2,
+    `${inchada.toFixed(1)} m³ contra ${corpo.toFixed(1)} do corpo`);
+  ok('e ela cobre o desenho inteiro, que é o trabalho dela',
+    colisorBarra.box.min.y <= desenhoBarra.min.y + 0.02
+    && colisorBarra.box.max.y >= desenhoBarra.max.y - 0.02);
+
+  /**
+   * O que prova o conserto é a COLISÃO, não a caixa.
+   *
+   * Um ponto dentro da envolvente e longe do corpo tinha que ser ar — e era
+   * parede na versão de uma caixa só, e degrau na versão fatiada. Ele é
+   * escolhido pela geometria: a barra caiu pra um lado, então o canto oposto
+   * da envolvente, no alto, está garantidamente vazio.
+   */
+  const alto = colisorBarra.box.max.y - 0.4;
+  const noAr = { x: 0, z: colisorBarra.box.min.z + 0.2 };
+  const noCorpo = { x: 0, z: 0 };
+
+  const faixaNoAr = intervaloVertical(colisorBarra.girado, noAr.x, noAr.z);
+  ok('o canto vazio da envolvente é AR pra caixa girada',
+    !faixaNoAr || faixaNoAr.sai < alto,
+    faixaNoAr ? `entra ${faixaNoAr.entra.toFixed(2)} sai ${faixaNoAr.sai.toFixed(2)}` : 'nenhuma');
+  ok('e a colisão concorda',
+    !collides(mundo6.colliders, noAr.x, noAr.z, alto, 1.7));
+
+  // E o corpo continua sendo corpo: consertar "o jogador esbarra em ar" não
+  // pode virar "o jogador atravessa a barra".
+  const faixaNoCorpo = intervaloVertical(colisorBarra.girado, noCorpo.x, noCorpo.z);
+  ok('em cima do corpo a vertical cruza a caixa', Boolean(faixaNoCorpo));
+  ok('e ali a colisão barra',
+    collides(mundo6.colliders, noCorpo.x, noCorpo.z,
+      faixaNoCorpo.sai - 0.9, 1.7));
+
   note('barra de 12 m tombada',
-    `${propBarra.fatias.length} fatias · ${somaFatias.toFixed(1)} m³` +
-    ` contra ${volume(uniao).toFixed(1)} m³`);
+    `1 colisor · corpo ${corpo.toFixed(1)} m³ · envolvente ${inchada.toFixed(1)} m³`);
 
-  suite('prop curto não é fatiado');
+  suite('o topo de um prop tombado é INCLINADO');
 
-  // Fatiar tudo trocaria um problema visível por um invisível: oito colisores
-  // por árvore do mapa seriam milhares a mais pra colisão varrer.
-  const mundo7 = bancada();
-  const pedra = poste(mundo7, 0, 0, 1);
-  mundo7.colliders.push(pedra.collider);
-  mundo7.cavar(0, 0);
-  mundo7.rodar(6);
-  ok('um prop baixo continua com uma caixa só',
-    !pedra.prop.fatias || pedra.prop.fatias.length <= 1,
-    `${pedra.prop.fatias?.length ?? 1} caixa(s)`);
+  /**
+   * O ganho que a escada de fatias nunca deu: a caixa girada tem topo
+   * inclinado, então andar por cima de uma parede caída sobe junto com ela.
+   * Com fatias, o topo de cada degrau era plano e o jogador subia em pulos.
+   */
+  const mundoTopo = bancada();
+  const laje = new THREE.Mesh(new THREE.BoxGeometry(10, 0.8, 3));
+  laje.position.set(0, 0.4, 0);
+  laje.updateMatrix();
+  const colisorLaje = {
+    box: new THREE.Box3(new THREE.Vector3(-5, 0, -1.5), new THREE.Vector3(5, 0.8, 1.5)),
+    standable: true
+  };
+  mundoTopo.colliders.push(colisorLaje);
+  const propLaje = mundoTopo.settling.register({
+    x: 0, z: 0, baseY: 0, radius: 5, collider: colisorLaje, parts: [{ mesh: laje }]
+  });
+  mundoTopo.cavar(0, 0, -DEFORM.FUNDO * 4);
+  mundoTopo.settling.update(DT);
+  propLaje.eixoX = 0;
+  propLaje.eixoZ = 1;
+  mundoTopo.rodar(8);
+
+  /**
+   * As sondas ficam DENTRO da laje caída, e isso não é detalhe.
+   *
+   * Tombada 66°, a laje de 10 m projeta uns 4 m no eixo X — sondar a 3 m do
+   * centro cai no vazio e `groundHeightAt` devolve o terreno, que aqui é um
+   * buraco de vários metros. A primeira versão deste teste media −99 e
+   * "passava" a asserção de que as pontas estão em alturas diferentes.
+   */
+  const topoEm = (x) => groundHeightAt(mundoTopo.colliders, x, 0, 6, -99);
+  const esquerda = topoEm(-1.2);
+  const meio = topoEm(0);
+  const direita = topoEm(1.2);
+
+  ok('há laje sobre as três sondas',
+    esquerda > -90 && meio > -90 && direita > -90,
+    `${esquerda.toFixed(2)} · ${meio.toFixed(2)} · ${direita.toFixed(2)}`);
+  ok('e o topo SOBE de um lado pro outro',
+    Math.abs(esquerda - direita) > 0.5,
+    `${esquerda.toFixed(2)} m contra ${direita.toFixed(2)} m`);
+  // O meio ENTRE as pontas é o que diz que é rampa: uma escada de fatias dava
+  // patamares planos, e o jogador subia a parede caída em pulos.
+  between('e o meio fica entre elas',
+    meio, Math.min(esquerda, direita) - 0.05, Math.max(esquerda, direita) + 0.05);
+  note('topo inclinado',
+    `x -1,2: ${esquerda.toFixed(2)} · x 0: ${meio.toFixed(2)}`
+    + ` · x 1,2: ${direita.toFixed(2)}`);
 
   suite('quem tem chão não se mexe');
 

@@ -101,6 +101,13 @@ export class Player {
      */
     this.vehicle = null;
 
+    /**
+     * O mapa aberto na mão. Quem mexe é o laço; quem lê é `locomotion.js`, que
+     * corta a entrada de andar, correr e pular, e o viewmodel, que troca a
+     * arma pelo papel. O corpo continua sob gravidade e colisão.
+     */
+    this.lendoMapa = false;
+
     // água — atualizado todo frame por updateWaterState
     this.spectating = false;   // fantasma: voa, não colide, não é atingido
     this.alive = true;

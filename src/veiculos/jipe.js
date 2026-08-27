@@ -61,6 +61,19 @@ export const JIPE = {
   PISO: 0.42,
 
   /**
+   * O degrau que ele SOBE, em metros. É o raio da roda, e não um número novo.
+   *
+   * Uma roda sobe um obstáculo até mais ou menos o próprio raio: acima disso
+   * ela bate no flanco em vez de rolar por cima. Derivar dele em vez de
+   * escrever 0,4 à mão é o que impede os dois de se separarem no dia em que a
+   * roda mudar de tamanho.
+   *
+   * Ele é maior que o `PLAYER.STEP_HEIGHT` (0,35) de propósito, e é por isso
+   * que o veículo precisa do próprio: a roda passa onde a bota não passa.
+   */
+  DEGRAU: RAIO_RODA,
+
+  /**
    * Suspensão. `TORRE` é onde a haste pendura no chassi, `HASTE_MAX` é ela
    * esticada e `CURSO` é o quanto ela tem pra comprimir.
    *

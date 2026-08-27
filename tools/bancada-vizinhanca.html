@@ -1,0 +1,73 @@
+<!doctype html><meta charset=utf-8><title>bancada · vizinhança</title>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</script>
+<pre id=out>medindo…</pre>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '/src/world/world.js';
+
+/**
+ * O que existe em volta de um ponto do mapa, e a que altura.
+ *
+ * Nasceu de "o carro não sobe esse pequeno relevo": a resposta era o
+ * TABULEIRO DA PONTE, 94 cm acima do chão ali — e nenhuma quantidade de
+ * raciocínio sobre `barrado` diria isso. Sondar o mapa custa uma medida e
+ * evita consertar o que não está quebrado.
+ *
+ * `?em=x,z` escolhe o ponto (o padrão é onde o defeito foi relatado) e
+ * `?raio=` o quanto se olha em volta. Roda em TEMPO REAL: sob orçamento
+ * virtual o relógio congela depois do primeiro import, e montar a ilha
+ * demora.
+ */
+const cena = new THREE.Scene();
+const mundo = buildWorld(cena);
+
+const busca = new URLSearchParams(location.search);
+const [X, Z] = (busca.get('em') ?? '-98.9,164.4').split(',').map(Number);
+const RAIO = Number(busca.get('raio') ?? 14);
+
+const chao = mundo.terrain.heightAt(X, Z);
+const linhas = [`chão em (${X}, ${Z}) = ${chao.toFixed(2)} m`];
+
+const perto = [];
+for (const c of mundo.colliders.todos ?? mundo.colliders) {
+  const b = c.box;
+  const dx = Math.max(b.min.x - X, 0, X - b.max.x);
+  const dz = Math.max(b.min.z - Z, 0, Z - b.max.z);
+  const d = Math.hypot(dx, dz);
+  if (d > RAIO) continue;
+  perto.push({ d, c, b });
+}
+perto.sort((a, b) => a.d - b.d);
+
+linhas.push(`${perto.length} colisores num raio de ${RAIO} m`);
+for (const { d, c, b } of perto.slice(0, 18)) {
+  linhas.push(
+    `  ${d.toFixed(2)} m · topo ${b.max.y.toFixed(2)} (${(b.max.y - chao).toFixed(2)} acima do chão)`
+    + ` · base ${b.min.y.toFixed(2)} · ${b.max.x - b.min.x > 0 ? `${(b.max.x - b.min.x).toFixed(1)}x${(b.max.z - b.min.z).toFixed(1)} m` : ''}`
+    + ` · ${c.standable ? 'pisável' : 'não pisável'}${c.balaPassa ? ' · lona' : ''}`);
+}
+
+// A PONTE: a laje larga e comprida em volta do ponto. Mede-se o desnível
+// entre o tabuleiro e o terreno ao longo dela, pra saber por onde se sobe.
+const tabuleiro = perto.map((r) => r.b)
+  .filter((b) => (b.max.z - b.min.z) > 40 && (b.max.x - b.min.x) > 4)[0];
+
+if (tabuleiro) {
+  linhas.push('');
+  linhas.push(`tabuleiro: x ${tabuleiro.min.x.toFixed(1)}..${tabuleiro.max.x.toFixed(1)}`
+    + ` · z ${tabuleiro.min.z.toFixed(1)}..${tabuleiro.max.z.toFixed(1)}`
+    + ` · topo ${tabuleiro.max.y.toFixed(2)}`);
+  const meioX = (tabuleiro.min.x + tabuleiro.max.x) / 2;
+  const passos = [];
+  for (let i = 0; i <= 20; i++) {
+    const z = tabuleiro.min.z - 6 + (tabuleiro.max.z - tabuleiro.min.z + 12) * (i / 20);
+    const h = mundo.terrain.heightAt(meioX, z);
+    passos.push(`z ${z.toFixed(0)}: chão ${h.toFixed(2)} · desnível ${(tabuleiro.max.y - h).toFixed(2)}`);
+  }
+  linhas.push(...passos);
+}
+
+document.getElementById('out').textContent = linhas.join('\n') + '\nFIM';
+console.log(linhas.join('\n'));
+console.log('FIM');
+</script>

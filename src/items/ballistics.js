@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BULLET } from '../config.js';
+import { raioNaCaixa } from '../world/caixagirada.js';
 
 /**
  * Balas em voo.
@@ -50,6 +51,10 @@ export function createBallistics(scene, colliders, {
   // Reaproveitados: resolver acerto é coisa de todo quadro, e alocar uma
   // lista de regiões por bala por alvo seria lixo por quadro.
   const corpo = [];
+  // Rascunhos da conversão pro sistema do alvo, pra quem sabe se converter
+  // (o veículo). Objetos fixos: são dois por bala por alvo por quadro.
+  const localA = {};
+  const localD = {};
   // Reaproveitado: uma lista nova por bala por quadro seria lixo por quadro.
   const noTrecho = [];
 
@@ -173,9 +178,27 @@ export function createBallistics(scene, colliders, {
       // barra o corpo e mais nada: tratar-se ali é risco, não abrigo, e sem
       // isto o pano viraria a melhor cobertura do mapa por acidente.
       if (collider.balaPassa) continue;
-      const point = ray.intersectBox(collider.box, hitPoint);
-      if (!point) continue;
-      const distance = start.distanceTo(point);
+
+      /**
+       * Colisor GIRADO responde por conta própria.
+       *
+       * A caixa envolvente de uma parede tombada na diagonal é seis vezes o
+       * corpo dela: o tiro morreria metros antes da chapa, no ar. É o mesmo
+       * motivo de a hitbox do veículo ter deixado de ser resolvida por um yaw
+       * só — quem sabe se converter converte, e o resto continua sendo AABB.
+       */
+      let distance;
+      if (collider.girado) {
+        const t0 = raioNaCaixa(collider.girado,
+          ray.origin.x, ray.origin.y, ray.origin.z,
+          ray.direction.x, ray.direction.y, ray.direction.z);
+        if (t0 === null) continue;
+        distance = t0;
+      } else {
+        const point = ray.intersectBox(collider.box, hitPoint);
+        if (!point) continue;
+        distance = start.distanceTo(point);
+      }
       if (distance > length) continue;
       const t = distance / length;
       if (nearest === null || t < nearest) nearest = t;
@@ -275,21 +298,48 @@ export function createBallistics(scene, colliders, {
       // o mesmo que o tiro na canela, e mirar deixaria de ser habilidade.
       const partes = target.body?.(corpo);
       if (partes) {
-        // A bala vai pro sistema do ALVO: uma conta por alvo, em vez de levar
-        // dezesseis caixas pro mundo. E é o que permite a caixa acompanhar
-        // quem gira sem recalcular nada.
-        const giro = target.yaw ?? 0;
-        const cos = Math.cos(giro);
-        const sen = Math.sin(giro);
-        const ox = from.x - target.x;
-        const oz = from.z - target.z;
+        /**
+         * A bala vai pro sistema do ALVO: uma conta por alvo, em vez de levar
+         * dezesseis caixas pro mundo. E é o que permite a caixa acompanhar
+         * quem gira sem recalcular nada.
+         *
+         * QUEM converte é o alvo, quando ele sabe. O soldado fica em pé e um
+         * yaw basta — é o caminho de baixo, e ele não mudou. O veículo gira em
+         * três eixos, e com o yaw sozinho a hitbox dele ficava nivelada por
+         * cima de um jipe tombado numa ladeira. Perguntar ao alvo em vez de
+         * empilhar caso especial aqui é o que mantém a balística sem saber que
+         * jipe existe.
+         */
+        let lax;
+        let lay;
+        let laz;
+        let ldx;
+        let ldy;
+        let ldz;
 
-        const lax = ox * cos - oz * sen;
-        const lay = from.y - (target.feetY ?? 0);
-        const laz = ox * sen + oz * cos;
-        const ldx = segment.x * cos - segment.z * sen;
-        const ldy = segment.y;
-        const ldz = segment.x * sen + segment.z * cos;
+        if (target.paraLocal) {
+          target.paraLocal(from.x, from.y, from.z, localA);
+          target.vetorParaLocal(segment.x, segment.y, segment.z, localD);
+          lax = localA.x;
+          lay = localA.y;
+          laz = localA.z;
+          ldx = localD.x;
+          ldy = localD.y;
+          ldz = localD.z;
+        } else {
+          const giro = target.yaw ?? 0;
+          const cos = Math.cos(giro);
+          const sen = Math.sin(giro);
+          const ox = from.x - target.x;
+          const oz = from.z - target.z;
+
+          lax = ox * cos - oz * sen;
+          lay = from.y - (target.feetY ?? 0);
+          laz = ox * sen + oz * cos;
+          ldx = segment.x * cos - segment.z * sen;
+          ldy = segment.y;
+          ldz = segment.x * sen + segment.z * cos;
+        }
 
         for (const parte of partes) {
           const t = caixaHit(lax, lay, laz, ldx, ldy, ldz, parte);

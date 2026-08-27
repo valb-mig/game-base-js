@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { PLAYER } from '../config.js';
+import { criarCaixaGirada } from './caixagirada.js';
 
 /**
  * O que fica sem chão, cai.
@@ -22,21 +24,21 @@ const TOMBO_POR_METRO = 1.6;   // quanto tombar por metro de queda
 const DESNIVEL_MIN = 0.06;     // abaixo disso o prop está apoiado, não flutuando
 const ASSENTA = 0.18;          // rapidez do endireitar final
 
-// Comprimento de cada fatia de colisor, em metros. Uma caixa alinhada aos
-// eixos não representa corpo diagonal: uma parede de 12 m tombada vira uma
-// caixa que ocupa todo o retângulo envolvente, e o jogador esbarra em ar.
-// Fatiando ao longo do corpo, cada pedaço é curto e a caixa dele cola nele.
-const FATIA = 1.4;
-const FATIAS_MAX = 8;
-
-// Quanto o lado comprido precisa sair da horizontal pra valer a pena fatiar.
-//
-// Fatiar tudo que tomba custou caro e adiantou pouco: derrubar 304 props num
-// mapa somava 1707 colisores, quase o triplo da lista, e a colisão varre ela
-// inteira todo quadro. Parede que deita de lado continua sendo bem descrita
-// por uma caixa — o que a caixa não descreve é corpo comprido de PONTA, e
-// esse é o único caso que ganha fatia.
-const INCLINACAO_MINIMA = 0.3;   // seno: uns 17°
+/**
+ * Prop tombado ganha uma caixa GIRADA, não oito caixas em escada.
+ *
+ * Fatiar foi a resposta anterior: uma caixa alinhada aos eixos não representa
+ * corpo diagonal (uma parede de 12 m deitada de ponta vira uma envolvente de
+ * 6,2 vezes o volume dela, e o jogador esbarra em ar), então o corpo era
+ * cortado em oito pedaços curtos, 2,0 vezes o volume. Melhor, e ainda errado:
+ * o jogador esbarrava nos DEGRAUS da escada e ficava de pé no ar em cima
+ * deles, e cada prop derrubado custava sete colisores a mais numa lista que a
+ * colisão varre todo quadro.
+ *
+ * A caixa girada é EXATA e é uma só. O preço é que quem consulta tem que
+ * saber convertê-la — e agora sabe: colisão, bala e veículo perguntam ao
+ * colisor, como já perguntavam ao veículo. Ver `world/caixagirada.js`.
+ */
 
 export function createSettling(terrain, colliders = null) {
   const props = [];
@@ -52,13 +54,8 @@ export function createSettling(terrain, colliders = null) {
   const porMalha = new Map();
 
   const matriz = new THREE.Matrix4();
-  const auxiliar = new THREE.Matrix4();
   const eixo = new THREE.Vector3();
   const canto = new THREE.Vector3();
-  const auxTamanho = new THREE.Vector3();
-  const fatiaMin = new THREE.Vector3();
-  const fatiaMax = new THREE.Vector3();
-  const direcaoLonga = new THREE.Vector3();
 
   /**
    * Registra um prop que pode desabar.
@@ -78,7 +75,6 @@ export function createSettling(terrain, colliders = null) {
       // Caixa de pé, guardada porque a de colisão é reescrita a cada quadro
       // da queda: sem o original, tombar duas vezes cresceria em cima de si.
       pegada: collider ? collider.box.clone() : null,
-      fatias: null,      // colisores extras, criados só quando ele cai
       eixoX: 1,
       eixoZ: 0,
       queda: 0,        // quanto já desceu
@@ -112,56 +108,6 @@ export function createSettling(terrain, colliders = null) {
       if (h > maior) maior = h;
     }
     return { centro, menor, maior };
-  }
-
-  /**
-   * Divide o colisor do prop em pedaços ao longo do lado mais comprido dele.
-   *
-   * Só acontece quando ele COMEÇA A CAIR: em pé, uma caixa já descreve o
-   * corpo com exatidão, e a esmagadora maioria dos props nunca cai. Pagar
-   * oito colisores por árvore do mapa inteiro seria trocar um problema
-   * visível por um invisível.
-   */
-  function fatiar(prop) {
-    if (prop.fatias || prop.semFatias || !prop.collider || !colliders) return;
-
-    const tamanho = prop.pegada.getSize(auxTamanho);
-    const eixoLongo = tamanho.x >= tamanho.y && tamanho.x >= tamanho.z ? 'x'
-      : tamanho.y >= tamanho.z ? 'y' : 'z';
-    const comprimento = tamanho[eixoLongo];
-
-    const quantas = Math.min(FATIAS_MAX,
-      Math.max(1, Math.round(comprimento / FATIA)));
-    if (quantas <= 1) {
-      prop.semFatias = true;
-      return;
-    }
-
-    // O lado comprido saiu da horizontal? Se ele continua deitado, uma caixa
-    // ainda o descreve bem, e fatiar só engordaria a lista de colisores.
-    direcaoLonga.set(
-      eixoLongo === 'x' ? 1 : 0,
-      eixoLongo === 'y' ? 1 : 0,
-      eixoLongo === 'z' ? 1 : 0
-    ).applyAxisAngle(eixo.set(prop.eixoX, 0, prop.eixoZ).normalize(), prop.tombo);
-
-    if (Math.abs(direcaoLonga.y) < INCLINACAO_MINIMA) return;
-
-    prop.eixoLongo = eixoLongo;
-    prop.fatias = [];
-
-    for (let i = 0; i < quantas; i++) {
-      // A primeira fatia reaproveita o colisor que já existe: trocá-lo faria
-      // sumir a caixa que outros sistemas já guardaram por referência.
-      const colisor = i === 0
-        ? prop.collider
-        : { box: new THREE.Box3(), standable: prop.collider.standable };
-      if (i > 0) colliders.push(colisor);
-
-      const de = prop.pegada.min[eixoLongo] + (comprimento * i) / quantas;
-      const ate = prop.pegada.min[eixoLongo] + (comprimento * (i + 1)) / quantas;
-      prop.fatias.push({ colisor, de, ate });
-    }
   }
 
   /** Guarda as matrizes de origem na hora em que o prop começa a cair. */
@@ -208,32 +154,6 @@ export function createSettling(terrain, colliders = null) {
       }
     });
 
-    if (prop.fatias) {
-      // Cada fatia é uma caixa de pé curta, passada pela mesma matriz. A
-      // união delas acompanha o corpo diagonal em vez de envolvê-lo.
-      for (const fatia of prop.fatias) {
-        fatiaMin.copy(prop.pegada.min);
-        fatiaMax.copy(prop.pegada.max);
-        fatiaMin[prop.eixoLongo] = fatia.de;
-        fatiaMax[prop.eixoLongo] = fatia.ate;
-
-        const caixa = fatia.colisor.box;
-        caixa.makeEmpty();
-        for (let i = 0; i < 8; i++) {
-          canto.set(
-            i & 1 ? fatiaMax.x : fatiaMin.x,
-            i & 2 ? fatiaMax.y : fatiaMin.y,
-            i & 4 ? fatiaMax.z : fatiaMin.z
-          ).applyMatrix4(matriz);
-          caixa.expandByPoint(canto);
-        }
-        // O índice espacial guarda em que células cada caixa está; sem avisar,
-        // ele continuaria apontando pro lugar onde a peça estava DE PÉ.
-        colliders?.moveu?.(fatia.colisor);
-      }
-      return;
-    }
-
     if (prop.collider) {
       // A caixa sai dos oito cantos da caixa de pé passados pela MESMA matriz
       // que move a malha. É o único jeito de ela não poder discordar do que
@@ -257,6 +177,22 @@ export function createSettling(terrain, colliders = null) {
         ).applyMatrix4(matriz);
         caixa.expandByPoint(canto);
       }
+
+      /**
+       * A envolvente continua existindo, e não é desperdício: é ela que o
+       * índice espacial guarda e é ela que peneira antes da conta cara. Quem
+       * dá a resposta FINA é a caixa girada, que é a pegada de pé mais a
+       * matriz — o mesmo par de coisas que move a malha, e por isso ela não
+       * pode discordar do que se vê.
+       */
+      if (!prop.collider.girado) {
+        prop.collider.girado = criarCaixaGirada({
+          minX: pegada.min.x, minY: pegada.min.y, minZ: pegada.min.z,
+          maxX: pegada.max.x, maxY: pegada.max.y, maxZ: pegada.max.z
+        }, PLAYER.RADIUS);
+      }
+      prop.collider.girado.escrever(matriz.elements);
+
       colliders?.moveu?.(prop.collider);
     }
   }
@@ -358,9 +294,6 @@ export function createSettling(terrain, colliders = null) {
           (apoio.maior - apoio.menor) * TOMBO_POR_METRO);
         prop.tombo += (prop.alvoTombo - prop.tombo) * Math.min(1, delta / ASSENTA);
 
-        // Só dá pra saber se vale fatiar depois de saber o quanto ele tombou,
-        // e o tombo cresce ao longo da queda.
-        fatiar(prop);
         aplicar(prop);
 
         const assentou = prop.queda >= destino - 1e-4

@@ -7,7 +7,7 @@ import {
 } from './dano.js';
 import { criarAssentos } from './assentos.js';
 import { criarJipe, jipePronto } from './modelo.js';
-import { pontoDoCasco } from './casco.js';
+import { pontoDoCasco, pontoParaLocal, vetorParaLocal } from './casco.js';
 import { regioesDoVeiculo } from './hitbox.js';
 import { atropelar } from './atropelamento.js';
 
@@ -58,7 +58,7 @@ export function criarVeiculo(scene, world, { ficha, x, z, yaw = 0 }) {
    * precisa do giro pra girar a pegada.
    */
   const corpo = criarFisica(ficha, {});
-  const sondar = sondarDe(world, corpo);
+  const sondar = sondarDe(world, corpo, ficha);
   const barrado = barradoDe(ficha, world, corpo, collider);
   corpo.mundo(sondar, barrado, (id) => dano.pneuDe(id));
   corpo.assentar(x, z, yaw);
@@ -110,13 +110,37 @@ export function criarVeiculo(scene, world, { ficha, x, z, yaw = 0 }) {
     },
 
     /**
-     * As regiões, no sistema do veículo. A bala vem pra cá com o giro
-     * aplicado, mas NÃO com o caimento e a rolagem — a balística resolve um
-     * ângulo só. Num veículo aprumado, que é como ele passa a partida, a
-     * diferença é milímetros; capotado, a caixa fica onde a carroceria
-     * estava, e acertar um jipe de barriga pra cima não é a situação que
-     * precisa de precisão.
+     * O veículo gira em TRÊS eixos, e por isso ele mesmo faz a conversão.
+     *
+     * O soldado fica em pé: um yaw descreve a pose dele inteira, e a balística
+     * leva a bala pro sistema dele com um seno e um cosseno. O veículo cai e
+     * rola — numa ladeira ele passa a partida inclinado —, e com o yaw sozinho
+     * a hitbox ficava RETA enquanto a carroceria pendia. O sintoma se vê no
+     * F2: as caixas vermelhas niveladas por cima de um jipe tombado.
+     *
+     * A saída não é transformar as onze caixas pro mundo (onze caixas por
+     * veículo por bala) e não é dar um quaternion pra balística: é o alvo
+     * responder as duas perguntas que ela faz — onde este PONTO cai no meu
+     * sistema, e pra onde aponta este VETOR. Quem não implementa continua
+     * caindo no yaw, e o soldado não mudou uma linha.
+     *
+     * O sistema é o do MODELO: origem no chão entre as rodas, +x à esquerda,
+     * +z na frente — o mesmo em que `hitbox.js` mede as regiões da malha.
      */
+    paraLocal(px, py, pz, out) {
+      return pontoParaLocal(ficha, corpo, px, py, pz, out);
+    },
+
+    vetorParaLocal(vx, vy, vz, out) {
+      return vetorParaLocal(corpo, vx, vy, vz, out);
+    },
+
+    /** O caminho de volta, pro desenho de depuração girar as caixas junto. */
+    paraMundo(lx, ly, lz, out) {
+      return pontoDoCasco(ficha, corpo, lx, ly, lz, out);
+    },
+
+    /** As regiões, no sistema do modelo. Ver `paraLocal` logo acima. */
     body(saida) {
       saida.length = 0;
       for (const r of regioes) saida.push(r);

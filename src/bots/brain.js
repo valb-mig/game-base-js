@@ -287,6 +287,18 @@ export function createBrain(bot, mundo, rng = Math.random) {
     aim,
     get state() { return estado; },
     get target() { return alvo; },
+
+    /**
+     * O alvo que ele está vendo NESTE instante, ou null.
+     *
+     * Diferente de `target`: aquele sobrevive `AIM.MEMORIA` segundos depois de
+     * o inimigo sumir atrás de uma quina, e é isso que faz o bot continuar
+     * apontando pra onde ele estava. Quem SINALIZA precisa da outra pergunta —
+     * marcar um contato que ninguém enxerga mais renovaria os trinta segundos
+     * pra sempre, e o radar do time viraria onisciência com passos extras.
+     */
+    get vendo() { return semVer === 0 ? alvo : null; },
+
     get lastSeen() { return memoria; },
 
     update(delta, contexto) {

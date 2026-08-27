@@ -36,8 +36,17 @@ body:not(.playing) #ajustes,
 body.screen-open #hud-layer,
 body.screen-open #debug,
 body.screen-open #ajustes,
-body.screen-open #crosshair {
+body.screen-open #crosshair,
+/* O mapa na mão solta o ponteiro: o cursor do navegador é a mira ali, e a
+   cruz do HUD por cima dele seriam duas. */
+body.lendo-mapa #crosshair {
   display: none;
+}
+
+/* Cursor de mira sobre o papel, e não a setinha: o que se faz ali é apontar
+   uma coordenada. */
+body.lendo-mapa {
+  cursor: crosshair;
 }
 
 /* aviso de que dá pra entrar em combate, só enquanto se observa */

@@ -47,8 +47,18 @@ function moveTowards(vec, target, maxStep) {
 export function moveHorizontal(player, delta) {
   const { stats, velocity, wish, target, right } = player;
 
-  const forward = axis(FORWARD_KEYS, BACK_KEYS);
-  const strafe = axis(RIGHT_KEYS, LEFT_KEYS);
+  /**
+   * Com o mapa aberto na mão o soldado PARA.
+   *
+   * Ele está com as duas mãos ocupadas e o rosto atrás de uma folha de papel:
+   * andar lendo mapa seria a mesma mentira de dirigir atirando. Só o input é
+   * cortado — gravidade, piso, colisão e postura continuam rodando, senão
+   * abrir o mapa no meio de um pulo deixaria o jogador pendurado no ar.
+   */
+  const parado = player.lendoMapa === true;
+
+  const forward = parado ? 0 : axis(FORWARD_KEYS, BACK_KEYS);
+  const strafe = parado ? 0 : axis(RIGHT_KEYS, LEFT_KEYS);
 
   horizontalRight(player.object.quaternion, right);
 
@@ -62,7 +72,9 @@ export function moveHorizontal(player, delta) {
   const hasInput = wishLength > 1e-4;
   if (wishLength > 1) wish.multiplyScalar(1 / wishLength);
 
-  if (stats.RUN_TOGGLE) {
+  if (parado) {
+    player.runLatched = false;
+  } else if (stats.RUN_TOGGLE) {
     if (consumePress(...RUN_KEYS)) player.runLatched = !player.runLatched;
   } else {
     player.runLatched = isDown(...RUN_KEYS);
@@ -149,7 +161,10 @@ export function moveVertical(player, delta) {
     ? stats.COYOTE_TIME
     : Math.max(0, player.coyote - delta);
 
-  player.jumpBuffer = consumePress(...JUMP_KEYS)
+  // Lendo o mapa não se pula, e o buffer envelhece igual: guardar a batida
+  // pra disparar quando o mapa fechasse daria um salto que ninguém pediu
+  // meio segundo depois.
+  player.jumpBuffer = !player.lendoMapa && consumePress(...JUMP_KEYS)
     ? stats.JUMP_BUFFER
     : Math.max(0, player.jumpBuffer - delta);
 

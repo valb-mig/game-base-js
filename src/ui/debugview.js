@@ -154,6 +154,8 @@ export function initDebugView(scene, world, bots, tiro = {}) {
   let posicoes = new Float32Array(0);
   let cores = new Float32Array(0);
   let anelPosicoes = new Float32Array(0);
+  // rascunho do canto de colisor girado; ver `desenharCaixas`
+  const cantoGirado = {};
 
   /** Reconstrói as arestas de todas as caixas de colisão. */
   function desenharCaixas() {
@@ -173,15 +175,33 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     let n = 0;
     for (const colisor of lista) {
       const { min, max } = colisor.box;
+      /**
+       * Colisor GIRADO é desenhado girado.
+       *
+       * É a mesma regra da hitbox do veículo: o desenho tem que usar a mesma
+       * conversão que a colisão usa, senão ele mente — e uma caixa desenhada
+       * nivelada por cima de uma parede tombada é a prova mais convincente
+       * possível de uma coisa que não é verdade.
+       */
+      const g = colisor.girado;
       corCaixa.copy(colisor.standable ? corPiso : corNormal);
 
       for (const [a, b] of ARESTAS) {
         for (const indice of [a, b]) {
-          canto.set(
-            indice & 1 ? max.x : min.x,
-            indice & 4 ? max.y : min.y,
-            indice & 2 ? max.z : min.z
-          );
+          if (g) {
+            g.paraMundo(
+              indice & 1 ? g.caixa.maxX : g.caixa.minX,
+              indice & 4 ? g.caixa.maxY : g.caixa.minY,
+              indice & 2 ? g.caixa.maxZ : g.caixa.minZ,
+              cantoGirado);
+            canto.set(cantoGirado.x, cantoGirado.y, cantoGirado.z);
+          } else {
+            canto.set(
+              indice & 1 ? max.x : min.x,
+              indice & 4 ? max.y : min.y,
+              indice & 2 ? max.z : min.z
+            );
+          }
           posicoes[n] = canto.x;
           posicoes[n + 1] = canto.y;
           posicoes[n + 2] = canto.z;
@@ -206,6 +226,8 @@ export function initDebugView(scene, world, bots, tiro = {}) {
    * depurar com um desenho que mente é pior que depurar sem desenho.
    */
   const corpoAux = [];
+  // rascunho do canto girado, pra quem converte por conta própria
+  const cantoAux = {};
 
   /**
    * As caixas de acerto, região por região.
@@ -220,13 +242,26 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     const caixasDeAcerto = [];
     for (const alvo of alvos) {
       if (alvo.body) {
-        const cos = Math.cos(alvo.yaw ?? 0);
-        const sen = Math.sin(alvo.yaw ?? 0);
+        /**
+         * Quem sabe se converter converte; o resto cai no yaw.
+         *
+         * É a MESMA pergunta que a balística faz — e tem que ser, senão o
+         * desenho mente. Foi o que já aconteceu aqui uma vez, quando a vista
+         * mostrava a esfera única enquanto o acerto já era resolvido por
+         * regiões. Com o yaw sozinho, a caixa do jipe fica nivelada por cima
+         * de uma carroceria inclinada e quem estiver depurando um tiro no
+         * pneu numa ladeira vai procurar o defeito no lugar errado.
+         */
         const pes = alvo.feetY ?? 0;
         for (const p of alvo.body(corpoAux)) {
-          caixasDeAcerto.push({
-            local: { ...p }, cos, sen, x: alvo.x, y: pes, z: alvo.z
-          });
+          caixasDeAcerto.push(alvo.paraMundo
+            ? { local: { ...p }, paraMundo: alvo.paraMundo }
+            : {
+              local: { ...p },
+              cos: Math.cos(alvo.yaw ?? 0),
+              sen: Math.sin(alvo.yaw ?? 0),
+              x: alvo.x, y: pes, z: alvo.z
+            });
         }
       } else {
         const c = alvo.center();
@@ -258,9 +293,16 @@ export function initDebugView(scene, world, bots, tiro = {}) {
           const lx = indice & 1 ? l.maxX : l.minX;
           const ly = indice & 4 ? l.maxY : l.minY;
           const lz = indice & 2 ? l.maxZ : l.minZ;
-          anelPosicoes[n] = c.x + lx * c.cos + lz * c.sen;
-          anelPosicoes[n + 1] = c.y + ly;
-          anelPosicoes[n + 2] = c.z - lx * c.sen + lz * c.cos;
+          if (c.paraMundo) {
+            c.paraMundo(lx, ly, lz, cantoAux);
+            anelPosicoes[n] = cantoAux.x;
+            anelPosicoes[n + 1] = cantoAux.y;
+            anelPosicoes[n + 2] = cantoAux.z;
+          } else {
+            anelPosicoes[n] = c.x + lx * c.cos + lz * c.sen;
+            anelPosicoes[n + 1] = c.y + ly;
+            anelPosicoes[n + 2] = c.z - lx * c.sen + lz * c.cos;
+          }
           n += 3;
         }
       }

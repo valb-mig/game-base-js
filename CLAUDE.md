@@ -32,6 +32,7 @@ src/
   config.js          números de ajuste (o padrão que as classes sobrescrevem)
   game/    teams.js  os dois lados e a regra de quem domina o quê
            suprimento.js  munição como recurso: onde se reabastece
+           deteccao.js  quem o time VIU, e por quanto tempo isso vale
            tratamento.js  cura como lugar: a enfermaria e quem ela atende
            hitboxes.js  regiões do corpo e o que cada acerto vale
            capture.js  arriar e içar bandeira, sem three
@@ -52,13 +53,17 @@ src/
   world/   noise.js  ruído de valor, compartilhado pelo relevo, mata e céu
            grao.js  o grão que texturiza o chão, e fecha sem costura
            colisores.js  a lista de colisores com índice espacial
-           estradas.js  a malha viária, pintada no chão
            lote.js  as caixas de construção viram InstancedMesh por célula:
              1450 malhas em 142 lotes, e 803 chamadas de desenho em 94
+           caixagirada.js  a caixa que ACOMPANHA o corpo em vez de envolvê-lo:
+             a pergunta vai pro sistema dele, sem three
+           estradas.js  a malha viária, pintada no chão
            heightfield.js  altura da ilha (matemática pura, sem three)
            deform.js  camada escavável, delta por vértice da malha
            settling.js  o que perde o chão desaba e tomba
            minimap.js  a ilha vista de cima, do mesmo campo de altura
+           topografia.js  a MESMA ilha em cinco níveis de altitude, sem
+             cor de chão: é o que o mapa de papel desenha
            serra.js  o relevo FALSO além da borda: a conta, sem three
            horizonte.js  a malha do anel que fecha o horizonte
            costura.js  a banda que emenda o passo fino do terreno no grosso
@@ -80,6 +85,8 @@ src/
            props.js  helpers · world.js  monta tudo
   items/   classes.js  models.js  viewmodel.js  drop.js
            knife.js  pistol.js  mp40.js  shovel.js   modelos
+           mapamao.js  o mapa de papel que o soldado levanta na frente do
+             rosto: vive na cena do viewmodel, não no HUD
            attack.js  firearm.js  ballistics.js  digging.js
            muzzle.js  de onde a bala sai e pra onde ela vai
            poses.js  como cada item é segurado
@@ -100,7 +107,8 @@ src/
            vista.js  a câmera de dentro · veiculo.js  a entidade
            veiculos.js  a lista, o laço e o embarque do jogador
   ui/      flow.js  máquina de estados e telas
-           mapa.js  o mapa grande do M · marcacoes.js  os waypoints
+           mapadesenho.js  o desenho do mapa de M, num canvas fora do
+             documento · marcacoes.js  os waypoints
            simbolos.js  o símbolo do ponto de captura, para as três telas
            watchdog.js  vigia de invariantes em jogo
            classcards.js  tacticalmap.js  session.js
@@ -124,12 +132,17 @@ tests/     run.html + suites/
             swim, inclinacao, model, drop, melee, firearm, ballistics, muzzle,
             slope,
             combate, indice, construcoes, pelotao, suprimento, tratamento,
-            mapa,
+            mapa, sinalizacao,
             textura, grade, avisodano,
             horizonte,
             flow, lote)
 tools/     dev.sh  serve.py (sem cache)  soak.html  model-viewer.html
+           bancada-vizinhanca.html  o que existe em volta de um ponto do mapa
+             e a que altura: `?em=x,z` (achar o que barra alguém)
            bancada-cena.html  quem é dono do quadro: objeto, chamada, matriz
+           bancada-perfil.html  de quem é o milissegundo DENTRO da IA e da
+             balística, desligando uma peça por vez: `?bots=N&mortos=N`
+           bancada-lote.html  quem escapou do lote, e o que o lote custa
            bancada-painel.html  o painel de ajustes fora do jogo, pra medir layout
            bancada-colisao.html  bancada-boot.html  bancada-bots.html
            bancada-combate.html  (tempo real, não suíte)
@@ -140,9 +153,6 @@ tools/     dev.sh  serve.py (sem cache)  soak.html  model-viewer.html
              distante — mede com `?serra=0|1` e fotografa com `?olho=`
            paleta-vegetacao.py  a conta que repintou o verde
 vendor/    three.js 0.169 local — não vem de CDN
-           bancada-perfil.html  de quem é o milissegundo DENTRO da IA e da
-             balística, desligando uma peça por vez: `?bots=N&mortos=N`
-           bancada-lote.html  quem escapou do lote, e o que o lote custa
            three/addons/  o que se usa dos examples do three, vendorizado:
              GLTFLoader · PointerLockControls · BufferGeometryUtils ·
              SkeletonUtils (clone com esqueleto religado) · OrbitControls
@@ -1089,13 +1099,68 @@ toca no buffer.
 desenho por terreno porque agora há dois consumidores, e montá-lo é uma
 amostragem de 260 × 260 do campo de altura — sem isso o boot pagaria duas
 vezes pelo mesmo desenho, no lugar exato onde o gargalo deste projeto está.
-Norte pra cima e quem gira é a seta: radar que roda com a cabeça obriga a
-reorientar a leitura a cada passo, e o rumo já é trabalho da bússola.
+**O radar GIRA com o jogador, e o preço disso é conhecido.** Ele foi norte pra
+cima com a seta girando, pela razão declarada de que uma referência fixa não
+obriga a reorientar a leitura a cada passo. A troca é deliberada: com o rumo do
+jogador no topo, "aquilo está à minha esquerda" se lê sem traduzir ângulo
+nenhum, que é a pergunta que se faz com o inimigo já em contato. O que se perde
+é o rumo absoluto, e ele continua tendo dono — a bússola. O MAPA de papel
+continua com o norte pra cima, e é lá que mora a rosa dos ventos.
 
-**Radar não mostra inimigo.** Mostra terreno, postos e companheiros. Dizer
-quem está atrás do morro apaga o flanqueamento, a cobertura e a emboscada —
-apaga o jogo. É a mesma família da mira do bot: o que o jogador tem que
-descobrir olhando não pode aparecer de graça no canto da tela.
+**Mas o SÍMBOLO não gira junto, e é por isso que o giro não é um `ctx.rotate`
+em volta de tudo.** Girando o contexto, o número do posto sai de cabeça pra
+baixo sempre que o jogador olha pro sul. A IMAGEM do terreno pode girar (ela
+não tem lado certo); o resto tem o giro embutido na conversão mundo → pixel.
+
+**Girar pede √2 de terreno a mais, e o que sobra tem que ser PINTADO.** O canto
+de um quadrado que gira varre um círculo de raio meia-diagonal: sem o recorte
+ampliado, as quinas do radar ficam vazias em todo rumo que não seja múltiplo de
+90°. E o recorte ampliado passa da borda do mundo, onde `drawImage` não escreve
+pixel nenhum — o que aparecia ali era o fundo do HUD, uma faixa cinza clara que
+lia como buraco na tela.
+
+**Radar não mostra inimigo DE GRAÇA — mostra o que o time VIU.** A regra antiga
+era "inimigo não entra", e a razão continua valendo inteira: dizer quem está
+atrás do morro apaga o flanqueamento, a cobertura e a emboscada. O que entrou
+não é onisciência, é SINALIZAÇÃO — o contato só existe porque um par de olhos
+do time o encontrou, e ele apaga trinta segundos depois de o último deles
+perdê-lo. Quem está atrás do morro continua invisível.
+
+**E a marca CONGELA onde ele foi visto pela última vez.** Enquanto está à vista
+ela anda com ele; assim que ninguém enxerga mais, a posição para de ser
+copiada. É informação envelhecendo: quem correr atrás de uma bolinha vazada
+chega onde o inimigo ESTAVA. Uma marca que seguisse o alvo depois de perdido
+seria o radar sabendo o que ninguém sabe, com passos extras.
+
+**O bot sinaliza por `vendo`, nunca por `target`.** `target` sobrevive
+`AIM.MEMORIA` segundos depois de o inimigo sumir atrás de uma quina — é o que
+faz o bot continuar apontando pra onde ele estava. Marcar por ele renovaria os
+trinta segundos pra sempre, com ninguém olhando: um contato visto uma vez
+ficaria no radar do time até o fim da partida.
+
+**O relógio da sinalização anda pelo DELTA, não por `performance.now()`.** Sob
+`--virtual-time-budget` aquele congela depois do primeiro fetch, e contato que
+nunca envelhece passa verde em qualquer teste. E ele evita o acordo tácito
+sobre a unidade — segundos ou milissegundos —, que é o tipo de acordo que se
+rompe calado: o desenho do papel recebe DOIS relógios, o do pulso do anel em ms
+e o da idade do contato em s.
+
+**O alcance de VISTA é o alcance da BALA, e sai da mesma constante.**
+`BULLET.RANGE_MAX` são os 600 m que o sistema crava em toda bala. Sinalizar mais
+longe marcaria no radar do time gente em que ninguém pode atirar; menos,
+esconderia alvo que a arma alcança. Como nenhum módulo de `game/` conhece
+`config.js`, quem passa o número é `main.js` — e quem TRANCA os dois juntos é um
+teste, senão eles se separariam em silêncio.
+
+**O cone de sinalização é um ângulo FIXO, não o campo da câmera.** Ele saía de
+`atan(tan(fov/2) · aspect)`, ou seja o quadro inteiro, e isso tinha dois
+defeitos: dava 51° num 16:9 e mais num ultralargo — QUEM TEM A TELA MAIS LARGA
+SINALIZA MAIS, vantagem escondida no hardware —, e fazia o vulto na beirada
+valer o mesmo que o alvo que se está olhando. São 42° de meio-cone.
+
+**Alvo sem time não é inimigo de ninguém.** Boneco de treino, poste, o que não
+briga: sinalizá-lo encheria o radar do campo de treinamento de contatos que não
+existem, e `teamOf(undefined).css` estouraria na primeira bolinha.
 
 **Janela de radar de 500 m não mostrava objetivo nenhum.** Medido do
 desembarque de Vestria: o posto mais perto está a 711 m e os outros passam de
@@ -1613,6 +1678,39 @@ ficava em ±0,34: o tiro no ombro de alguém agachado passava reto.
 alvo em vez de dezesseis caixas transformadas, e é o que faz a hitbox
 acompanhar quem gira sem recalcular nada.
 
+**Mas UM yaw só descreve quem fica EM PÉ.** O soldado fica; o veículo cai e
+rola, e numa ladeira ele passa a partida inclinado. Com o giro sozinho, as
+caixas do jipe ficavam NIVELADAS por cima de uma carroceria pendida — o
+sintoma se vê no F2, e o tiro que a silhueta promete passava reto. A saída não
+é transformar as onze caixas pro mundo (onze por veículo por bala) nem dar um
+quaternion pra balística: é o ALVO responder as duas perguntas que ela faz —
+onde este PONTO cai no meu sistema (`paraLocal`) e pra onde aponta este VETOR
+(`vetorParaLocal`). Quem não implementa continua caindo no yaw, e o soldado não
+mudou uma linha. `veiculos/casco.js` já tinha a ida (`paraMundo`); a volta é a
+transposta dela, escrita à mão porque um `Matrix4` ali seria uma alocação por
+tiro.
+
+**E o DESENHO de depuração tem que usar a mesma conversão, senão ele mente.**
+Já aconteceu aqui uma vez, quando a vista mostrava a esfera única enquanto o
+acerto era resolvido por regiões. Com o yaw sozinho no `debugview.js`, quem
+estiver conferindo um tiro no pneu numa ladeira procura o defeito no lugar
+errado — e a caixa desenhada nivelada é a prova mais convincente possível de
+uma coisa que não é verdade.
+
+**O colisor do veículo é AABB e INFLA quando ele inclina, e isso é o preço.**
+Ele já sai dos oito cantos girados (`moverColisor`), então acompanha a atitude
+— mas a caixa envolvente de um corpo tombado é bem maior que o corpo, que é o
+mesmo problema do prop na diagonal. Ali a saída foi FATIAR; aqui não vale a
+pena: o veículo passa a partida aprumado, e quem precisa de precisão é a bala,
+que não usa o colisor e sim as regiões.
+
+**Provar isso exige um ponto FORA da caixa nivelada.** Um teste que só
+disparasse e conferisse "acertou" passa verde com a hitbox reta: o jipe é um
+volume grande e quase toda direção acerta alguma coisa. O que prova é mirar num
+ponto que está ACIMA de `feetY + maxY` — onde a caixa nivelada não chega de
+jeito nenhum — e exigir o acerto ali. Medido com 34° de rolagem: 17 cm acima do
+teto nivelado.
+
 **A hitbox era uma CÁPSULA por osso antes disso, e antes ainda uma esfera.** Esfera não cobre
 membro comprido: a perna ia de 5 a 84 cm e a esfera cobria 26 a 64 — 41 cm por
 onde o tiro passava reto, e o jogador via a bala atravessar a perna. E membro
@@ -1946,11 +2044,92 @@ local — com meia-volta, o girar inverte o eixo e a água tombava pro lado
 contrário do beiral. Há teste que entra pela porta com a tenda girada, porque
 um erro de sinal ali entrega uma tenda que não se entra, sem erro nenhum.
 
-**O mapa do M não é pausa.** Ele solta o mouse (marcar ponto é clicar) mas o
-jogo continua correndo atrás, e é isso que faz abri-lo no meio de um tiroteio
-ser uma decisão em vez de um botão grátis. Quem tranca e destranca o ponteiro
-continua sendo só `flow.js`, e há uma trava pra que o `unlock` que ele mesmo
-provoca não vire tela de pausa.
+**O mapa do M NÃO é uma tela, e não é pausa.** Ele foi uma `.screen` por cima do
+jogo, com um canvas pra clicar. Hoje o soldado LEVANTA uma folha de papel na
+frente do rosto: não há tela nenhuma pra `show()`, e o jogo continua correndo
+atrás. O ponteiro é solto — marcar ponto é apontar e clicar, como em qualquer
+mapa —, e quem solta é `soltarMouse('mapa', …)`: enquanto o mapa estiver no
+conjunto `soltos`, o `unlock` que ele mesmo provoca não vira tela de pausa.
+Continua não sendo pausa, e agora custa mais: o jogador está de pé, parado,
+visível e sem arma na mão.
+
+**Lendo o mapa, `isLocked` é FALSO, e mesmo assim o jogador precisa
+atualizar.** A condição de sempre no laço é `player.isLocked`, e com o ponteiro
+solto ela desliga gravidade, piso e colisão junto — quem abrisse o mapa no meio
+de um pulo ficaria pendurado no ar. A condição virou `isLocked || lendoMapa`,
+e quem corta a ENTRADA continua sendo `locomotion.js`.
+
+**Fechar o mapa PRA UMA TELA não devolve o ponteiro.** Pausa e deploy querem o
+mouse solto: devolvê-lo ali seria pedir o lock um instante antes de a tela
+pedir o unlock, dois pedidos opostos no mesmo quadro. `fecharMapa` recebe
+`devolverPonteiro`, e quem vai pra uma tela passa `false` — só tira o mapa do
+conjunto `soltos`.
+
+**Com o papel na mão as duas mãos estão ocupadas, e isso é a mecânica.** Não se
+anda, não se corre, não se pula, não se atira, não se golpeia, não se cava e
+não se apanha nada do chão — é a mesma regra do volante, pela mesma razão. Só a
+ENTRADA é cortada: gravidade, piso, colisão e postura continuam rodando, senão
+abrir o mapa no meio de um pulo deixaria o jogador pendurado no ar. E o
+`jumpBuffer` não guarda a batida: guardá-la daria um salto que ninguém pediu
+meio segundo depois de fechar o mapa.
+
+**O cursor é o dedo, e o raio sai da câmera do VIEWMODEL.** O papel é desenhado
+por ela, com 42° contra os 70° do jogo: um raio pela câmera do mundo cairia num
+ponto diferente do que está debaixo do cursor, e o erro cresceria pra beirada
+da tela — exatamente onde ninguém desconfiaria. `mousePosition()` em
+`core/input.js` só vale com o ponteiro SOLTO: travado, o navegador para de
+mexer em `clientX` e só entrega `movementX`, que é o que gira a cabeça.
+
+**Carimbar é uma linha do tempo, não um evento.** A mão direita larga a borda,
+voa até ACIMA do ponto, encosta e volta — e a marca só entra no papel no quadro
+que cruza `CARIMBO.MARCA`, que é onde o polegar toca. É o mesmo desenho do
+golpe (`MELEE.DAMAGE_AT`) e da pazada (`digAt`): marcar no clique e animar
+depois seria a mão carimbando um lugar que já estava marcado. Clique novo
+durante o carimbo é ignorado.
+
+**E a mão passa POR CIMA do papel, não arrastando.** Sem a altura no meio do
+trajeto, carimbar o canto oposto varre a folha inteira com o dedo. O
+afastamento é um sino: zero na borda, máximo no voo, zero no toque.
+
+**A seta do jogador no papel apontava exatamente pro contrário, e uma suíte
+verde inteira não viu.** A conta era `atan2(-m[8], -m[10])` girada por `-rumo`,
+herdada do mapa de tela — e a álgebra diz que ela erra π em TODO rumo, não em
+alguns: com `(fx, fz) = (senφ, cosφ)`, o giro certo é `atan2(fx, −fz) = π − φ`
+e o que estava lá era `−φ`. Hoje o rumo sai de `headingDegrees`, a mesma função
+do radar e da bússola, girada por `+rumo` — o canvas tem o Y pra baixo, e a
+seta desenhada pra `−y` girada de `rumo` cai em `(sen rumo, −cos rumo)`, que é
+`(fx, fz)`.
+
+**E provar isso é medir PIXEL, com o instrumento certo — errei dois antes.** O
+canvas do papel não está no documento, então em headless ele TEM tamanho, ao
+contrário de todo canvas de HUD: dá pra olhar o desenho. Mas o centro de massa
+da tinta clara mede o FORMATO da seta (que é mais larga atrás que na ponta) e
+não o rumo dela — deu 0,3 px pro norte contra −1,3 pro sul, ruído puro. E um
+limiar de cor não pega o CONE do olhar, que é branco translúcido por cima de
+cinco tons de papel. O que funciona é a DIFERENÇA entre desenhar com e sem o
+jogador: medido, 17 px na direção certa nos quatro rumos.
+
+**O carimbo é escrito DEPOIS da pose do papel.** O marcador da mão é filho do
+grupo, e escrever nele antes de `pose()` recalcular a matriz deixa a mão um
+quadro atrás da folha — o mesmo tropeço que `#seguirComAsMaos` resolve pro
+marcador da arma.
+
+**O tamanho do papel se mede pelo CANTO, não pelo centro, e eu errei isso.** Com
+0,30 m de lado a 0,44 m do olho, a conta pelo centro dizia 88% da altura do
+quadro; a captura mostrava a folha saindo pela borda de baixo. A inclinação
+traz a aresta inferior PARA PERTO (z −0,416 em vez de −0,44) e ali ela subtende
+23,2° contra os 21° de meio-quadro do viewmodel. Medido pelo canto: 0,25 m a
+0,46 m com 0,12 rad põe as duas arestas em 15,6° e 14,6°.
+
+**E as mãos agarram as LATERAIS, não os cantos de baixo.** Segurando o canto
+inferior direito, a mão tapava exatamente a rosa dos ventos — um elemento do
+desenho que só aparece quando ninguém segura o papel não existe. Isso só se vê
+capturando: nenhuma medida de pose diz nada sobre o que a mão cobre.
+
+**Papel é material BASIC, e o verso existe.** Iluminado por uma cúpula de dia
+encoberto, o papel perde justamente o contraste das curvas de nível, e o que se
+quer ali é LER. E sem uma face de trás, olhar de esguelha mostra o mundo
+através da folha — translúcido lê como bug.
 
 **A bússola respondia a pergunta errada.** Saber que o norte é ali não ajuda
 quem precisa saber onde fica o ponto 3 — o jogador tinha que abrir o mapa ou
@@ -2020,7 +2199,8 @@ canvas crescer além dos 260 px nativos — ele ficava do tamanho de um selo. E
 `width: 100%` estourava a linha pra baixo e punha o rodapé em cima do mapa. Com
 a linha em `minmax(0, 1fr)`, `height: 100%` resolve contra a janela e o
 `aspect-ratio` dá a largura — esticar mentiria sobre distância, que é a única
-coisa que um mapa promete.
+coisa que um mapa promete. Isto vale hoje pro `#tactical-map` da tela de
+deploy: o mapa de M deixou de ter CSS quando virou papel.
 
 **Bandeira tem tecla própria (F), não o E de apanhar.** Item largado ao pé de
 um mastro faria as duas ações disputarem a mesma tecla, e a que perdesse
@@ -2033,6 +2213,23 @@ acontece em outro canto.
 
 **O mapa tático sai do terreno**, não é uma imagem à parte: `world/minimap.js`
 amostra o mesmo campo de altura. Mexer no relevo muda o mapa junto.
+
+**A carta topográfica não pinta a cor do CHÃO, e isso é a decisão.** O mapa
+tático e o radar mostram grama, areia, barranco e asfalto porque ali a pergunta
+é "o que é aquilo". O papel do soldado responde outra: onde é ALTO. Cor de
+vegetação num mapa de 1945 não existiria, e pior, ela esconde exatamente o dado
+que decide a briga — quem está por cima de quem. `world/topografia.js` lê o
+MESMO campo de altura, como todo o resto.
+
+**E os cinco cortes de altitude são MEDIDOS, pelos percentis.** Faixas iguais
+entre o mínimo e o máximo absolutos dariam quatro níveis vazios e um com tudo:
+o relevo é ruído de valor, e ruído de valor tem distribuição de SINO — quinta
+vez que isto aparece nesta base (grão, densidade, serra, e agora a carta). Os
+cortes saem dos percentis 2 e 98 da terra amostrada.
+
+**A curva de nível sai de comparar com o VIZINHO, e por isso é desenhada
+junto.** Ela é a fronteira entre duas faixas; depois de pintadas, a faixa já é
+um bloco de cor só e não há mais o que contornar.
 
 **O que a tela precisa oferecer por código, ofereça.** `flow.selectZone` existe
 porque escolher zona só pelo clique no canvas tornava o fluxo inteiro
@@ -2112,23 +2309,52 @@ cada prop assentou; se o terreno sob ele descer, ele desaba e tomba pro lado
 que perdeu apoio. O colisor desce junto — sem isso o objeto cairia só de
 mentira e o jogador seguiria esbarrando no ar onde ele estava.
 
-**Uma caixa alinhada aos eixos não representa corpo diagonal.** Barra de 12 m
-girada pela ponta vira uma caixa de 6,2 vezes o volume do corpo, e o jogador
-esbarra em ar longe dela — parede invisível. Prop tombado que ergue o lado
-comprido é FATIADO ao longo dele: oito caixas curtas em escada, 2,0 vezes o
-corpo em vez de 6,2.
+**Uma caixa alinhada aos eixos não representa corpo diagonal, e FATIAR foi a
+resposta errada.** Barra de 12 m girada pela ponta vira uma envolvente de 6,2
+vezes o volume do corpo, e o jogador esbarra em ar longe dela. A resposta
+anterior era cortar o corpo em oito caixas curtas em escada — 2,0 vezes em vez
+de 6,2. Melhor, e ainda errado, e reportado com foto pela segunda vez: o
+jogador esbarrava nos DEGRAUS da escada, ficava de pé no ar em cima deles, e
+cada prop derrubado custava sete colisores a mais numa lista que a colisão
+varre todo quadro.
 
-**Mas só quem ergue o lado comprido.** Parede que deita de lado continua bem
-descrita por uma caixa: medido, fatiar ali dá exatamente o mesmo volume.
-Fatiar tudo que tomba somava 1707 colisores num mapa com 304 props derrubados,
-quase o triplo da lista — e a colisão varre ela inteira todo quadro. Com o
-filtro de inclinação, o pior caso medido custa 0,605 ms por quadro contra
-0,299 ms, ou 2% do orçamento a 60 fps.
+**O que resolve é a caixa GIRADA, que é a mesma ideia do veículo.** Em vez de
+levar a caixa pro mundo — onde ela vira retângulo alinhado aos eixos —, leva-se
+a PERGUNTA pro sistema do corpo, onde a caixa continua sendo a caixa.
+`world/caixagirada.js` é a conversão, sem three, como `veiculos/casco.js`. É
+EXATA e é UMA: medido, a barra de 12 m tombada tem 8,4 m³ de corpo contra 46,9
+de envolvente, e continua sendo um colisor só.
 
-**`prop.collider` é a PRIMEIRA FATIA, não o corpo.** Comparar ela com o
-desenho compara um oitavo com o todo — três testes quebraram por isso quando
-o fatiamento entrou. Quem quer o volume que a colisão enxerga soma as caixas
-de `prop.fatias`.
+**A envolvente NÃO some, e não é desperdício.** `collider.box` continua sendo o
+retângulo alinhado aos eixos, e é ele que o índice espacial guarda e que
+peneira antes da conta cara — num colisor girado ele é maior que o corpo, então
+nunca descarta o que valeria. Quem dá a resposta fina é `collider.girado`.
+
+**As três perguntas da colisão são a MESMA pergunta.** "Isto barra o corpo?" é
+o intervalo cruzando o corpo, "qual o topo pra pisar?" é o fim do intervalo, e
+"qual o teto pra bater?" é o começo dele. Cada uma lia `box.min.y`/`box.max.y`
+por conta própria, o que só funciona porque a caixa é alinhada aos eixos: num
+colisor girado o topo DEPENDE DE ONDE SE ESTÁ. Hoje as três saem de
+`intervaloVertical`, e um teste de sobreposição em XZ não serve — o que a caixa
+girada projeta no chão é um hexágono, e testar contra o retângulo dele é voltar
+exatamente à envolvente que se está tentando evitar.
+
+**A folga do cilindro do jogador segue os eixos GIRADOS.** Inflar a caixa em
+`RADIUS` no plano XZ é a soma de Minkowski certa enquanto os eixos da caixa SÃO
+o plano XZ. Girada, cada eixo local aponta pra uma direção com mais ou menos
+horizontal, e é essa fração que decide quanto ele leva — eixo deitado leva a
+folga inteira, eixo em pé não leva nada. De pé o resultado é idêntico ao de
+antes, que é o que se quer: a esmagadora maioria dos props nunca cai.
+
+**E o ganho que a escada nunca deu: o topo é INCLINADO.** Com fatias, o topo de
+cada degrau era plano e subir uma parede caída era subir em pulos. Medido na
+laje de 10 m tombada 66°: −3,43 m numa sonda, −0,81 no meio e +1,53 na outra.
+
+**Prop tombado é UM colisor, e o teste tem que provar a COLISÃO.** Comparar
+volume de caixa não prova nada aqui: o que quebrou nas duas versões anteriores
+era o jogador esbarrando em ar. A asserção é um ponto dentro da envolvente e
+longe do corpo — que era parede na versão de uma caixa e degrau na versão
+fatiada —, mais a contraprova de que em cima do corpo ele continua barrando.
 
 **O colisor do corpo tombado sai da matriz, não de fórmula.** São os oito
 cantos da caixa de pé passados pela MESMA matriz que move a malha. Duas
@@ -2448,6 +2674,24 @@ volta —, mas veículo parado na frente dos alvos transforma a raia de 140 m nu
 raia de 12. E ele fica dentro da plataforma achatada: fora dela nasceria numa
 ladeira, e a primeira coisa que faria era descer sozinho.
 
+**O QUE É PISO NÃO PODE SER PAREDE, e eram dois números diferentes.** O jipe
+parava na frente de um meio-fio: `sondar` aceitava topo de colisor até
+`corpo.y + 0,45` como chão — o `STEP_HEIGHT` de 0,35 do JOGADOR mais uma folga
+de 0,1 — e `barrado` chamava de parede tudo acima de `corpo.y + 0,25`. Na faixa
+de 20 cm entre os dois, a mesma laje era piso pra suspensão e muro pra colisão,
+e o veículo ficava encostado nela acelerando. Hoje as duas leem `ficha.DEGRAU`,
+e `groundHeightAt` recebe o degrau em vez de assumir o do jogador.
+
+**E o degrau do veículo é o RAIO DA RODA, derivado e não escrito.** Uma roda
+sobe um obstáculo até mais ou menos o próprio raio; acima disso ela bate no
+flanco em vez de rolar por cima. São 39 cm contra os 35 do soldado — a roda
+passa onde a bota não passa —, e sair de `RAIO_RODA` é o que impede os dois de
+se separarem quando a roda mudar de tamanho.
+
+**Consertar o degrau tem DUAS metades, e a segunda é o teto.** "O jipe sobe
+meio-fio" sem "o jipe não escala muro" é pior que o defeito. O teste tem os
+dois: 30 cm ele sobe e fica em cima, 85 cm ele para na frente.
+
 **O colisor do veículo NÃO é `standable`.** Seria bonito subir no capô, mas o
 veículo lê a altura do chão com `groundHeightAt`, que não sabe ignorar um
 colisor: o jipe acharia o próprio teto e subiria em si mesmo, quadro após
@@ -2651,6 +2895,24 @@ nadando, no ar e correndo não inclina — é parar na quina que a manobra cobra
 Largar com G e apanhar com E funcionam, com item na mão ou sem: quem decide é
 o slot do item estar livre.
 
+O radar do canto GIRA com o jogador: o que está na frente dele fica em cima, e
+a seta parou de girar. E ele mostra inimigo — mas só o SINALIZADO: um contato
+aparece quando o jogador ou um companheiro o vê de fato, anda com ele enquanto
+está à vista, congela onde foi visto pela última vez e apaga em 30 s. Bolinha
+cheia é certeza, vazada é memória. O jogador sinaliza até 600 m — o mesmo teto
+da bala, saído da mesma constante — num cone fixo de 42° pra cada lado.
+
+M não abre mais uma tela: o soldado LEVANTA um mapa de papel na frente do
+rosto. Ele fica parado, sem arma na mão e sem poder atirar, cavar ou apanhar
+nada — o jogo continua correndo atrás. O papel é uma carta topográfica de cinco
+níveis, sem cor de chão, com os seis pontos de captura pelo NOME e a
+porcentagem de quem está tomando, a tropa amiga, os contatos sinalizados, as
+marcações, o cone do olhar do jogador e uma rosa dos ventos no canto de baixo à
+direita — norte pra cima, sempre. Abrir o mapa SOLTA o ponteiro: marcar ponto é
+apontar o cursor e clicar, e a mão direita larga a borda, carimba o lugar e
+volta a segurar a folha. A marca entra no papel no quadro em que o polegar
+encosta.
+
 F2 (ou crase) liga a depuração: painel com teclas acesas e o estado do
 jogador, caixa de colisão de tudo desenhada na cena, esfera de acerto de cada
 alvo, e o que cada bot está pensando escrito sobre a cabeça dele. Mais a
@@ -2713,8 +2975,8 @@ cancela a pose de corrida.
 Pá M1943 no slot 4 cava e aterra o terreno de verdade; a colisão lê a mesma
 camada, então trincheira cavada é trincheira que se anda dentro. Cavar embaixo
 de árvore, pedra ou construção derruba o que ficou sem chão. O que tomba de
-ponta tem o colisor fatiado ao longo do corpo, senão a caixa envolvente vira
-parede invisível.
+ponta ganha um colisor GIRADO, que acompanha o corpo em vez de envolvê-lo —
+senão a caixa alinhada aos eixos vira parede invisível.
 
 Tiro no chão também marca o terreno, na escala `TERRAIN_BITE`: a pá cava 90 cm
 por pazada, um tiro de primária afunda 8,5 cm, um de secundária 4,5 cm, e a

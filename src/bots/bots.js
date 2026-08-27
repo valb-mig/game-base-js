@@ -234,7 +234,9 @@ export function playerAsTarget(player, onDeath) {
   };
 }
 
-export function createBots(scene, world, { ballistics, capture, rng = Math.random }) {
+export function createBots(scene, world, {
+  ballistics, capture, deteccao = null, rng = Math.random
+}) {
   /**
    * Onde um time pode renascer: os postos que ele domina em paz, e a base
    * principal, que é sempre dele. A base entra sempre pra que perder todos os
@@ -653,13 +655,24 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
         // — o lugar dele é o objetivo.
         bot.emFormacao.valendo = Boolean(pelotoes.alvoDe(bot, bot.emFormacao));
 
-        brains.get(bot).update(delta, {
+        const cerebro = brains.get(bot);
+        cerebro.update(delta, {
           inimigos,
           temLinha: (de, para, alvo) => temLinha(de, para, bot, alvo),
           atirar,
           capturar,
           podeSentir
         });
+
+        /**
+         * O que ele está vendo AGORA vira sinalização pro time dele.
+         *
+         * É `vendo` e não `target` de propósito: o segundo sobrevive a memória
+         * do bot, e marcar por ele renovaria os trinta segundos do contato sem
+         * ninguém estar olhando pra ele. O custo é uma escrita num Map por bot
+         * EM CONTATO — não por bot —, e quem não vê ninguém não paga nada.
+         */
+        if (deteccao && cerebro.vendo) deteccao.marcar(cerebro.vendo, bot.team);
 
         // A separação vem DEPOIS do cérebro: ela corrige o resíduo de onde o
         // movimento deixou o corpo, e não decide pra onde ir.

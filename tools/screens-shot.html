@@ -154,15 +154,8 @@
   </div>
 </div>
 
-<!-- O mapa grande de M, espelhando o index.html: tela que o fluxo conhece
-     e a página de captura não teria faz `show()` estourar em null. -->
-<div id="map-screen" class="screen hidden">
-  <div class="screen-inner map-inner">
-    <header class="map-head"><h1>Mapa</h1><p id="map-sub"></p></header>
-    <div class="map-holder"><canvas id="map-canvas"></canvas></div>
-    <p class="map-foot">Clique para marcar &middot; M fecha</p>
-  </div>
-</div>
+<!-- O mapa de M não tem tela: ele é um papel na mão do soldado, desenhado na
+     cena do viewmodel. Ver `items/mapamao.js`. -->
 
 <div id="pause-screen" class="screen hidden">
   <div class="screen-inner pause-inner">
@@ -203,7 +196,9 @@ import { initPrompt } from '../src/ui/prompt.js';
 import { initRumoDano } from '../src/ui/rumodano.js';
 import { initBoneco } from '../src/ui/boneco.js';
 import { initFlow } from '../src/ui/flow.js';
-import { initMapa } from '../src/ui/mapa.js';
+import { criarMapaDesenho } from '../src/ui/mapadesenho.js';
+import { criarMapaNaMao } from '../src/items/mapamao.js';
+import { criarDeteccao } from '../src/game/deteccao.js';
 import { marcar } from '../src/ui/marcacoes.js';
 import { createBots, playerAsTarget } from '../src/bots/bots.js';
 import { carregarSoldado } from '../src/bots/model.js';
@@ -275,12 +270,17 @@ const flow = initFlow({
     player.asTarget = alvoDoJogador;
     world.targets.push(alvoDoJogador);
 
+    // A sinalização existe aqui pelo mesmo motivo que o resto: a página tem
+    // que inicializar como o jogo inicializa, e o radar já lê os contatos.
+    const deteccao = criarDeteccao();
+
     painel = {
       ballistics, alvoDoJogador,
       player, viewmodel, world, corpo,
       status: initStatus(player),
       compass: initCompass(camera, { player, world }),
-      radar: initRadar(player, camera, world, null),
+      deteccao,
+      radar: initRadar(player, camera, world, null, deteccao),
       rangefinder: initRangefinder(player, camera, world, world.targets),
       // O painel de objetivo é HUD como qualquer outro, e sem ele esta página
       // testaria um caminho que o jogo não faz.
@@ -357,7 +357,9 @@ const flow = initFlow({
 const quantos = Number(new URLSearchParams(location.search).get('bots') ?? 0);
     if (quantos > 0) {
 
-      const bots = createBots(scene, world, { ballistics, capture: painel.capture });
+      const bots = createBots(scene, world, {
+        ballistics, capture: painel.capture, deteccao: painel.deteccao
+      });
       for (const [i, time] of ['karnia', 'vestria'].entries()) {
         bots.formar({ team: time, quantos: Math.ceil(quantos / 2), id0: 1 + i * 500 });
       }
@@ -546,8 +548,40 @@ if (tela === 'mapa' && painel) {
   marcar(180, 90);
   marcar(-600, 260);
   flow.alternarMapa();
-  painel.mapa = initMapa(painel.world.terrain, painel.world, painel.player);
-  painel.mapa.desenhar();
+
+  /**
+   * O papel na mão, montado como o `main.js` monta.
+   *
+   * A abertura entra CHEIA de uma vez (`animar` com um delta grande): a foto é
+   * do mapa aberto, e o laço desta página desenha poucos quadros antes do
+   * disparo — com a animação normal, a captura pegaria a folha ainda subindo.
+   */
+  painel.mapa = criarMapaNaMao(criarMapaDesenho({
+    terrain: painel.world.terrain,
+    world: painel.world,
+    player: painel.player,
+    bots: painel.bots ?? null,
+    deteccao: painel.deteccao
+  }));
+  painel.mapa.animar(1, true);
+
+  /**
+   * `?carimbo=u,v` congela a mão direita no quadro em que ela ENCOSTA no
+   * papel.
+   *
+   * O carimbo dura 0,44 s e a página desenha poucos quadros antes do disparo:
+   * sem parar o relógio nele, a foto sai com a mão na borda ou já de volta, e
+   * parece que a animação não existe. É a mesma família do `?dano=`, que
+   * redispara o tiro pra que a marca não apague antes da foto.
+   */
+  const carimbo = new URLSearchParams(location.search).get('carimbo');
+  if (carimbo) {
+    const [u, v] = carimbo.split(',').map(Number);
+    painel.mapa.carimbar(u, v);
+    // 0,52 da duração é `CARIMBO.MARCA`: o polegar no papel.
+    painel.mapa.animar(0.44 * 0.52, true);
+  }
+  painel.mapa.redesenhar(0);
 }
 
 // preserveDrawingBuffer é false: sem laço, a captura sai vazia. E os painéis
@@ -555,7 +589,6 @@ if (tela === 'mapa' && painel) {
 // resize tardio limpar o canvas sem redesenhar.
 renderer.setAnimationLoop(() => {
   if (painel) {
-    if (tela === 'mapa') painel.mapa?.desenhar();
     // A pose da arma na mão vem do update, não do construtor: sem chamar isso
     // o modelo fica na origem da câmera do viewmodel e ocupa a tela inteira.
     if (!painel.player.spectating) painel.viewmodel.update(1 / 60, painel.player);
@@ -595,6 +628,15 @@ renderer.setAnimationLoop(() => {
     const maos = painel.veiculos.maosNoVolante();
     if (maos) painel.viewmodel.segurarVolante(maos.esq, maos.dir, camera.fov);
     else painel.viewmodel.soltarVolante();
+    // DEPOIS do volante, como no `main.js`: `soltarVolante` devolve a arma
+    // pra mão todo quadro, e o papel tem que ser a última palavra.
+    if (tela === 'mapa' && painel.mapa) {
+      // Delta ZERO: a folha já está aberta e o carimbo já está no quadro que
+      // se quer fotografar. Andar o relógio aqui passaria por cima dos dois.
+      painel.mapa.animar(0, true);
+      painel.mapa.redesenhar(performance.now());
+      painel.viewmodel.segurarMapa(painel.mapa);
+    }
     painel.prompt();
     // A balística e os dois avisos de dano, todo quadro — é ela que faz a
     // bala de `?dano=` andar os dez metros até acertar.
