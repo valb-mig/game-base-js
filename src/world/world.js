@@ -8,6 +8,8 @@ import { PLAYER } from '../config.js';
 import { spawnIsClear } from '../player/collision.js';
 import { createWater } from './water.js';
 import { createRiver } from './river.js';
+import { addHorizonte } from './horizonte.js';
+import { addCostura } from './costura.js';
 import { addBridges } from './bridge.js';
 import { addForest } from './forest.js';
 import { addBushes } from './bushes.js';
@@ -95,6 +97,16 @@ export function buildWorld(scene) {
   scene.add(river.mesh);
 
   const colliders = new ListaDeColisores();
+  /**
+   * O relevo falso que fecha o horizonte, e a saia que fecha a costura dele.
+   *
+   * Não entra em `colliders` nem em `settling`, e não é consultado por
+   * `heightAt`: ele fica FORA do quadrado jogável, onde `locomotion.js` já
+   * prende o jogador. Ver `serra.js` — a seta aponta num sentido só.
+   */
+  addHorizonte(scene, terrain);
+  addCostura(scene, terrain);
+
 
   // Quem perde o chão desaba. Registrado na construção do mapa pra que a
   // pazada só precise perguntar "o que tem por perto".

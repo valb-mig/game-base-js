@@ -1,0 +1,173 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8">
+<title>Bancada: o horizonte</title>
+<link rel="stylesheet" href="../styles/base.css">
+<style>
+  #out{position:fixed;left:0;top:0;margin:0;padding:10px 14px;z-index:0;
+       background:#0008;color:#dfe6e2;font:12px/1.6 ui-monospace,monospace}
+</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { createStage } from '../src/core/stage.js';
+import { buildWorld } from '../src/world/world.js';
+import { addHorizonte } from '../src/world/horizonte.js';
+import { addCostura } from '../src/world/costura.js';
+import { CAMERA, WORLD } from '../src/config.js';
+
+/**
+ * Quanto o horizonte falso custa, e como ele fica.
+ *
+ * Duas coisas na mesma página de propósito. A regra da casa é que foto de
+ * antes e depois tem que ser TIRADA COSTAS COM COSTAS, com uma variável só
+ * trocada entre os dois disparos — duas capturas de páginas diferentes (ou da
+ * mesma página em horas diferentes) já quase provaram que um multiplicador que
+ * só escurece havia CLAREADO o mapa em 17%. Aqui o A/B é `?serra=0|1`, e o
+ * resto do quadro é byte por byte o mesmo código.
+ *
+ *   ?serra=0            sem relevo falso (a base de comparação)
+ *   ?olho=x,y,z         onde fica a câmera
+ *   ?mira=graus,graus   yaw e pitch, em graus
+ *   ?far=N              sobrescreve CAMERA.FAR, pro A/B do plano distante
+ *
+ * Sem `?olho` ela só mede: `dev.sh bancada bancada-horizonte.html`. Com
+ * `?olho` ela também serve de foto: `dev.sh shot`. As duas coisas juntas
+ * porque medir triângulo sem olhar o quadro deixa passar horizonte lavado, e
+ * olhar o quadro sem contar triângulo deixa passar malha de 2 M.
+ */
+
+const q = new URLSearchParams(location.search);
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (s) => { linhas.push(s); out.textContent = linhas.join('\n'); console.log(s); };
+
+const comSerra = q.get('serra') !== '0';
+
+const { scene, camera, renderer } = createStage();
+
+// O plano distante entra no A/B: com os 400 m de fábrica, relevo nenhum além
+// da borda pode APARECER, e medir a serra com ele curto mediria o clip.
+const far = Number(q.get('far'));
+if (Number.isFinite(far) && far > 0) {
+  camera.far = far;
+  camera.updateProjectionMatrix();
+}
+
+// Censo antes de o horizonte entrar, pra que a diferença seja atribuível.
+const censo = () => {
+  let objetos = 0, triangulos = 0;
+  scene.traverse((o) => {
+    objetos++;
+    if (!o.isMesh && !o.isInstancedMesh) return;
+    const idx = o.geometry?.getIndex();
+    const n = idx ? idx.count : (o.geometry?.getAttribute('position')?.count ?? 0);
+    triangulos += (n / 3) * (o.isInstancedMesh ? o.count : 1);
+  });
+  return { objetos, triangulos: Math.round(triangulos) };
+};
+
+const t0 = performance.now();
+const world = buildWorld(scene);
+const tMundo = performance.now() - t0;
+const semSerra = censo();
+
+let horizonte = null;
+let costura = null;
+let tSerra = 0;
+if (comSerra) {
+  const t1 = performance.now();
+  horizonte = addHorizonte(scene, world.terrain);
+  costura = addCostura(scene, world.terrain);
+  tSerra = performance.now() - t1;
+}
+const comSerraCenso = censo();
+
+diz(`serra                          ${comSerra ? 'ligada' : 'DESLIGADA'}`);
+diz(`camera.far                     ${camera.far} m  (config: ${CAMERA.FAR})`);
+diz(`névoa                          ${WORLD.FOG_NEAR} .. ${WORLD.FOG_FAR} m`);
+diz('');
+diz(`buildWorld                     ${tMundo.toFixed(0)} ms`);
+diz(`addHorizonte                   ${tSerra.toFixed(1)} ms`);
+diz(`  boot total                   ${(tMundo + tSerra).toFixed(0)} ms  (+${(tSerra / tMundo * 100).toFixed(1)}%)`);
+diz('');
+diz(`objetos      sem serra         ${semSerra.objetos}`);
+diz(`             com serra         ${comSerraCenso.objetos}  (+${comSerraCenso.objetos - semSerra.objetos})`);
+diz(`triângulos   sem serra         ${semSerra.triangulos.toLocaleString('pt-br')}`);
+diz(`             com serra         ${comSerraCenso.triangulos.toLocaleString('pt-br')}  (+${(comSerraCenso.triangulos - semSerra.triangulos).toLocaleString('pt-br')}, +${((comSerraCenso.triangulos / semSerra.triangulos - 1) * 100).toFixed(2)}%)`);
+if (horizonte) {
+  diz(`  triângulos do anel           ${horizonte.stats.triangulos.toLocaleString('pt-br')} (${horizonte.stats.vertices.toLocaleString('pt-br')} vértices)`);
+  diz(`  triângulos da banda          ${costura.stats.triangulos.toLocaleString("pt-br")} (${costura.stats.fino} m por dentro, ${costura.stats.grosso} por fora)`);
+  diz(`  passo da malha da serra      ${horizonte.stats.passo.toFixed(0)} m/vértice (terreno: ${(WORLD.SIZE / WORLD.TERRAIN_SEGMENTS).toFixed(2)})`);
+  diz(`  alcance                      ${horizonte.stats.dentro.toFixed(0)} .. ${horizonte.stats.fora.toFixed(0)} m do centro`);
+}
+diz(`colisores                      ${world.colliders.length}`);
+
+// Onde a câmera vai. O yaw entra pelo QUATERNION em YXZ: `camera.rotation.y`
+// não é o yaw, e escrever nos eulers em XYZ deixa a câmera de cabeça pra baixo
+// em certos ângulos — é o primeiro invariante do CLAUDE.md.
+const olho = (q.get('olho') ?? '').split(',').map(Number);
+if (olho.length === 3 && olho.every(Number.isFinite)) {
+  camera.position.set(olho[0], olho[1], olho[2]);
+  const [yaw = 0, pitch = 0] = (q.get('mira') ?? '0,0').split(',').map(Number);
+  camera.quaternion.setFromEuler(
+    new THREE.Euler(pitch * Math.PI / 180, yaw * Math.PI / 180, 0, 'YXZ'));
+}
+
+/**
+ * O A/B do plano distante, NO MESMO PROCESSO.
+ *
+ * Entre duas execuções desta bancada o mesmo código já deu 1069 e 2151 ms de
+ * `buildWorld`, e nesse ruído comparar execuções prova o que se quiser. Aqui a
+ * única coisa que muda entre as duas medidas é `camera.far`.
+ *
+ * Contagem FIXA de voltas: laço por relógio sob tempo virtual pode nunca
+ * terminar.
+ */
+const VOLTAS = 40;
+const medir = (nome, valor) => {
+  camera.far = valor;
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);   // aquece: compila shader fora da conta
+  const t = performance.now();
+  for (let i = 0; i < VOLTAS; i++) renderer.render(scene, camera);
+  const ms = (performance.now() - t) / VOLTAS;
+  diz(`  ${nome.padEnd(28)} ${ms.toFixed(2)} ms/quadro  ${String(renderer.info.render.calls).padStart(4)} chamadas  ${renderer.info.render.triangles.toLocaleString('pt-br')} triângulos`);
+};
+
+diz('');
+diz('plano distante (320x180 seria outro custo: aqui é a janela da captura)');
+const alvo = Number.isFinite(far) && far > 0 ? far : CAMERA.FAR;
+medir('far = 400 (o de fábrica)', 400);
+medir(`far = ${WORLD.FOG_FAR} (a névoa)`, WORLD.FOG_FAR);
+medir(`far = ${alvo}`, alvo);
+
+/**
+ * Precisão de profundidade: o que se teme ao esticar o `far`.
+ *
+ * Numa projeção perspectiva o passo do buffer de profundidade é dominado pelo
+ * NEAR, não pelo far — o termo é (1/near - 1/far), e com near = 0,1 sair de
+ * far 400 pra 1200 muda esse termo em 0,02%. A conta sai impressa pra que a
+ * próxima pessoa que hesitar já tenha o número.
+ */
+const passoZ = (d, n, f) => (d * d * (1 / n - 1 / f)) / (2 ** 24);
+diz('');
+diz('resolução do buffer de profundidade (24 bits)');
+for (const d of [1, 10, 100, 390]) {
+  diz(`  a ${String(d).padStart(3)} m   far 400: ${(passoZ(d, CAMERA.NEAR, 400) * 1000).toFixed(4)} mm`
+    + `   far ${alvo}: ${(passoZ(d, CAMERA.NEAR, alvo) * 1000).toFixed(4)} mm`);
+}
+
+// A foto só existe entre o render e o fim do quadro: `preserveDrawingBuffer` é
+// false, então a página precisa de laço de render pra a captura pegar algo.
+// E o painel some quando se quer a foto: ele tapa justamente o horizonte.
+if (q.has('olho')) out.style.display = 'none';
+renderer.setAnimationLoop(() => {
+  world.water.update(performance.now() / 1000);
+  renderer.render(scene, camera);
+});
+
+diz('');
+diz('FIM');
+</script></body></html>

@@ -527,5 +527,27 @@ export const CAMERA = {
   FOV: 70,
   ADS_FOV: 56,   // mirar aproxima; sem isso a mira de ferro só atrapalha a visão
   NEAR: 0.1,
-  FAR: 400
+
+  // O plano distante tem que PASSAR DA NÉVOA, e os 400 m de antes não passavam.
+  //
+  // A névoa é linear de 130 a 1050: em 400 m ela fez 29% do trabalho, ou seja o
+  // terreno era cortado com 71% da cor dele ainda na tela. Medido numa captura
+  // do alto do Bunker da Colina olhando pro sul, o pixel saltava 233 níveis
+  // somados numa linha só — de (123,134,101) pra (193,197,201) — e o que se via
+  // era a borda do mundo desenhada com régua. Não era só estética: o
+  // engajamento mais longo do mapa é de 700 m, e com 400 um vulto a 500 m
+  // simplesmente NÃO ERA DESENHADO. `bots/bots.js` desanexa em `FAR + 20`, o
+  // que amarrava a visibilidade dos soldados ao mesmo número curto.
+  //
+  // Sai da névoa mais uma folga, porque em `FOG_FAR` o quadro já é exatamente a
+  // cor do horizonte e o corte fica invisível — 1050 e 1200 deram a MESMA
+  // contagem de chamadas na bancada, então a folga é de graça.
+  //
+  // O que se teme aqui, precisão de profundidade, foi medido e não acontece: o
+  // passo do buffer é dominado pelo NEAR (o termo é 1/near - 1/far), e com
+  // near = 0,1 sair de 400 pra 1100 muda o passo a 390 m de 90,6360 mm pra
+  // 90,6511 mm — 0,017%. O que CUSTA é contagem de objeto: medido em
+  // `tools/bancada-horizonte.html`, no mesmo processo, 453 chamadas de desenho
+  // com 400 contra 872 com 1050. É o preço de o mapa existir além de 400 m.
+  FAR: WORLD.FOG_FAR + 50
 };

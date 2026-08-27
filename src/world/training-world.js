@@ -5,6 +5,8 @@ import { createTerrain } from './terrain.js';
 import { createDeform } from './deform.js';
 import { createSettling } from './settling.js';
 import { createWater } from './water.js';
+import { addHorizonte } from './horizonte.js';
+import { addCostura } from './costura.js';
 import { addTrainingCourse } from './course.js';
 import { createDummy } from './dummy.js';
 import { createSoldier } from '../bots/soldier.js';
@@ -71,6 +73,14 @@ export function buildTrainingWorld(scene) {
   // pra que a água não seja um caso especial que só o outro mapa tem.
   const water = createWater();
   scene.add(water.mesh);
+
+  // O campo de treino também tem borda de mundo, e ela também acabava numa
+  // reta. O anel é o mesmo código e lê o `naturalHeight` DESTE mapa, que é
+  // plano: a serra sai daqui com metade da altura, porque o chão está a 4 m e
+  // a máscara de terra da serra só chega a 1 acima de 8. Nada de zona plana
+  // nova, nada de colisor — o campo continua plano e medido.
+  addHorizonte(scene, terrain);
+  addCostura(scene, terrain);
 
   const colliders = new ListaDeColisores();
   const settling = createSettling(terrain, colliders);
