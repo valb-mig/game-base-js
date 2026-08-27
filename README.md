@@ -251,4 +251,8 @@ armadilhas que já custaram caro.
 Os arquivos originais e a licença completa estão em `vendor/icons/`.
 
 [Three.js](https://threejs.org) r169 (MIT) fica vendorizado em
-`vendor/three/`.
+`vendor/three/`, junto com o que se usa dos `examples/jsm` dele — GLTFLoader,
+PointerLockControls, BufferGeometryUtils, SkeletonUtils, OrbitControls, e as
+bibliotecas `lil-gui` e `Stats` que desenham o painel de ajuste do F3 e o
+gráfico de quadro. Tudo sob a mesma licença MIT do three, e tudo local: o
+projeto abre offline.
