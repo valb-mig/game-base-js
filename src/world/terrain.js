@@ -140,7 +140,23 @@ export function createTerrain(flatZones = [], deform = null, perfil = 'sainte-me
     }
 
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.computeVertexNormals();
+    /**
+     * Nenhuma normal, porque o material é `flatShading`.
+     *
+     * O shader deriva a normal por FACE a partir da posição — é o mesmo motivo
+     * pelo qual `applyEdit` nunca chamou `computeVertexNormals` depois de uma
+     * pazada. No boot ela estava sendo chamada mesmo assim, sobre os 641.601
+     * vértices da malha inteira: medido, 138 ms de um `buildMesh` de 912, ou
+     * seja um sexto do desembarque gasto num atributo que o shader não lê.
+     *
+     * E o atributo sai fora junto: são 7,7 MB de Float32 que o `flatShading`
+     * não amarra a atributo nenhum, e por isso nem sobem pra GPU. Ninguém
+     * neste projeto faz raycast contra o terreno — quem responde "qual a
+     * altura aqui" é `heightfield.js` —, então a normal não tem segundo
+     * consumidor. Se algum dia tiver, é `computeVertexNormals` que volta, e o
+     * custo dela volta com ela.
+     */
+    geometry.deleteAttribute('normal');
 
     const mesh = new THREE.Mesh(
       geometry,
