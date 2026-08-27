@@ -812,6 +812,184 @@ errava em laje larga e baixa, deixando o colisor 91 cm acima do bloco caído,
 com o jogador de pé no ar em cima de obstáculo derrubado. Aproximar o que dá
 pra calcular exato só cria um segundo modelo pra manter de acordo com o
 primeiro.
+**Mas a vinheta só diz que DOEU — nunca disse de onde nem onde.** São três
+perguntas, e ela responde uma. `ui/rumodano.js` desenha um arco em volta da
+mira no rumo de onde o tiro saiu, e `ui/boneco.js` acende a região do corpo
+que levou. As duas leem a MESMA lista de acertos da marca de acerto e do hit
+feed, com o filtro invertido: ali o jogador é quem atira e se compara `owner`,
+aqui ele é quem leva e se compara `target`.
+
+**`dir` NÃO responde "de onde veio o tiro", e acerta por acidente.** O evento
+de acerto já levava o rumo da bala no impacto, e inverter esse rumo devolve a
+direção certa — mas só porque no modelo atual apenas a gravidade age, então o
+rumo HORIZONTAL é constante ao longo do arco. Basta somar vento ou arrasto e a
+conta passa a mentir calada. O evento passou a levar `origem`, que é a boca do
+cano guardada no nascimento da bala, e o HUD lê o PONTO.
+
+**E o ponto é o que faz a marca continuar certa quando o jogador ANDA.** Com
+ângulo congelado, o arco aponta pro lado errado depois de dois passos; com o
+lugar de onde atiraram, o rumo é refeito todo quadro. Medido na suíte: tiro
+vindo do norte desenha 0° na tela, e depois de o jogador andar 16 m pro norte
+— ou seja PASSAR da boca do cano — o mesmo tiro desenha 180°.
+
+**O arco fica NUMA circunferência, e o miolo vazio é a informação.** Mesma
+razão da vinheta nas bordas. Medido: zero pixel de tinta dentro de 20% do lado
+do canvas, com a banda em 0,70 do meio-lado. Um indicador desenhado no centro
+tira exatamente o que ele existe pra dar.
+
+**E o rumo do arco é do MUNDO, não da tela — `camera.rotation.y` mataria isso
+em silêncio.** É o primeiro invariante desta base cobrando de novo, e aqui o
+sintoma é o pior possível: um arco vermelho apontando pro lado errado parece
+certo até alguém virar pra lá. Medido, olhando pro sul com 30° de caimento o
+rumo de verdade é 180° e `rotation.y` lê 0° — o arco cairia no topo com o tiro
+vindo das costas. Há teste que dispara nessa pose e exige o arco embaixo.
+
+**Rajada não empilha arco.** Dois tiros saídos de menos de 8 m um do outro são
+a MESMA marca, refrescada. Medido: um tiro pinta 360 px, três tiros do mesmo
+lugar continuam pintando 360, e de outro lugar sai um segundo arco (722).
+Empilhando, cada um com o relógio dele, uma rajada de seis vira uma mancha que
+não apaga.
+
+**O boneco de regiões É a hitbox, desenhada de frente.** As caixas saem de
+`corpoDe()` — a mesma fonte que a bala consulta — projetadas em vista frontal
+com escala ÚNICA nos dois eixos. Silhueta desenhada à mão desalinharia na
+primeira vez que alguém mexesse numa peça, que é o defeito que
+`game/hitboxes.js` existe pra evitar e que já cobrou 8 cm na cabeça. Medido: a
+proporção desenhada é 0,410 contra 0,416 da hitbox (0,71 m por 1,71). Erro de
+escala num eixo passa batido por qualquer teste de visibilidade e morre aí.
+
+**As duas passadas do boneco são a regra, não estilo.** O apagado inteiro
+primeiro, o aceso depois. Numa passada só, a peça de prioridade alta desenhada
+por cima — a cabeça, sobre o capacete — apagaria com o tom morto justamente a
+região que acabou de acender. Medido pela fração da altura da silhueta:
+capacete 0,061, cabeça 0,152, tronco 0,393, perna 0,757.
+
+**Braço acende dos DOIS lados, e isso é honestidade.** O dado do evento é o
+GRUPO, e grupo não tem lado: `braco` é braço, não braço esquerdo. Acender um
+só seria o HUD inventando uma distinção que a regra de dano não faz — a mesma
+regra do HUD que não inventa número. E o teste exige que nada acenda perto do
+eixo, senão o tronco estaria passando por braço.
+
+**O boneco fica SEMPRE na tela, apagado.** Aparecer só ao levar tiro obrigaria
+o olho a achar um elemento novo no canto no meio de um tiroteio. É o contrário
+da barra de fôlego, que só aparece quando falta: ali o que interessa é o
+número, aqui o que interessa é ONDE, e "onde" precisa de um mapa fixo pra ser
+lido de relance.
+
+**Página de captura de HUD que APAGA precisa refrescar o estado.** A marca de
+rumo vive 2,6 s e o orçamento de tempo virtual decide quantos quadros a página
+desenha antes da foto: disparando uma vez, a captura saía com os dois painéis
+já apagados e parecia que nenhum dos dois desenhava. `?dano=rumo[,rumo]` em
+`tools/screens-shot.html` dispara balas DE VERDADE pela balística e as
+redispara a cada 100 quadros, devolvendo a vida junto — senão a rajada de
+figurantes mata o jogador e a foto vira tela de deploy. É a mesma ideia do
+`?ads=1` segurando a mira de ferro.
+
+**`z-index` num painel fixo por cima do canvas WebGL abre BURACO na captura.**
+Medido: o painel do F3 com `z-index: 20` deixava um retângulo de `#87ceeb` —
+o fundo do `body` — aparecendo embaixo dele na foto headless, 11 mil pixels
+num quadro de 1280x720. Tirando o `z-index` some, e o painel continua por
+cima porque vem depois do canvas no documento. Não é enfeite: este projeto
+verifica tela por captura headless, e uma regra de CSS que só quebra ali
+quebra justamente o instrumento. Achar isso foi seguir a COR do pixel
+(135, 206, 235 é `skyblue`, e só o `base.css` pinta aquilo) em vez de
+adivinhar de quem era o retângulo.
+
+**Média de quadro não mede nada, e foi por isso que o medidor nasceu com
+p95.** Um engasgo de 40 ms a cada trinta quadros é exatamente o que se sente
+jogando e exatamente o que a média esconde: medido na suíte, 29 quadros a
+60 fps mais um de 40 ms dão média de 17,4 ms — "quase 60 fps" — com o pior
+quadro em 40. `ui/medidor.js` mostra p95, p50 e o pior da janela, e amostra
+TODO quadro inclusive com o painel fechado: ligar o F2 no meio de um engasgo
+tem que mostrar o engasgo, não começar a contar dali. E o fps SOME quando não
+há quadro medido: sob `--virtual-time-budget` o delta chega zero e a divisão
+escrevia "1000000 fps" no HUD — o HUD não inventa número, nem na captura.
+
+**`renderer.info` se zera a cada `render`, e o último do quadro é o do
+VIEWMODEL.** Lido no painel, o contador dava zero chamadas e zero triângulos:
+o que ele tinha era o custo de desenhar uma arma numa cena vazia. A amostra é
+tirada ENTRE os dois renders, e o número que o F2 mostra é o do mundo.
+
+**Quem paga o quadro hoje é CONTAGEM DE OBJETO, e isso só aparece contando.**
+Medido em `tools/bancada-cena.html` com o mapa montado: 1311 objetos na cena,
+714 draw calls e 1,71 M de triângulos, com 13 geometrias e 40 materiais
+distintos. A floresta já era instanciada (11 `InstancedMesh` pras 4200
+árvores); o que sobrou solto são as 1272 caixas de CONSTRUÇÃO, ou seja a mesma
+caixa desenhada mais de mil vezes. São 1,8 ms de CPU por quadro com a câmera
+apontada pro CÉU — zero triângulo transformado.
+
+**E desligar a matriz automática das paredes NÃO vale a pena.** Foi medido em
+A/B no mesmo processo (entre duas execuções da bancada o mesmo código deu 2,54
+e 1,81 ms, e nesse ruído comparar execuções prova o que se quiser): com as 934
+caixas estáticas em `matrixAutoUpdate = false` o quadro caiu de 0,280 pra
+0,230 ms. Cinco centésimos de milissegundo, 0,3% do orçamento a 60 fps, em
+troca da armadilha de mexer numa caixa e ela não andar porque ninguém chamou
+`updateMatrix()`. O A/B ficou na bancada pra que a próxima pessoa que pensar
+nisso já tenha o número.
+
+**Bancada em tempo real não fecha sozinha.** Sem `--dump-dom` nada encerra o
+headless, e esperar o `timeout` inteiro faz uma medida de três segundos custar
+minutos. `dev.sh bancada` sobe o Chrome em segundo plano e o derruba assim que
+a página imprime `FIM` — que toda bancada tem que imprimir.
+
+**O painel do F3 é desenhado pela lil-gui, e a versão à mão perdia no que
+mais importa: DIGITAR o valor.** Arrastar um deslizador até exatamente 1,35 é
+impossível, e "exatamente 1,35" é o que se quer quando se comparam duas
+gradações. O que continua sendo do projeto é o que ela não sabe: varrer
+`config.js` sozinha (senão são duzentas linhas de `gui.add` pra manter de
+acordo com o arquivo), tirar a faixa do arrasto do PRÓPRIO valor, avisar quem
+leu o número no boot, soltar o mouse sem abrir a pausa, e dizer o que saiu do
+lugar.
+
+**O painel de ajuste do F3 escreve NO config, e por isso não é fonte de
+verdade de nada.** `ui/ajustes.js` mexe no objeto que `config.js` exporta, e
+quem lê o número na hora de usar (dispersão, fôlego, balística) muda no quadro
+seguinte de graça. Quem leu no BOOT — a luz, a exposição, a névoa, o FOV —
+precisa do `aplicar`, senão o painel parece quebrado exatamente nos números
+que só se julgam olhando. E ele não grava em arquivo: copia as linhas do que
+mudou pra colar na mão, porque gravar por cima levaria junto os comentários,
+que nesta base são metade do valor de cada número.
+
+**Quem solta o mouse de propósito se anota num lugar só.** O mapa do M tinha
+dois flags próprios pra que o `unlock` dele não virasse tela de pausa; o
+painel do F3 seria um terceiro e um quarto. Viraram o conjunto `soltos` em
+`flow.js`: enquanto ele não estiver vazio, `unlock` não é pausa, e fechar o
+último devolve o ponteiro. Quem tranca e destranca continua sendo só o
+`flow.js`.
+
+**O som é SINTETIZADO, como o céu é.** `core/audio.js` desenha a onda com
+ruído e senoide num `AudioBuffer`, e o projeto continua abrindo offline sem
+asset binário nenhum. Um tiro são três camadas somadas — o estouro (ruído que
+morre em 8 ms), o corpo (senoide grave que CAI de frequência, senão vira
+apito) e a cauda (o eco em volta) —, e o envelope é exponencial porque
+percussão é exponencial: queda linear soa como alguém abaixando o volume.
+Medido na suíte: rms 0,466 no começo contra 0,0014 no fim, e pico 0,834 —
+o `tanh` é o que segura o ±1, e sem ele a soma das camadas vira clipe digital.
+
+**Som posicional é informação de rumo, igual à bússola.** O bot já reagia a
+tiro — `alerta` acorda quem ouviu um a 45 m — e o jogador não tinha nada:
+virar pro lado certo era privilégio de quem já estava olhando. As vozes vivem
+NA CENA, nunca penduradas na câmera: penduradas nela andariam junto com a
+cabeça e todo som sairia dos dois lados igual.
+
+**E a voz vem de PISCINA, como o traçante.** Num tiroteio de 300 bots são mais
+de mil tiros por segundo, e um `PositionalAudio` novo por tiro é um nó de
+panner criado e descartado por milissegundo. São 24 vozes em rodízio, e o
+`playbackRate` desafina cada tiro um pouco — sem isso uma rajada de automática
+soa como um arquivo repetindo, que é exatamente o que ela é.
+
+**O áudio só existe depois de um GESTO, e sintetizar no boot é pagar
+adiantado.** O navegador nasce com o `AudioContext` suspenso; `despertar`
+pega carona no clique que o jogo já exige pra travar o ponteiro. Até lá
+`pronto` é falso e todo mundo continua chamando `tocar()` sem saber disso —
+inclusive a suíte, que roda em headless sem alto-falante.
+
+**Quem dispara repassa o nome do som, e isso já ficou de fora uma vez.** É a
+mesma armadilha do `dig`: a balística tinha o funil (`onShot` avisa TODO
+disparo, do jogador e do bot), as asserções passavam, e o jogo saía mudo
+porque `firearm.js` não punha `som` na bala. Teste de tiro que não começa no
+clique não prova nada.
+
 
 **E teste de colisor se compara com a MALHA.** Comparar a caixa com a altura
 esperada do chão testa a fórmula que produziu a caixa: foi assim que os 91 cm

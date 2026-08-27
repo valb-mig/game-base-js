@@ -604,6 +604,35 @@ body.spectating #rangefinder {
   );
 }
 
+/* Rumo do dano: arco em volta da mira, no rumo de onde o tiro saiu.
+
+   Sem `z-index`: ele vem depois do canvas no documento e já fica por cima —
+   e `z-index` num painel fixo sobre o canvas WebGL abre buraco na captura
+   headless, que é justamente o instrumento com que esta tela é verificada.
+
+   O canvas é bem maior que o arco de propósito: ele existe pra que o desenho
+   tenha onde caber EM VOLTA do centro. O miolo vazio é a informação. */
+#rumodano {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(52vmin, 460px);
+  height: min(52vmin, 460px);
+  transform: translate(-50%, -50%);
+}
+
+/* Boneco de regiões, primeira linha dos vitais — acima da classe e da vida.
+
+   O tamanho tem a proporção do corpo (0,71 m de largura por 1,71 de altura):
+   o desenho é fitado por escala única, e um canvas de outra proporção só
+   deixaria margem. */
+#boneco {
+  display: block;
+  width: 40px;
+  height: 84px;
+  margin-bottom: 6px;
+}
+
 /* -------------------------------------------------------------- fôlego */
 
 /* Só aparece quando falta: barra cheia permanente é ruído, e o que interessa

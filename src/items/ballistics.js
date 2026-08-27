@@ -371,6 +371,21 @@ export function createBallistics(scene, colliders, {
           // dele: matéria arrancada sai CONTRA a bala, e sem isso o impacto
           // espirra pro mesmo lado tenha ele vindo de onde vier.
           dir: rumo,
+          /**
+           * DE ONDE o tiro saiu — a boca do cano, guardada no nascimento.
+           *
+           * `dir` não responde isso. Ele dá o rumo da bala no impacto, e
+           * inverter esse rumo devolve a direção certa por um acidente do
+           * modelo: só a gravidade age, então o rumo HORIZONTAL é constante
+           * ao longo do arco. Basta alguém somar vento ou arrasto e a conta
+           * passa a mentir sem avisar.
+           *
+           * E o ponto vale mais que o ângulo de qualquer jeito: quem avisa o
+           * jogador de onde levou tiro precisa REFAZER o rumo enquanto ele se
+           * mexe, porque aquele lugar continua sendo aquele lugar depois de
+           * dois passos. Com ângulo isso não dá — com ponto, cai de graça.
+           */
+          origem: bullet.origin,
           owner: bullet.owner, regiao: regiaoAtingida
         });
       }
