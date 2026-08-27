@@ -23,6 +23,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FACTORIES } from '../src/items/models.js';
 
 // ?item=m1911 escolhe o modelo; sem parâmetro, mostra o primeiro
@@ -73,29 +74,58 @@ out.height = H;
 const ctx = out.getContext('2d');
 const camera = new THREE.PerspectiveCamera(28, (W / 2) / (H / 2), 0.001, 20);
 
-vistas.forEach((vista, i) => {
-  const dir = new THREE.Vector3(...vista.dir).normalize();
-  camera.position.copy(center).addScaledVector(dir, span * 2.6);
-  camera.lookAt(center);
+/**
+ * `?orbita=1` troca a folha de contato por vista livre.
+ *
+ * As quatro vistas fixas existem pra CAPTURA — headless não tem mouse, e é
+ * delas que sai a foto com a contagem de triângulos. Mas achar a costura de
+ * um modelo é procurar ângulo, e procurar ângulo editando o array de vistas e
+ * recarregando é o ciclo que a órbita existe pra matar.
+ */
+if (new URLSearchParams(location.search).has('orbita')) {
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  renderer.render(scene, camera);
+  renderer.setSize(innerWidth, innerHeight);
+  camera.position.copy(center).addScaledVector(new THREE.Vector3(1, 0.25, 0.15).normalize(), span * 2.6);
+  const orbita = new OrbitControls(camera, renderer.domElement);
+  orbita.target.copy(center);
+  orbita.enableDamping = true;
+  orbita.update();
+  // `setAnimationLoop` e não um render solto: `preserveDrawingBuffer` é false,
+  // e sem laço a tela apaga a cada arrasto. O `update` da órbita vive aqui
+  // porque o amortecimento é por quadro.
+  renderer.setAnimationLoop(() => {
+    orbita.update();
+    renderer.render(scene, camera);
+  });
+  document.getElementById('out').textContent =
+    `item: ${escolhido}   ${Math.round(tris)} triângulos` +
+    '   ·   arraste pra girar, roda pra aproximar';
+} else {
+  vistas.forEach((vista, i) => {
+    const dir = new THREE.Vector3(...vista.dir).normalize();
+    camera.position.copy(center).addScaledVector(dir, span * 2.6);
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
 
-  const x = (i % 2) * (W / 2);
-  const y = Math.floor(i / 2) * (H / 2);
-  ctx.drawImage(renderer.domElement, x, y);
-  ctx.fillStyle = '#000b';
-  ctx.fillRect(x, y, 170, 24);
-  ctx.fillStyle = '#fff';
-  ctx.font = '15px ui-monospace, monospace';
-  ctx.fillText(vista.nome, x + 8, y + 17);
-});
+    const x = (i % 2) * (W / 2);
+    const y = Math.floor(i / 2) * (H / 2);
+    ctx.drawImage(renderer.domElement, x, y);
+    ctx.fillStyle = '#000b';
+    ctx.fillRect(x, y, 170, 24);
+    ctx.fillStyle = '#fff';
+    ctx.font = '15px ui-monospace, monospace';
+    ctx.fillText(vista.nome, x + 8, y + 17);
+  });
 
-document.body.replaceChild(out, renderer.domElement);
-document.getElementById('out').textContent = [
-  `item: ${escolhido}   (${nomes.join(' · ')})`,
-  `triângulos: ${tris}`,
-  `tamanho: ${(size.x * 1000).toFixed(0)} x ${(size.y * 1000).toFixed(0)} x ${(size.z * 1000).toFixed(0)} mm`
-].join('\n');
+  document.body.replaceChild(out, renderer.domElement);
+  document.getElementById('out').textContent = [
+    `item: ${escolhido}   (${nomes.join(' · ')})`,
+    `triângulos: ${tris}`,
+    `tamanho: ${(size.x * 1000).toFixed(0)} x ${(size.y * 1000).toFixed(0)} x ${(size.z * 1000).toFixed(0)} mm`
+  ].join('\n');
+}
 </script>
 </body>
 </html>

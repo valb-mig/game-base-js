@@ -118,6 +118,42 @@ case "${1:-check}" in
     echo "sem erro de console em ${2:-index.html}"
     ;;
 
+  bancada)
+    # Bancada roda em tempo REAL: sob --virtual-time-budget o relógio congela
+    # depois do primeiro fetch e tudo que ela medir reporta zero, sem erro
+    # nenhum. Por isso a saída vem por console.log e não por --dump-dom, que
+    # volta antes da conta terminar.
+    ensure_server
+    page="${2:-bancada-cena.html}"
+    limite="${3:-180}"
+    log="$(mktemp)"
+    # Em tempo real o headless NÃO fecha sozinho: sem --dump-dom nada o
+    # encerra, e esperar o limite inteiro faz uma medida de 3 s custar
+    # minutos. Sobe em segundo plano e derruba assim que a página imprime FIM.
+    headless --enable-logging=stderr --v=0 \
+      --user-data-dir="$(mktemp -d)" --window-size="${4:-400,300}" \
+      "$URL/tools/$page" >/dev/null 2>"$log" &
+    pid=$!
+    for _ in $(seq $((limite * 4))); do
+      grep -qE 'FIM|SOAK LIMPO' "$log" && break
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.25
+    done
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    # o console do Chrome vem prefixado por "[pid:ts:INFO:CONSOLE:n]" e o
+    # texto sai entre aspas com a origem no fim; o swiftshader tagarela sobre
+    # driver, e isso não é medida
+    python3 -c '
+import re, sys
+for linha in open(sys.argv[1], errors="replace"):
+    m = re.search(r"INFO:CONSOLE[:(]\d+[)]?\] \"(.*)\", source", linha)
+    if m and "GL Driver Message" not in m.group(1):
+        print(m.group(1).replace("\\n", "\n"))
+' "$log"
+    grep -qE 'FIM|SOAK LIMPO' "$log" || { echo "bancada não terminou em ${limite}s" >&2; exit 1; }
+    ;;
+
   soak)
     ensure_server
     zona="${2:-treino}"
@@ -140,7 +176,14 @@ print(html.unescape(re.sub(r'<[^>]*>', '', m.group(1))) if m else 'soak não rod
     page="${2:-index.html}"
     out="${3:-/tmp/shot.png}"
     size="${4:-1280x720}"
-    headless --window-size="${size/x/,}" --virtual-time-budget=12000 \
+    # O orçamento de tempo virtual decide QUANTOS quadros a página desenha
+    # antes da foto, e cada um deles é software rendering: com o mapa cheio,
+    # 12 s de tempo virtual são ~720 quadros e a captura passa de quatro
+    # minutos. `screens-shot.html` é pior porque desenha duas vezes por quadro,
+    # o mundo e o viewmodel. Quem precisa de menos quadros passa o quinto
+    # argumento — dois segundos bastam pra layout assentar.
+    budget="${5:-12000}"
+    headless --window-size="${size/x/,}" --virtual-time-budget="$budget" \
       --screenshot="$out" "$URL/$page" >/dev/null 2>&1
     echo "$out"
     ;;
@@ -151,6 +194,7 @@ uso: tools/dev.sh <comando>
 
   serve              sobe o servidor estático (idempotente, sem cache)
   restart            derruba e sobe o servidor de novo
+  bancada [pagina]   roda uma bancada em tempo real e imprime a medida
   soak [zona]        joga sozinho vigiando invariantes
   syntax             parseia todo módulo de src/ e tests/ como ES module
   check              sintaxe + suíte de testes; sai != 0 se algo falhar
@@ -159,6 +203,7 @@ uso: tools/dev.sh <comando>
 
 exemplos:
   tools/dev.sh check
+  tools/dev.sh bancada bancada-cena.html
   tools/dev.sh errors index.html
   tools/dev.sh shot tools/model-viewer.html /tmp/faca.png 1200x760
 USAGE

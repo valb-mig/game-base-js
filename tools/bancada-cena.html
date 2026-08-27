@@ -1,0 +1,157 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: censo da cena</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+
+/**
+ * Quem é dono do quadro.
+ *
+ * A regra da casa é medir o quadro inteiro em vez dos componentes, e o que
+ * mais aparece nessa conta é CONTAGEM DE OBJETO: com 300 bots foram 3,39 ms
+ * só de matriz de cena e 7,63 ms de travessia e recorte sem desenhar nada.
+ * Esta página conta quem está na cena, por categoria, e separa o custo de
+ * CPU do de rasterização apontando a câmera pro céu — em swiftshader o
+ * triângulo é rasterizado na CPU e envenenaria a medida.
+ *
+ * Roda em tempo REAL: sob --virtual-time-budget o relógio congela e todo
+ * número sai zero.
+ */
+
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (s) => { linhas.push(s); out.textContent = linhas.join('\n'); console.log(s); };
+
+const scene = new THREE.Scene();
+const t0 = performance.now();
+const world = buildWorld(scene);
+diz(`buildWorld                     ${(performance.now() - t0).toFixed(0)} ms`);
+
+// Categoria pelo tipo de malha, não pelo nome: InstancedMesh é o que troca
+// milhares de objetos por um, e é justamente essa a diferença que se procura.
+const conta = new Map();
+let objetos = 0, instancias = 0, triangulos = 0;
+const geometrias = new Set(), materiais = new Set();
+
+const contaGeo = (geo) => {
+  if (!geo) return 0;
+  const idx = geo.getIndex();
+  const n = idx ? idx.count : (geo.getAttribute('position')?.count ?? 0);
+  return n / 3;
+};
+
+scene.traverse((o) => {
+  objetos++;
+  const tipo = o.isInstancedMesh ? 'InstancedMesh'
+    : o.isMesh ? 'Mesh'
+    : o.isLine || o.isLineSegments ? 'Line'
+    : o.isPoints ? 'Points'
+    : o.isGroup ? 'Group' : o.type;
+  conta.set(tipo, (conta.get(tipo) ?? 0) + 1);
+  if (o.isMesh || o.isInstancedMesh) {
+    geometrias.add(o.geometry);
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => materiais.add(m));
+    const c = o.isInstancedMesh ? o.count : 1;
+    instancias += c;
+    triangulos += contaGeo(o.geometry) * c;
+  }
+});
+
+diz('');
+diz(`objetos na cena                ${objetos}`);
+for (const [tipo, n] of [...conta].sort((a, b) => b[1] - a[1])) {
+  diz(`  ${tipo.padEnd(28)} ${n}`);
+}
+diz(`instâncias desenháveis         ${instancias}`);
+diz(`triângulos (soma)              ${Math.round(triangulos).toLocaleString('pt-br')}`);
+diz(`geometrias distintas           ${geometrias.size}`);
+diz(`materiais distintos            ${materiais.size}`);
+diz(`colisores                      ${world.colliders.length ?? world.colliders.todos?.().length ?? '?'}`);
+
+// Os dez ramos mais pesados da árvore: é onde uma instanciação nova pagaria.
+const ramos = [];
+for (const filho of scene.children) {
+  let n = 0;
+  filho.traverse(() => n++);
+  ramos.push([filho.name || filho.type, n]);
+}
+diz('');
+diz('ramos mais povoados de scene.children');
+for (const [nome, n] of ramos.sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+  diz(`  ${String(nome).padEnd(28)} ${n}`);
+}
+
+// Custo de CPU por quadro, com a câmera no CÉU: zero triângulo transformado,
+// e o que sobra é matriz de cena mais travessia e recorte.
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(320, 180);
+renderer.domElement.style.display = 'none';
+document.body.appendChild(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(70, 320 / 180, 0.1, 2000);
+camera.position.set(0, 40, 0);
+
+const VOLTAS = 60;
+const medir = (nome, prepara) => {
+  prepara();
+  renderer.render(scene, camera);            // aquece: compila shader fora da conta
+  const t = performance.now();
+  for (let i = 0; i < VOLTAS; i++) renderer.render(scene, camera);
+  const ms = (performance.now() - t) / VOLTAS;
+  diz(`  ${nome.padEnd(28)} ${ms.toFixed(2)} ms/quadro`);
+};
+
+diz('');
+diz('custo por quadro (320x180, swiftshader)');
+medir('câmera pro céu (só CPU)', () => camera.rotation.set(Math.PI / 2, 0, 0));
+medir('câmera pro mapa', () => camera.rotation.set(-0.2, 0, 0));
+
+/**
+ * A matriz do que NÃO se mexe.
+ *
+ * O A/B roda no mesmo processo de propósito: duas execuções da mesma bancada
+ * deram 2,54 e 1,81 ms pro mesmo código, e num ruído desse tamanho comparar
+ * execuções provaria qualquer coisa que se quisesse.
+ *
+ * `force = false` é o que o `renderer.render` chama de verdade. Com `true`
+ * ele recalcula tudo de qualquer jeito e a medida diria que desligar a
+ * matriz automática não serve pra nada.
+ *
+ * MEDIDO, e por isso `addBox` NÃO desliga a matriz das paredes: com as 934
+ * caixas estáticas desligadas o quadro caiu de 0,280 pra 0,230 ms — 0,05 ms,
+ * 0,3% do orçamento a 60 fps. Em troca ficaria a armadilha de mexer numa
+ * caixa e ela não andar, calada, porque ninguém chamou `updateMatrix()`. O
+ * A/B mora aqui pra que a próxima pessoa que pensar nisso já tenha o número.
+ */
+const medirMatriz = (nome) => {
+  scene.updateMatrixWorld(false);
+  const t = performance.now();
+  for (let i = 0; i < VOLTAS; i++) scene.updateMatrixWorld(false);
+  diz(`  ${nome.padEnd(28)} ${((performance.now() - t) / VOLTAS).toFixed(3)} ms/quadro`);
+};
+
+diz('');
+diz('matriz de cena');
+let automaticas = 0;
+scene.traverse((o) => { if (o.matrixAutoUpdate) automaticas++; });
+diz(`  ${'objetos com matriz auto'.padEnd(28)} ${automaticas}`);
+medirMatriz('como está');
+
+// Liga tudo à força e mede de novo: é o custo que a base pagava antes de
+// `addBox` desligar a matriz do que é parede.
+scene.traverse((o) => { o.matrixAutoUpdate = true; o.updateMatrix(); });
+medirMatriz('com tudo automático');
+
+const info = renderer.info;
+diz('');
+diz(`draw calls (último quadro)     ${info.render.calls}`);
+diz(`triângulos desenhados          ${info.render.triangles.toLocaleString('pt-br')}`);
+diz(`geometrias na GPU              ${info.memory.geometries}`);
+diz(`texturas na GPU                ${info.memory.textures}`);
+diz('');
+diz('FIM');
+</script></body></html>

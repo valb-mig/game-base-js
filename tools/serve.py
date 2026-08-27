@@ -9,6 +9,12 @@ versão, eu testava outra, e nenhum dos dois sabia.
 
 Aqui nada é cacheado. Em desenvolvimento, recarregar tem que significar
 recarregar.
+
+E ele atende uma conexão por thread. Com um servidor de fila única, o
+carregador de módulos do navegador — que busca dezenas de arquivos ao mesmo
+tempo — derrubava uma importação a cada rodada da suíte, sempre num arquivo
+diferente: "Failed to fetch dynamically imported module", com o mesmo arquivo
+respondendo 200 no curl um segundo depois. Parecia bug de suíte e era fila.
 """
 
 import functools
@@ -34,9 +40,10 @@ def main():
     root = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
 
     handler = functools.partial(SemCache, directory=root)
-    socketserver.TCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.daemon_threads = True
 
-    with socketserver.TCPServer(('', port), handler) as server:
+    with socketserver.ThreadingTCPServer(('', port), handler) as server:
         server.serve_forever()
 
 

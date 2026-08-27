@@ -10,6 +10,7 @@ tools/dev.sh serve            # sobe o servidor estático (idempotente)
 tools/dev.sh syntax           # parseia todo módulo como ES module
 tools/dev.sh check            # sintaxe + suíte; sai != 0 se algo falhar
 tools/dev.sh errors index.html            # erro de console na página
+tools/dev.sh bancada bancada-cena.html    # bancada em tempo real (mede)
 tools/dev.sh shot index.html /tmp/a.png   # captura headless
 ```
 
@@ -126,6 +127,16 @@ causa de um limiar no meio da fuga é pior que ficar sem.
 Shift por um instante devolveria fôlego, e a corrida viraria dedilhado.
 
 **Bot troca de arma no mesmo tempo que o jogador.** Instantâneo pra ele
+           bancada-cena.html  quem é dono do quadro: objeto, chamada, matriz
+           bancada-painel.html  o painel de ajustes fora do jogo, pra medir layout
+           bancada-colisao.html  bancada-boot.html  bancada-bots.html
+           bancada-combate.html  (tempo real, não suíte)
+           bancada-logistica.html  o que a tenda e o paiol cobram: boot e quadro
+           bancada-grade.html  as sete curvas de tom, medidas por cor de chão
+           bancada-ceu-linear.html  banda no degradê do céu: sRGB contra linear
+           bancada-horizonte.html  o que o relevo falso custa, e o A/B do plano
+             distante — mede com `?serra=0|1` e fotografa com `?olho=`
+           paleta-vegetacao.py  a conta que repintou o verde
 enquanto o jogador leva 0,78 s é vantagem escondida — o mesmo tipo de coisa
 que a mira com atraso existe pra evitar.
 
@@ -1084,6 +1095,24 @@ headless. Simule num `for` síncrono e deixe o loop só desenhando.
   `movement`, e herda o resto.
 - Nada de CDN. `vendor/` é local pra o ciclo de teste ser rápido e offline.
 
+**Suíte que estoura o orçamento de tempo faz OUTRA suíte falhar.** A suíte
+roda sob `--virtual-time-budget=15000`, e quando ele acaba os `import()`
+pendentes das suítes seguintes falham com "Failed to fetch dynamically
+imported module" — um nome que não tem nada a ver com a causa. Aconteceu três
+vezes seguidas com nomes diferentes (model, bracos, dano) enquanto o culpado
+era a suíte da floresta, que é O(n²) nas árvores e triplicou junto com
+`TREE_COUNT`. Pior: o `check` para antes do passo que olha o console do jogo,
+então o portão fica meio aberto sem dizer. Teste que cresce com um número de
+`config.js` amostra em vez de varrer.
+
+**Sob `--virtual-time-budget`, o relógio congela depois do PRIMEIRO fetch.**
+Medido no mesmo laço: 316 ms antes de um `fetch`, 0,0 ms depois — e vale pra
+`performance.now()` E pra `Date.now()`. Toda bancada que carrega asset (o GLB
+do soldado, por exemplo) reporta zero em tudo que medir depois disso, sem
+erro nenhum. Bancada que precisa de asset roda SEM tempo virtual e devolve
+por `console.log`, que o `--enable-logging=stderr` captura enquanto o processo
+vive — `--dump-dom` volta antes da conta terminar.
+
 ## Estado atual
 
 Funciona: movimento (andar, correr como alternância no Shift, agachar em C,
@@ -1378,4 +1407,25 @@ número, e vale igual pro menu — botão de personalização ou de progresso se
 tela atrás promete o que o jogo não entrega. Opções existe como MAQUETE
 declarada, com os controles desabilitados e o aviso em cima: deslizador que
 anda e não muda nada mente mais do que a tela vale.
+
+**`--dump-dom` volta antes da conta terminar, e o `console.log` do Chrome não
+chega no stderr deste build.** Duas bancadas escritas e duas descartadas: a que
+imprimia no console não devolveu uma linha com `--enable-logging=stderr`, e a
+que escrevia num `<pre>` foi fotografada em "rodando…". O que funciona pra medir
+render é `dev.sh shot` e comparar os PNG em Python; pra medir matemática pura, é
+importar o módulo em NODE direto — `vendor/three/three.module.js` carrega lá, e
+`PlaneGeometry` e `BufferGeometry` não precisam de WebGL.
+
+**Foto de antes e depois tem que ser TIRADA costas com costas.** Duas capturas
+do mesmo URL com horas de diferença deram média 99 e 117 no mesmo recorte de
+chão, e eu quase concluí que um multiplicador que só escurece tinha CLAREADO o
+mapa em 17%. A página não é determinística entre execuções distantes; o par só
+vale medido em sequência, com uma variável trocada entre os dois disparos.
+
+**E câmera de captura tem que estar OLHANDO pro que se quer medir.** As três
+primeiras medições do grão foram feitas debaixo d'água: `olho=0,2.6,140` cai
+dentro do rio, e a metade de baixo do quadro era o plano azul da lâmina. Média e
+desvio idênticos aos centésimos entre antes e depois não eram bug do grão, eram
+água. Sondar `heightAt`/`tipoDoChao` em Node antes de escolher a coordenada
+custa uma linha e evita três capturas de quatro minutos.
 

@@ -16,7 +16,8 @@
   display:none esperando desembarque, e capturas que ligavam .playing antes de
   criar os painéis já deixaram passar uma bússola de 0x0.
 
-  ?tela=inicio|deploy|jogo  decide o que fica na frente.
+  ?tela=inicio|opcoes|deploy|jogo|pausa  decide o que fica na frente.
+  ?ads=1  segura a mira de ferro, pra conferir o telêmetro.
 -->
 
 <div id="crosshair"></div>
@@ -26,16 +27,85 @@
 
 <div id="hud-layer">
   <canvas id="compass"></canvas>
-  <div id="vitals"></div>
+  <!-- Radar e coordenadas. O radar é a MESMA ilha do mapa tático, recortada
+       em volta do jogador: mexer no relevo muda os dois juntos. -->
+  <div id="radar-block">
+    <canvas id="radar"></canvas>
+    <div id="coords"></div>
+  </div>
+  <!-- Distância do que está sob a mira. Só aparece mirando, e some quando
+       não há nada no alcance: número que aparece sempre vira enfeite. -->
+  <div id="rangefinder"></div>
+  <!-- De onde veio o tiro, e onde ele pegou. Iguais ao index.html: página de
+       verificação que não monta o que o jogo monta fotografa outro jogo. -->
+  <canvas id="rumodano"></canvas>
+  <div id="vitals">
+    <canvas id="boneco"></canvas>
+  </div>
   <div id="equipped"></div>
   <div id="prompt"></div>
 </div>
 
 <div id="start-screen" class="screen">
+  <header class="start-top">
+    <span id="guest-name" class="start-user">Convidado</span>
+    <button type="button" id="open-options" class="start-gear">Op&ccedil;&otilde;es</button>
+  </header>
+
   <div class="screen-inner start-inner">
-    <div class="logo">BF<span>45</span></div>
-    <p class="screen-sub">Frente ocidental &middot; 1945</p>
-    <button type="button" id="play">Jogar</button>
+    <div class="start-brand">
+      <div class="logo">BF<span>45</span></div>
+      <p class="screen-sub">Sainte-M&egrave;re &middot; Normandia &middot; 1944</p>
+    </div>
+
+    <nav class="start-menu">
+      <button type="button" id="play" class="menu-item primary">
+        <span class="menu-mark" aria-hidden="true"></span>
+        <span class="menu-text">
+          <b>Jogar</b>
+          <small>Entrar em uma batalha</small>
+        </span>
+      </button>
+      <button type="button" id="training" class="menu-item">
+        <span class="menu-mark" aria-hidden="true"></span>
+        <span class="menu-text">
+          <b>Campo de treinamento</b>
+          <small>Treine suas habilidades</small>
+        </span>
+      </button>
+    </nav>
+  </div>
+
+  <footer class="start-foot">
+    <span id="game-version"></span>
+  </footer>
+</div>
+
+<div id="options-screen" class="screen hidden">
+  <div class="screen-inner options-inner">
+    <h1>Op&ccedil;&otilde;es</h1>
+    <p class="options-warn">Maquete: nenhum destes controles liga em nada ainda.</p>
+
+    <div class="options-list">
+      <label class="options-row">
+        <span>Sensibilidade do mouse</span>
+        <input type="range" min="1" max="100" value="50" disabled>
+      </label>
+      <label class="options-row">
+        <span>Campo de vis&atilde;o</span>
+        <input type="range" min="60" max="110" value="70" disabled>
+      </label>
+      <label class="options-row">
+        <span>Volume geral</span>
+        <input type="range" min="0" max="100" value="80" disabled>
+      </label>
+      <label class="options-row">
+        <span>Inverter eixo vertical</span>
+        <input type="checkbox" disabled>
+      </label>
+    </div>
+
+    <button type="button" id="close-options">Voltar</button>
   </div>
 </div>
 
@@ -43,8 +113,13 @@
   <div class="deploy-layout">
     <header class="deploy-bar">
       <div class="deploy-head">
-        <h1 id="deploy-title">Preparar</h1>
-        <span id="map-name"></span>
+        <div class="deploy-title">
+          <h1 id="deploy-title">Preparar</h1>
+          <span id="map-name"></span>
+        </div>
+        <!-- Placar de postos. Sai de `tally`, que já contava — nada de
+             cronômetro de partida: o modo não tem tempo, tem os doze postos. -->
+        <div id="deploy-score"></div>
         <div class="deploy-actions">
           <span id="zone-label" class="pending">Escolha um ponto no mapa</span>
           <button type="button" id="deploy" disabled>Desembarcar</button>
@@ -55,16 +130,50 @@
       <div id="class-detail"></div>
     </header>
 
-    <div class="deploy-map">
-      <canvas id="tactical-map"></canvas>
+    <div class="deploy-body">
+      <!-- A lista diz por extenso o que o mapa pinta em bolinha de nove
+           pixels. As duas leem o mesmo estado de captura. -->
+      <aside class="deploy-side">
+        <h2 class="side-head">Escolha um ponto de desembarque</h2>
+        <div id="deploy-points"></div>
+
+        <div class="map-legend">
+          <span class="legend-head">Legenda</span>
+          <span class="legend-row"><i data-mark="aliado"></i>Controlado pelo seu time</span>
+          <span class="legend-row"><i data-mark="inimigo"></i>Controlado pelo inimigo</span>
+          <span class="legend-row"><i data-mark="neutro"></i>Neutro</span>
+          <span class="legend-row"><i data-mark="disputa"></i>Contestado &mdash; sem desembarque</span>
+          <span class="legend-row"><i data-mark="base"></i>Base principal</span>
+        </div>
+      </aside>
+
+      <div class="deploy-map">
+        <canvas id="tactical-map"></canvas>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- O mapa grande de M, espelhando o index.html: tela que o fluxo conhece
+     e a página de captura não teria faz `show()` estourar em null. -->
+<div id="map-screen" class="screen hidden">
+  <div class="screen-inner map-inner">
+    <header class="map-head"><h1>Mapa</h1><p id="map-sub"></p></header>
+    <div class="map-holder"><canvas id="map-canvas"></canvas></div>
+    <p class="map-foot">Clique para marcar &middot; M fecha</p>
+  </div>
+</div>
+
 <div id="pause-screen" class="screen hidden">
-  <p id="pause-hint"></p>
-  <div id="hud-options"><input type="checkbox" id="fullscreen-toggle"></div>
-  <button type="button" id="open-deploy"></button>
+  <div class="screen-inner pause-inner">
+    <h1>Pausado</h1>
+    <p id="pause-hint"></p>
+    <button type="button" id="open-deploy">Equipamento e desembarque</button>
+    <!-- Só as teclas que não se adivinham. WASD, mouse e Shift estão em todo
+         FPS; largar no G e içar bandeira no F não. -->
+    <p class="pause-keys">G larga &middot; E apanha &middot; F bandeira &middot; R recarrega &middot; C agacha &middot; Z deita</p>
+    <p class="pause-foot">Clique para voltar &middot; ESC sai &middot; F2 mostra o painel</p>
+  </div>
 </div>
 
 <script type="importmap">
@@ -86,12 +195,46 @@ import { Viewmodel } from '../src/items/viewmodel.js';
 import { initDrop } from '../src/items/drop.js';
 import { initStatus } from '../src/ui/status.js';
 import { initCompass } from '../src/ui/compass.js';
+import { initRadar } from '../src/ui/radar.js';
+import { initRangefinder } from '../src/ui/rangefinder.js';
 import { initObjective, initFlagPrompt } from '../src/ui/objective.js';
 import { createCapture } from '../src/game/capture.js';
 import { initPrompt } from '../src/ui/prompt.js';
+import { initRumoDano } from '../src/ui/rumodano.js';
+import { initBoneco } from '../src/ui/boneco.js';
 import { initFlow } from '../src/ui/flow.js';
+import { initMapa } from '../src/ui/mapa.js';
+import { marcar } from '../src/ui/marcacoes.js';
+import { createBots, playerAsTarget } from '../src/bots/bots.js';
+import { carregarSoldado } from '../src/bots/model.js';
+import { initPlayerBody } from '../src/player/body.js';
+
+/**
+ * O `.glb` do soldado, esperado ANTES de qualquer bot — como o `main.js` faz.
+ *
+ * Sem isto `soldadoPronto()` é falso e `createSoldier` cai no soldado de
+ * CAIXAS, que não tem osso: sem osso não há rig, e sem rig não há pose,
+ * passada, postura nem mão na arma. A foto saía com trinta bots de braço
+ * caído e sem arma, e quem olhasse juraria que a animação do jogo tinha
+ * quebrado — eu mesmo caí nisso investigando exatamente esse relato. É a
+ * regra desta página cobrando de novo: ela tem que inicializar como o jogo
+ * inicializa, e o topo do módulo é onde o jogo faz isso.
+ */
+await carregarSoldado().catch(() => {});
+import { carregarJipe, medidasDoJipe } from '../src/veiculos/modelo.js';
+import { usarMedidasDoJipe } from '../src/veiculos/hitbox.js';
+import { criarVeiculos } from '../src/veiculos/veiculos.js';
+import { createBallistics } from '../src/items/ballistics.js';
 
 const tela = new URLSearchParams(location.search).get('tela') ?? 'inicio';
+
+// O modelo do jipe vem de arquivo, e sem esperar por ele `jipePronto()` é
+// falso: o veículo existiria na física e não apareceria na foto — que é
+// justamente o que esta página serve pra conferir.
+await carregarJipe().catch(() => {});
+// A hitbox sai da malha, como no `main.js`: página de verificação que mede
+// diferente do jogo fotografa uma caixa que o jogo não usa.
+usarMedidasDoJipe(medidasDoJipe);
 
 const { scene, camera, renderer } = createStage();
 initInput();
@@ -102,16 +245,43 @@ const flow = initFlow({
   boot() {
     const world = buildWorld(scene);
     const player = new Player(camera, renderer.domElement, world);
+
+    /**
+     * O corpo do JOGADOR em primeira pessoa, como o `main.js` monta.
+     *
+     * Sem ele esta página fotografa uma vista que o jogo não tem: agachado,
+     * o corpo é a única coisa que o jogador vê de si, e é justamente ele que
+     * pode tapar a tela. A foto saía limpa e o jogo saía com o tronco na
+     * lente — mesma família do `.glb` que faltava aqui.
+     */
+    const corpo = initPlayerBody(scene, player, { team: player.team });
     scene.add(player.object);
 
     const viewmodel = new Viewmodel(camera, innerWidth / innerHeight);
     viewmodel.visible = false;
     const drops = initDrop(scene, player, viewmodel, world);
 
+    /**
+     * A balística e o jogador COMO ALVO, como o `main.js` monta — e não só
+     * quando há bots.
+     *
+     * Os dois avisos de dano (o arco do rumo e o boneco de regiões) escutam a
+     * lista de acertos DELA, e só acendem com o jogador na posição de vítima.
+     * Sem a balística montada aqui não haveria como fotografá-los, e a foto é
+     * a única coisa que mostra se o arco cai no lado certo da tela.
+     */
+    const ballistics = createBallistics(scene, world.colliders, {});
+    const alvoDoJogador = playerAsTarget(player, () => {});
+    player.asTarget = alvoDoJogador;
+    world.targets.push(alvoDoJogador);
+
     painel = {
-      player, viewmodel, world,
+      ballistics, alvoDoJogador,
+      player, viewmodel, world, corpo,
       status: initStatus(player),
-      compass: initCompass(camera),
+      compass: initCompass(camera, { player, world }),
+      radar: initRadar(player, camera, world, null),
+      rangefinder: initRangefinder(player, camera, world, world.targets),
       // O painel de objetivo é HUD como qualquer outro, e sem ele esta página
       // testaria um caminho que o jogo não faz.
       ...(() => {
@@ -122,15 +292,94 @@ const flow = initFlow({
           flagPrompt: initFlagPrompt(player, capture)
         };
       })(),
-      prompt: initPrompt(drops)
+      prompt: initPrompt(drops),
+      rumoDano: initRumoDano(alvoDoJogador, camera, ballistics),
+      boneco: initBoneco(alvoDoJogador, ballistics)
     };
-    // pointer lock não existe em headless; o fluxo só precisa dos eventos
+
+    /**
+     * Um jipe ao lado do jogador, como o `main.js` põe um em cada base.
+     *
+     * `?jipe=x,z[,graus]` põe onde se quiser; sem o parâmetro ele nasce a oito metros
+     * à frente do nascimento, que é o enquadramento de quem quer fotografar o
+     * veículo. Página de verificação que não monta o que o jogo monta
+     * fotografa um jogo que não existe.
+     */
+    const veiculos = criarVeiculos(scene, world, camera, player);
+    const onde = (new URLSearchParams(location.search).get('jipe') ?? '').split(',');
+    const jx = Number(onde[0]);
+    const jz = Number(onde[1]);
+    painel.veiculos = veiculos;
+    const jgiro = onde.length > 2 ? Number(onde[2]) * Math.PI / 180 : Math.PI / 2;
+    painel.jipe = Number.isFinite(jx) && Number.isFinite(jz)
+      ? veiculos.criar(jx, jz, jgiro)
+      : veiculos.criar(world.spawn.x + 8, world.spawn.z, jgiro);
+
+    // `?dirigir=1` senta o jogador no volante. É o único jeito de fotografar
+    // a vista de dentro: ela é escrita pelo assento, e `?olho` não vale ali —
+    // quem manda na câmera dentro do veículo é `veiculos/vista.js`.
+    if (new URLSearchParams(location.search).has('dirigir')) {
+      veiculos.embarcar(painel.jipe);
+    }
+
+    /**
+     * Os bots, como o `main.js` faz — e não faziam falta até existir
+     * formação pra conferir. Página de verificação que não monta o que o
+     * jogo monta fotografa um jogo que não existe.
+     *
+     * `?bots=N` porque trezentos custam segundos de montagem e a foto quase
+     * sempre precisa de um punhado. Zero desliga.
+     */
+        /**
+     * `?postura=agachado|deitado` põe o JOGADOR na postura, pra fotografar a
+     * vista de dentro dela.
+     *
+     * O corpo em primeira pessoa é posado pela mesma tabela dos bots, e ele
+     * é a única coisa que o jogador vê de si — se a pose o levanta até a
+     * altura do olho, o tronco tapa a tela inteira e não há foto de fora que
+     * mostre isso. Esta é a única vista que denuncia.
+     */
+    const daPostura = new URLSearchParams(location.search).get('postura');
+    if (daPostura === 'agachado' || daPostura === 'deitado') {
+      player.prone = daPostura === 'deitado';
+      player.crouchLatched = daPostura === 'agachado';
+      // Alguns quadros pra a altura chegar no alvo: agachar leva 0,14 s e
+      // deitar 0,32, e fotografar no meio da transição é fotografar uma
+      // postura que não existe.
+      for (let q = 0; q < 40; q++) player.update(1 / 60);
+      const g = painel?.corpo?.grupo;
+      console.log(`POSTURA altura=${player.height?.toFixed(3)} stance=${player.stance}`
+        + ` olho=${player.eyeY?.toFixed(3)} pes=${player.feetY?.toFixed(3)}`
+        + ` corpoVisivel=${painel?.corpo?.visible} grupoY=${g?.position.y.toFixed(3)}`
+        + ` naCena=${Boolean(g?.parent)} espectando=${player.spectating} vivo=${player.alive}`);
+    }
+
+const quantos = Number(new URLSearchParams(location.search).get('bots') ?? 0);
+    if (quantos > 0) {
+
+      const bots = createBots(scene, world, { ballistics, capture: painel.capture });
+      for (const [i, time] of ['karnia', 'vestria'].entries()) {
+        bots.formar({ team: time, quantos: Math.ceil(quantos / 2), id0: 1 + i * 500 });
+      }
+      bots.setTargets([alvoDoJogador, ...bots.soldiers]);
+      world.targets.push(...bots.soldiers);
+      painel.bots = bots;
+      // Alguns quadros pro pelotão pensar e a formação assentar: no primeiro
+      // quadro todo mundo ainda está em cima do ponto de nascimento.
+      for (let q = 0; q < 150; q++) bots.update(1 / 60);
+    }
+    // Pointer lock não existe em headless, mas os EVENTOS têm que existir: é
+    // `unlock` que faz `flow.onUnlock` abrir a pausa. Com `addEventListener`
+    // vazio, a tela de pausa só era alcançável forçando a classe na mão — ou
+    // seja, testando um caminho que o jogo não faz.
+    const ouvintes = { lock: [], unlock: [] };
     const controls = {
       isLocked: false,
-      lock() { this.isLocked = true; },
-      unlock() { this.isLocked = false; },
-      addEventListener() {}
+      lock() { this.isLocked = true; for (const f of ouvintes.lock) f(); },
+      unlock() { this.isLocked = false; for (const f of ouvintes.unlock) f(); },
+      addEventListener(tipo, f) { ouvintes[tipo]?.push(f); }
     };
+    window.__controls = controls;
     return { controls, player, world };
   },
   onDeploy(classDef, zone) {
@@ -152,24 +401,153 @@ const flow = initFlow({
 
 const zona = Number(new URLSearchParams(location.search).get('zona') ?? 0);
 
-if (tela !== 'inicio') {
+// Opções é sobreposição da abertura: nada de mundo, nada de zona. Clicar em
+// Jogar aqui montaria a ilha inteira pra fotografar uma maquete.
+if (tela === 'opcoes') document.getElementById('open-options').click();
+
+if (tela === 'deploy') {
   document.getElementById('play').click();
   flow.selectZone(painel.world.spawnZones[zona]);
 }
-if (tela === 'jogo') {
-  document.getElementById('deploy').click();
+
+/**
+ * Entra no mapa pelo caminho de verdade.
+ *
+ * Antes isto clicava em Desembarcar com `spawnZones[0]` selecionada — que é a
+ * base INIMIGA, recusada pela regra de spawn. O botão ficava desabilitado, o
+ * clique não fazia nada, e a página compensava escrevendo `alive` e
+ * `spectating` na mão: o jogo parecia montado e a FASE continuava em deploy.
+ * A pausa nunca abria por isso, porque `onUnlock` ignora deploy de propósito.
+ * `enterMap` escolhe entre as zonas VÁLIDAS e passa por `deploy()`.
+ */
+// O mapa grande só existe DENTRO do jogo: `alternarMapa` recusa fora da
+// fase de jogo, e sem desembarcar a página ficava na abertura.
+if (tela === 'jogo' || tela === 'pausa' || tela === 'mapa') {
+  flow.enterMap(zona);
   const { player } = painel;
-  player.spectating = false;
-  player.alive = true;
   player.health = 78;                       // barra pela metade, pra ver a cor
   // ?slot= escolhe o que está na mão, pra conferir cada linha do cinto acesa
   const slot = Number(new URLSearchParams(location.search).get('slot') ?? 2);
   player.selectSlot(slot);
   painel.viewmodel.setItem(player.equipped);
-  document.body.classList.remove('screen-open');
-  for (const nome of ['start-screen', 'deploy-screen', 'pause-screen']) {
-    document.getElementById(nome).classList.add('hidden');
+
+  /**
+   * `?dano=rumo[,rumo...]` põe um TIRO DE VERDADE vindo de cada rumo (0° é o
+   * norte, como na bússola), pra fotografar o arco de onde veio o dano e o
+   * boneco de regiões acesos.
+   *
+   * A bala é disparada pela balística e o laço a faz andar até acertar: injetar
+   * o evento na mão fotografaria um HUD que o jogo não alimenta, e é justamente
+   * o caminho do evento que este par de painéis testa.
+   *
+   * `?dano-alvo=metros` escolhe a ALTURA do ponto mirado, ou seja a região: 1,6
+   * é capacete, 1,44 cabeça, 1,14 tronco, 0,3 perna.
+   */
+  const deOndeVeio = new URLSearchParams(location.search).get('dano');
+  if (deOndeVeio) {
+    const alvoY = Number(
+      new URLSearchParams(location.search).get('dano-alvo') ?? 1.14);
+    /**
+     * O tiro é REFRESCADO, e não dado uma vez.
+     *
+     * A marca vive 2,6 s e o boneco 1,8, e o orçamento de tempo virtual decide
+     * quantos quadros a página desenha antes da foto — ou seja, a foto cai num
+     * quadro qualquer. Disparando uma vez, a captura saía com o HUD já apagado
+     * e parecia que os dois painéis não desenhavam. É a mesma ideia do `?ads=1`
+     * segurando a mira de ferro: a página mantém o estado fotografável.
+     *
+     * A vida volta junto, senão a rajada de figurantes mata o jogador e a foto
+     * vira tela de deploy.
+     */
+    painel.refrescarDano = () => {
+      const pes = player.object.position;
+      const chao = painel.world.terrain.heightAt(pes.x, pes.z);
+      player.health = player.maxHealth;
+      player.alive = true;
+      for (const texto of deOndeVeio.split(',')) {
+        const r = Number(texto) * Math.PI / 180;
+        const de = new THREE.Vector3(
+          pes.x + 10 * Math.sin(r), chao + alvoY, pes.z - 10 * Math.cos(r));
+        const dir = new THREE.Vector3(pes.x - de.x, 0, pes.z - de.z).normalize();
+        painel.ballistics.spawn(de, dir,
+          { damage: 8, range: 60, tracer: false, owner: { name: 'figurante' } });
+      }
+    };
+    painel.refrescarDano();
   }
+}
+
+// A pausa abre soltando o mouse, exatamente como no jogo: quem a mostra é o
+// `unlock` do controls, e não a classe posta na mão.
+if (tela === 'pausa') window.__controls.unlock();
+
+/**
+ * Câmera livre, pra conferir um pedaço do mapa que nenhuma zona de
+ * desembarque alcança — vão de ponte, telhado de vila, leito do rio.
+ *
+ * `?olho=x,y,z&mira=grausYaw,grausPitch`. O laço desta página não chama
+ * `player.update`, então o que for escrito aqui fica: no jogo, `view.js`
+ * reescreveria `camera.position.y` no fim de todo quadro.
+ *
+ * O yaw entra pelo QUATERNION em YXZ, e não por `camera.rotation.y`: o rig é
+ * yaw+pitch e `rotation` decodifica em XYZ, então escrever em `rotation.y`
+ * dá ângulo errado assim que há pitch. É o mesmo motivo de `heading.js`.
+ */
+const olho = new URLSearchParams(location.search).get('olho');
+if (olho && painel) {
+  const [ox, oy, oz] = olho.split(',').map(Number);
+  const [yaw, pitch] = (new URLSearchParams(location.search).get('mira') ?? '0,0')
+    .split(',').map(Number);
+  camera.position.set(ox, oy, oz);
+  camera.quaternion.setFromEuler(
+    new THREE.Euler(pitch * Math.PI / 180, yaw * Math.PI / 180, 0, 'YXZ'));
+  /**
+   * `?olho` põe a câmera onde o jogador não está, e arma flutuando ali lê
+   * como bug — por isso o viewmodel sai. Mas dirigindo a câmera É a do
+   * jogador: ela está no assento, e é justamente a mão no volante que se quer
+   * fotografar.
+   */
+  painel.viewmodel.visible = Boolean(painel.player.vehicle);
+}
+
+if (new URLSearchParams(location.search).get('hud') === '0') {
+  for (const id of ['hud-layer', 'crosshair', 'compass']) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+}
+
+/**
+ * `?tela=mapa` entra no jogo e abre o mapa grande, pelo MESMO caminho de M.
+ *
+ * Marcações de exemplo entram por código porque clique em canvas headless não
+ * tem tamanho — é a mesma razão de `flow.selectZone` existir.
+ */
+if (tela === 'mapa' && painel) {
+  /**
+   * Um posto EM DISPUTA, por código.
+   *
+   * O anel de progresso é a metade da leitura do símbolo, e ele só aparece
+   * quando alguém está trabalhando na bandeira — que numa foto nunca
+   * acontece por acaso. Mexer no estado aqui é o mesmo que `flow.selectZone`
+   * faz: chegar por código onde o clique chegaria.
+   */
+  const emDisputa = painel.world.outposts[2];
+  if (emDisputa) {
+    const bandeira = emDisputa.flags[0];
+    bandeira.phase = 'arriando';
+    bandeira.byTeam = 'vestria';
+    bandeira.progress = 0.62;
+  }
+
+  // Em terreno aberto, não em cima de posto: a foto tem que mostrar os dois
+  // símbolos, e o losango do jogador desenha POR CIMA do disco de propósito.
+  marcar(-420, -620);
+  marcar(180, 90);
+  marcar(-600, 260);
+  flow.alternarMapa();
+  painel.mapa = initMapa(painel.world.terrain, painel.world, painel.player);
+  painel.mapa.desenhar();
 }
 
 // preserveDrawingBuffer é false: sem laço, a captura sai vazia. E os painéis
@@ -177,14 +555,54 @@ if (tela === 'jogo') {
 // resize tardio limpar o canvas sem redesenhar.
 renderer.setAnimationLoop(() => {
   if (painel) {
+    if (tela === 'mapa') painel.mapa?.desenhar();
     // A pose da arma na mão vem do update, não do construtor: sem chamar isso
     // o modelo fica na origem da câmera do viewmodel e ocupa a tela inteira.
     if (!painel.player.spectating) painel.viewmodel.update(1 / 60, painel.player);
+    // O corpo em primeira pessoa, todo quadro — é ele que a postura pousa.
+    painel.corpo?.update(1 / 60);
+    if (!window.__mediu && window.__q > 20) {
+      window.__mediu = true;
+      const g = painel.corpo?.grupo;
+      if (g) {
+        g.updateMatrixWorld(true);
+        const paraCamera = camera.matrixWorld.clone().invert();
+        const linhas = [];
+        for (const nome of ['hips', 'spine', 'chest', 'thigh_L', 'knee_L', 'foot_L']) {
+          const o = g.getObjectByName(nome);
+          if (!o) continue;
+          const w = o.getWorldPosition(new THREE.Vector3());
+          const c = w.clone().applyMatrix4(paraCamera);
+          linhas.push(`${nome}: mundo y=${w.y.toFixed(2)} | camera z=${c.z.toFixed(2)} y=${c.y.toFixed(2)}`);
+        }
+        console.log(`CORPO postura=${painel.player.stance} olho=${camera.position.y.toFixed(2)}`
+          + ` escalaY=${g.scale.y.toFixed(3)} | ` + linhas.join(' | '));
+      }
+    }
+    window.__q = (window.__q ?? 0) + 1;
     painel.objective();
     painel.flagPrompt();
     painel.status();
     painel.compass();
+    // ?ads=1 segura a arma na mira, pra fotografar o telêmetro — ele só
+    // escreve mirando, e sem isto não haveria como conferir o número.
+    if (new URLSearchParams(location.search).has('ads')) painel.player.gun.aim = 1;
+    painel.radar.update();
+    painel.rangefinder.update();
+    // Os veículos ANTES do prompt: é o aviso do E que lê se há um ao alcance.
+    painel.veiculos.update(1 / 60, painel.world.targets);
+    // Quem está no volante segura o volante, não a arma — como no `main.js`.
+    const maos = painel.veiculos.maosNoVolante();
+    if (maos) painel.viewmodel.segurarVolante(maos.esq, maos.dir, camera.fov);
+    else painel.viewmodel.soltarVolante();
     painel.prompt();
+    // A balística e os dois avisos de dano, todo quadro — é ela que faz a
+    // bala de `?dano=` andar os dez metros até acertar.
+    painel.ballistics.update(1 / 60, painel.world.targets, painel.world.terrain);
+    // 100 quadros: pouco menos do que a marca leva pra apagar.
+    if (painel.refrescarDano && window.__q % 100 === 20) painel.refrescarDano();
+    painel.rumoDano(1 / 60);
+    painel.boneco(1 / 60);
     renderer.render(scene, camera);
     painel.viewmodel.render(renderer);
   }

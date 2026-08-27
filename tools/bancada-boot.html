@@ -1,0 +1,77 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: boot</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { createHeightfield, assertFlatZones } from '../src/world/heightfield.js';
+import { createTerrain } from '../src/world/terrain.js';
+import { createDeform } from '../src/world/deform.js';
+import { createSettling } from '../src/world/settling.js';
+import { createSkyTexture } from '../src/core/sky.js';
+import { createWater } from '../src/world/water.js';
+import { createRiver } from '../src/world/river.js';
+import { addBridges } from '../src/world/bridge.js';
+import { addBase } from '../src/world/base.js';
+import { addOutposts } from '../src/world/outposts.js';
+import { addForest } from '../src/world/forest.js';
+import { addBushes } from '../src/world/bushes.js';
+import { sorteioFixo } from '../src/world/props.js';
+import { ListaDeColisores } from '../src/world/colisores.js';
+import { renderIsland } from '../src/world/minimap.js';
+import { WORLD } from '../src/config.js';
+import { TEAMS } from '../src/game/teams.js';
+
+// Tempo REAL, não suíte: sob --virtual-time-budget o performance.now() não anda.
+const out = document.getElementById('out');
+const linhas = [];
+const passo = (nome, fn) => {
+  const t = performance.now();
+  const r = fn();
+  linhas.push(`${nome.padEnd(30)} ${(performance.now() - t).toFixed(0)} ms`);
+  out.textContent = linhas.join('\n');   // escreve a cada passo: se travar, vê-se ONDE
+  return r;
+};
+
+const scene = new THREE.Scene();
+passo('céu', () => createSkyTexture());
+
+const probe = passo('probe', () => createHeightfield([]));
+const north = WORLD.BASE_KARNIA;
+const south = WORLD.BASE_VESTRIA;
+const flatZones = assertFlatZones([
+  { ...north, radius: 24, blend: 18, height: probe.naturalHeight(north.x, north.z) },
+  { ...south, radius: 24, blend: 18, height: probe.naturalHeight(south.x, south.z) }
+]);
+const deform = createDeform();
+const terrain = passo('createTerrain', () => createTerrain(flatZones, deform));
+passo('buildMesh', () => terrain.buildMesh());
+passo('water', () => createWater());
+passo('river', () => createRiver(terrain.riverBedAt));
+
+const colliders = new ListaDeColisores();
+const settling = passo('settling', () => createSettling(terrain, colliders));
+passo('bases', () => {
+  addBase(scene, colliders, { name: 'N', ...north, ground: terrain.heightAt(north.x, north.z), facing: -1, color: TEAMS.karnia.color, settling });
+  addBase(scene, colliders, { name: 'S', ...south, ground: terrain.heightAt(south.x, south.z), facing: -1, color: TEAMS.vestria.color, settling });
+});
+const occupied = [
+  { ...north, radius: 28, name: 'N' }, { ...south, radius: 28, name: 'S' }
+];
+passo('outposts', () => addOutposts(scene, colliders, { terrain, settling, occupied, campo: probe }));
+const bridges = passo('bridges', () => addBridges(scene, colliders, { terrain }));
+for (const p of bridges) occupied.push({ x: p.x, z: p.z, radius: p.comprimento / 2 + 14, name: 'ponte' });
+const blocked = (x, z) => occupied.some((zn) => Math.hypot(x - zn.x, z - zn.z) < zn.radius);
+
+passo(`forest (${WORLD.TREE_COUNT})`, () => addForest(scene, colliders, {
+  heightAt: terrain.heightAt, tipoAt: terrain.tipoAt, blocked, rng: sorteioFixo(20250824), settling
+}));
+passo(`bushes (${WORLD.BUSH_COUNT})`, () => addBushes(scene, {
+  heightAt: terrain.heightAt, tipoAt: terrain.tipoAt, blocked, rng: sorteioFixo(20250825)
+}));
+passo('minimap', () => renderIsland(terrain));
+linhas.push('', `colisores ${colliders.length}`);
+out.textContent = linhas.join('\n');
+</script></body></html>
