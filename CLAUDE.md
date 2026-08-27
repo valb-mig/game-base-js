@@ -53,6 +53,8 @@ src/
            grao.js  o grão que texturiza o chão, e fecha sem costura
            colisores.js  a lista de colisores com índice espacial
            estradas.js  a malha viária, pintada no chão
+           lote.js  as caixas de construção viram InstancedMesh por célula:
+             1450 malhas em 142 lotes, e 803 chamadas de desenho em 94
            heightfield.js  altura da ilha (matemática pura, sem three)
            deform.js  camada escavável, delta por vértice da malha
            settling.js  o que perde o chão desaba e tomba
@@ -125,7 +127,7 @@ tests/     run.html + suites/
             mapa,
             textura, grade, avisodano,
             horizonte,
-            flow)
+            flow, lote)
 tools/     dev.sh  serve.py (sem cache)  soak.html  model-viewer.html
            bancada-cena.html  quem é dono do quadro: objeto, chamada, matriz
            bancada-painel.html  o painel de ajustes fora do jogo, pra medir layout
@@ -138,6 +140,9 @@ tools/     dev.sh  serve.py (sem cache)  soak.html  model-viewer.html
              distante — mede com `?serra=0|1` e fotografa com `?olho=`
            paleta-vegetacao.py  a conta que repintou o verde
 vendor/    three.js 0.169 local — não vem de CDN
+           bancada-perfil.html  de quem é o milissegundo DENTRO da IA e da
+             balística, desligando uma peça por vez: `?bots=N&mortos=N`
+           bancada-lote.html  quem escapou do lote, e o que o lote custa
            three/addons/  o que se usa dos examples do three, vendorizado:
              GLTFLoader · PointerLockControls · BufferGeometryUtils ·
              SkeletonUtils (clone com esqueleto religado) · OrbitControls
@@ -914,9 +919,66 @@ tirada ENTRE os dois renders, e o número que o F2 mostra é o do mundo.
 Medido em `tools/bancada-cena.html` com o mapa montado: 1311 objetos na cena,
 714 draw calls e 1,71 M de triângulos, com 13 geometrias e 40 materiais
 distintos. A floresta já era instanciada (11 `InstancedMesh` pras 4200
-árvores); o que sobrou solto são as 1272 caixas de CONSTRUÇÃO, ou seja a mesma
-caixa desenhada mais de mil vezes. São 1,8 ms de CPU por quadro com a câmera
-apontada pro CÉU — zero triângulo transformado.
+árvores); o que sobrou solto eram as 1272 caixas de CONSTRUÇÃO, ou seja a mesma
+caixa desenhada mais de mil vezes. Eram 1,8 ms de CPU por quadro com a câmera
+apontada pro CÉU — zero triângulo transformado. Hoje elas são lote
+(`world/lote.js`), e a mesma bancada dá 237 objetos e 94 draw calls.
+
+**A caixa de construção vira lote POR CÉLULA, e o que se compra com isso é o
+recorte.** Um `InstancedMesh` por material dá 51 chamadas de desenho em vez de
+106, e o preço é ele ser recortado como UMA coisa: um lote de 2 km está sempre
+em quadro, e medido com a câmera pro céu a travessia sobe de 0,25 pra 0,37 ms.
+Célula de 96 m fica com 84% da economia de chamada e devolve o recorte por
+região. O A/B é do mesmo processo, como sempre nesta base: 651 chamadas e
+3,16 ms contra 106 e 0,87 — entre duas execuções da mesma página o ruído desta
+máquina passa de 40%, e comparar execuções provaria o que se quisesse.
+
+**Lote não é de graça em pixel: ele desenha o que o recorte por objeto
+descartava.** A captura antes e depois difere em 10 pixels de 921.600, todos na
+LINHA DO HORIZONTE e nenhum passando de 25 níveis — são os 900 triângulos a
+mais que a bancada contou, props a um quilômetro cuja esfera própria caía fora
+do quadro e que agora entram junto com a célula. Aquele prop existe ali, então
+não é regressão; e a diferença chega ao pixel já lavada pela névoa. Suspeitei
+primeiro de FASE de animação (a cruz do moinho gira por delta) e a medida
+recusou: duas capturas com orçamento de tempo virtual diferente dão zero pixel
+de diferença, ou seja o quadro da página de captura é determinístico.
+
+**O que vira instância tem que avisar quem mexia na malha.** `settling.js` já
+sabia mexer em instância — é assim que a floresta se registra desde sempre —,
+mas os props de `addBox` se registravam com a malha SOLTA. Sem `trocarParte`, o
+prop continuaria escrevendo numa malha que saiu da cena: cavar embaixo de uma
+parede a deixaria de pé na tela e caída na colisão, que é o pior dos dois
+mundos, porque o colisor desce e o desenho não. Quem se MEXE fica fora do lote
+por marcação (`userData.movel`): a bandeira que sobe no mastro, a cruz do
+moinho, o boneco de treino que tomba.
+
+**O corpo caído perguntava ao MAPA INTEIRO onde ele tinha batido.** Terceira
+vez que este invariante cobra — depois de `acharCobertura` e de `wallHit` —, e
+desta vez no quadro em que alguém morre: enquanto o solver do ragdoll está
+acordado ele varria os 5643 colisores atrás das caixas a 1,6 m do quadril.
+Medido em `tools/bancada-perfil.html`, no mapa de nove bots: TRÊS corpos no
+chão levavam a IA de 0,71 pra 2,70 ms, e 1,77 desses milissegundos eram só a
+varredura. Num tiroteio de 300 com 62 corpos eram 62 varreduras por quadro,
+367.846 caixas visitadas, 20 dos 26 ms. Com `emVolta` são 142 µs por corpo em
+vez de 667.
+
+**E o teste disso conta VARREDURA, não milissegundo.** Ele roda sob
+`--virtual-time-budget`, onde `performance.now()` não anda e `custo < 1.5`
+passa verde com 0,000 ms. Contar a iteração da lista inteira (envolvendo o
+`Symbol.iterator` da instância) mede a REGRA. E vem com contraprova, porque
+"nenhuma varredura" é também o que se mede quando o corpo deixou de consultar
+caixa nenhuma: a mesma queda com e sem uma parede encostada tem que terminar em
+lugares diferentes — medido, 18 cm.
+
+**Terreno `flatShading` não tem normal, e calculá-la custava um sexto do
+boot.** O shader deriva a normal por FACE a partir da posição, e é por isso que
+`applyEdit` nunca chamou `computeVertexNormals` depois de uma pazada. O
+`buildMesh` chamava, sobre os 641.601 vértices da malha inteira: medido, 138 ms
+de um `buildMesh` de 912. O atributo sai fora junto (`deleteAttribute`) porque
+são 7,7 MB que o material não amarra a atributo nenhum. A prova de que ninguém
+mais o lia é a captura: 0 bytes de diferença em 2.764.800. Se algum dia alguém
+fizer raycast contra o terreno e ler `intersection.normal`, é
+`computeVertexNormals` que volta — e o custo dela volta com ela.
 
 **E desligar a matriz automática das paredes NÃO vale a pena.** Foi medido em
 A/B no mesmo processo (entre duas execuções da bancada o mesmo código deu 2,54
