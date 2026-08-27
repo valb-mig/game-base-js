@@ -3,6 +3,7 @@ import { DROP, WORLD } from '../config.js';
 import { consumePress } from '../core/input.js';
 import { DROP_KEYS, PICK_KEYS, SLOT_KEYS } from '../player/constants.js';
 import { restHeightAt } from '../player/collision.js';
+import { travarE } from '../player/inclinacao.js';
 import { createItemModel, restingRotation, disposeModel } from './models.js';
 import { reabastecer } from '../game/suprimento.js';
 
@@ -245,7 +246,13 @@ export function initDrop(scene, player, viewmodel, world) {
          * E ao lado do jipe não fazia absolutamente nada. Quem tem o que fazer
          * com a tecla é quem a consome.
          */
-        if (reachable() && consumePress(...PICK_KEYS)) pickUp();
+        // E quem consumiu o toque avisa a inclinação: o E é SEGURADO pra
+        // inclinar o corpo, e sem este aviso apanhar um item dava um
+        // solavanco de um quarto de segundo pro lado.
+        if (reachable() && consumePress(...PICK_KEYS)) {
+          travarE(player);
+          pickUp();
+        }
       }
       for (const entity of items) step(entity, delta);
     }

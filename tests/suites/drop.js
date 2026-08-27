@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../../src/player/player.js';
 import { Viewmodel } from '../../src/items/viewmodel.js';
 import { initDrop } from '../../src/items/drop.js';
-import { initInput, endFrame } from '../../src/core/input.js';
+import { initInput, endFrame, consumePress } from '../../src/core/input.js';
 import { WORLD, DROP, PLAYER } from '../../src/config.js';
 import { initPrompt } from '../../src/ui/prompt.js';
 import { KNIFE, PISTOL, getClass } from '../../src/items/classes.js';
@@ -13,7 +13,8 @@ const DT = 1 / 60;
 /** Planalto seco a 5 m, mergulhando no mar a partir de z = 30. */
 const relevo = {
   heightAt: (x, z) => (z < 30 ? 5 : 5 - (z - 30) * 0.6),
-  waterDepthAt: (x, z) => Math.max(0, WORLD.WATER_LEVEL - relevo.heightAt(x, z))
+  waterDepthAt: (x, z) => Math.max(0, WORLD.WATER_LEVEL - relevo.heightAt(x, z)),
+  nivelDaAguaAt: () => WORLD.WATER_LEVEL
 };
 
 /**
@@ -361,6 +362,26 @@ export async function run() {
   eq('renascer devolve o equipamento da classe', player.equipped?.id, 'mp40');
   ok('inclusive a faca', player.carried.includes(KNIFE));
   eq('mas o que caiu continua no chão', drops.items.length, antes);
+
+  suite('o E não é engolido quando não há nada pra apanhar');
+
+  /**
+   * O E é DISPUTADO: quem está ao lado de um veículo quer entrar nele, e quem
+   * está sobre um item quer apanhá-lo. `pickUp` já devolvia null sem nada por
+   * perto, mas a tecla ia embora de todo jeito — e como `drops` roda antes dos
+   * veículos no laço, apertar E ao lado do jipe não fazia absolutamente nada.
+   *
+   * Medido no jogo, não aqui: a suíte de veículo passava inteira porque ela
+   * chamava `embarcar()` por código. Teste que não começa na TECLA não prova
+   * que a tecla funciona.
+   */
+  player.object.position.set(400, 2, 400);   // longe de qualquer item largado
+  eq('nada ao alcance', drops.reachable(), null);
+  dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+  drops.update(DT);
+  ok('o E sobrevive pra quem tem o que fazer com ele', consumePress('KeyE'));
+  endFrame();
+  dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
 
   player.controls.isLocked = false;
 }

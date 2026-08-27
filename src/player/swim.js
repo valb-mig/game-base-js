@@ -32,9 +32,12 @@ export function waterDepthUnder(player, x, z) {
  * do mesmo frame.
  */
 export function updateWaterState(player) {
-  const position = player.object.position;
-  const nivel = waterLevelUnder(player, position.x, position.z);
-  const bottom = nivel - terrainUnder(player, position.x, position.z);
+  // A lâmina e o fundo são lidos onde o CORPO está, não onde a cabeça foi
+  // espiar: uma inclinação sobre a beira do rio não põe ninguém a nadar.
+  const bx = player.bodyX;
+  const bz = player.bodyZ;
+  const nivel = waterLevelUnder(player, bx, bz);
+  const bottom = nivel - terrainUnder(player, bx, bz);
 
   player.waterY = nivel;
   player.waterDepth = Math.max(0, bottom);
@@ -49,7 +52,6 @@ export function updateWaterState(player) {
 
 export function swim(player, delta) {
   const { stats, velocity, wish, right } = player;
-  const position = player.object.position;
 
   const forward = axis(FORWARD_KEYS, BACK_KEYS);
   const strafe = axis(RIGHT_KEYS, LEFT_KEYS);
@@ -104,8 +106,11 @@ export function swim(player, delta) {
     player.verticalVelocity = 0;
   }
 
-  const prevX = position.x;
-  const prevZ = position.z;
+  // O corpo, não o olho — mesma regra da locomoção em terra. Nadando a
+  // inclinação já está sendo desfeita, e partir do olho faria os poucos
+  // centímetros que sobram dela virar deslocamento de verdade.
+  const prevX = player.bodyX;
+  const prevZ = player.bodyZ;
   let nextX = prevX + velocity.x * delta;
   let nextZ = prevZ + velocity.z * delta;
 
@@ -119,11 +124,11 @@ export function swim(player, delta) {
   }
 
   const limit = WORLD.SIZE / 2 - 1;
-  position.x = Math.max(-limit, Math.min(limit, nextX));
-  position.z = Math.max(-limit, Math.min(limit, nextZ));
+  player.bodyX = Math.max(-limit, Math.min(limit, nextX));
+  player.bodyZ = Math.max(-limit, Math.min(limit, nextZ));
 
   // não atravessa o fundo do mar
-  const bottom = terrainUnder(player, position.x, position.z);
+  const bottom = terrainUnder(player, player.bodyX, player.bodyZ);
   if (player.feetY < bottom) {
     player.eyeY = bottom + player.height;
     if (player.verticalVelocity < 0) player.verticalVelocity = 0;

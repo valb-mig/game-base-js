@@ -163,6 +163,66 @@ custa 0,06 ms por quadro — o gargalo é o boot, não o render.
 virou `NaN` e o campo de treino inteiro nasceu em coordenada inválida, sem
 erro nenhum no console. Depois de mexer em `config.js`, vale conferir quais
 `WORLD.X` o código usa e a tabela não tem.
+**E no plano é a mesma coisa: a física manda em `bodyX`/`bodyZ`.** Desde que
+inclinar o corpo existe (Q e E), `camera.position.x/z` é o OLHO e não o corpo —
+a cabeça sai 26 cm pro lado com os pés parados. Locomoção, colisão, piso, teto
+e água leem `player.bodyX`/`bodyZ`; quem quer a CABEÇA — a boca do cano, o
+alcance de apanhar, o telêmetro — lê `position`. Os dois getters subtraem o
+único offset que os separa, e partir do olho em `moveHorizontal` faria a
+inclinação virar um passo de lado — um passo que ninguém desfaz, porque no
+quadro seguinte ele já é a posição de partida.
+
+**Inclinar sai de UM tombo do tronco, e são quatro consumidores.** `ANGULO` e
+`PIVO` em `INCLINACAO` dão o deslocamento do olho, a queda do olho, a rolagem
+da vista e o quanto cada caixa da hitbox anda. Declarar o deslocamento em
+metros era a armadilha óbvia: agachado o braço do quadril ao olho encurta de
+0,75 pra 0,42 m, e um deslocamento fixo pediria 45° de tombo — que a hitbox não
+teria como acompanhar. Medido: 25,6 cm de pé, 14,3 agachado, 4,5 cm de queda de
+olho, 12° de rolagem, 0,18 s pra sair e 0,13 s pra recolher.
+
+**A hitbox ancorava no OLHO, e com inclinação isso conta a manobra duas
+vezes.** `playerAsTarget.x/z` era `camera.position`, e as caixas inclinadas iam
+por cima: medido, a caixa da cabeça andava 40,9 cm em vez de 25,6 e a do PÉ
+andava os 26 cm do olho — quem espiava ficava com os pés fora da cobertura sem
+sair do lugar. A âncora é o CORPO, e quem inclina as caixas é `inclinarCaixas`,
+no sistema do corpo, e só ela. Isso só apareceu porque o teste imprimia os
+centímetros da caixa como `note`: a asserção "a cabeça andou pro lado certo"
+passava verde com os dois erros dentro.
+
+**A caixa da cabeça anda o que o OLHO anda, e a referência é MEDIDA.**
+`corpoDe` escala o corpo até o topo do capacete ficar na altura do olho, então
+o olho mora 30 cm ACIMA do centro da cabeça. Repartir o tombo pela altura do
+olho — que é a rotação rígida correta — dava 15,3 cm de caixa contra 25,6 de
+olho: dez centímetros em que o jogador vê e não é visto, que é exatamente a
+imunidade que inclinar não pode dar. A repartição normaliza na caixa da CABEÇA,
+achada entre as caixas que chegaram — a hitbox sai da malha quando há modelo, e
+tabela à mão desalinharia na primeira vez que o modelo mudasse.
+
+**Inclinar é testado com o cilindro do CORPO, e o último degrau é ZERO.** Uma
+bolinha na cabeça deixaria o ombro atravessar a parede, e é o ombro que encosta
+primeiro. A ladeira de frações (1 · 0,75 · 0,5 · 0,25 · 0) é a mesma ideia do
+`stance.js` que encolhe quem não cabe: medido, com parede a 50 cm sobram 25% de
+inclinação e a 42 cm não sobra nada. O zero no fim é o que garante que ninguém
+fica preso inclinado — inclusive quem já estava dentro de geometria antes de
+apertar a tecla.
+
+**O E é disputado por TRÊS sistemas, e o terceiro lê a tecla SEGURADA.**
+Embarcar e apanhar leem um TOQUE, e só quando têm o que fazer com ele;
+inclinar lê `isDown`. As três convivem porque quem consome o toque avisa
+(`travarE`), e a inclinação larga o E até ele subir: sem esse aviso, apanhar um
+item ou entrar no jipe dava um solavanco de um quarto de segundo pro lado — um
+quadro de inclinação é invisível, dez são um bug visível. Mudar de tecla foi
+considerado e recusado: Q/E é a convenção que o jogador traz de fora, e mover
+apanhar pro F recriaria exatamente o conflito que tirou a bandeira do E.
+
+**Ponto ancorado na CÂMERA não prova rolagem nenhuma.** O teste da vista
+inclinada projetava um ponto fixo no espaço da câmera: ele gira junto com ela e
+cai sempre no mesmo pixel, e a medida deu 0,00° com a vista rolando 12°. O
+ponto tem que estar ancorado no MUNDO — e LONGE, porque os 26 cm que o olho
+anda giram a imagem 1,4° só de paralaxe a dez metros. A dois quilômetros isso
+desaparece e sobra a rolagem. E a IMAGEM gira ao CONTRÁRIO da câmera: medir o
+módulo esconderia uma rolagem pro lado errado.
+
 
 **O terreno é um campo de altura, não um plano.** `world/heightfield.js` é a
 fonte de verdade — a malha em `terrain.js` só desenha o que ele diz, e a

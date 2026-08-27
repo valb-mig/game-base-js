@@ -1,12 +1,13 @@
 import * as THREE from 'three';
+import { inclinarCaixas } from '../player/inclinacao.js';
 import { createSoldier } from './soldier.js';
 import { createBrain, BRAIN } from './brain.js';
 import { MP40, PISTOL, KNIFE } from '../items/classes.js';
 import { enemyOf } from '../game/teams.js';
 import { corpoDe } from '../game/hitboxes.js';
-import { createVizinhanca } from './vizinhanca.js';
 import { posturaDe } from './posturas.js';
 import { SOLDIER } from './soldier.js';
+import { createVizinhanca } from './vizinhanca.js';
 import { createPelotoes } from './pelotao.js';
 import { spawnIsClear } from '../player/collision.js';
 import { PLAYER, BULLET, CAMERA } from '../config.js';
@@ -50,7 +51,6 @@ const RENASCE_APOS = 6;
 const DETALHE_RAIO = 45;
 const DETALHE_MAX = 24;
 const DETALHE_INTERVALO = 0.25;   // segundos entre reavaliações
-
 /**
  * Desconto na distância de quem JÁ tem detalhe, pra vaga não trocar à toa.
  *
@@ -58,6 +58,7 @@ const DETALHE_INTERVALO = 0.25;   // segundos entre reavaliações
  * precisa estar claramente mais perto pra tomar a vaga, não um centímetro.
  */
 const DETALHE_FIDELIDADE = 0.7;
+
 /**
  * Com que frequência cada bot SONDA o campo, por distância do olho do jogador.
  *
@@ -165,11 +166,20 @@ export function playerAsTarget(player, onDeath) {
     radius: 0.5,
     collider: null,
     get alive() { return !player.spectating && player.health > 0; },
-    get x() { return player.object.position.x; },
-    get z() { return player.object.position.z; },
+    /**
+     * Onde o CORPO dele está, e não onde a cabeça foi espiar.
+     *
+     * É a âncora da hitbox: as caixas são locais e a bala é levada pro sistema
+     * do alvo a partir daqui. Ancorada em `position`, a inclinação entrava
+     * DUAS vezes — o pé andava os 26 cm do olho e a cabeça andava 41 — e quem
+     * espiava tinha os pés fora da cobertura sem sair do lugar. Quem inclina a
+     * hitbox é `inclinarCaixas`, no sistema do corpo, e só ela.
+     */
+    get x() { return player.bodyX; },
+    get z() { return player.bodyZ; },
     center() {
-      const p = player.object.position;
-      return centro.set(p.x, player.feetY + player.height * 0.62, p.z);
+      return centro.set(
+        player.bodyX, player.feetY + player.height * 0.62, player.bodyZ);
     },
 
     /** Pra onde ele está virado. A facada pelas costas precisa saber. */
@@ -397,6 +407,8 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
       - b.d2 * (b.bot.detalhe ? DETALHE_FIDELIDADE : 1));
     const quantos = Math.min(candidatos.length, DETALHE_MAX);
     for (let i = 0; i < quantos; i++) candidatos[i].bot.detalhado = true;
+    // `detalhe` é a memória da decisão passada; `detalhado` é a de agora.
+    for (const bot of soldiers) bot.detalhe = bot.detalhado;
   }
 
   // Reaproveitado a cada olhar: quem olha e quem é olhado não podem se
@@ -407,8 +419,6 @@ export function createBots(scene, world, { ballistics, capture, rng = Math.rando
   function temLinha(de, para, quemOlha, alvo) {
     cegos.clear();
     if (quemOlha?.collider) cegos.add(quemOlha.collider);
-    // `detalhe` é a memória da decisão passada; `detalhado` é a de agora.
-    for (const bot of soldiers) bot.detalhe = bot.detalhado;
     if (alvo?.collider) cegos.add(alvo.collider);
     return !ballistics.blocked(de, para, cegos);
   }

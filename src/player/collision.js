@@ -108,11 +108,12 @@ export function waterLevelUnder(player, x, z) {
 
 /** O player cabe na altura pedida, aqui onde ele está? */
 export function fits(player, height) {
-  const position = player.object.position;
   // No chão os pés estão fixos no piso e a cabeça é que sobe.
   // No ar a cabeça é que fica parada e os pés é que descem.
   const feetY = player.onGround ? player.feetY : player.eyeY - height;
-  return !collides(player.colliders, position.x, position.z, feetY, height);
+  // No CORPO: a postura é do corpo, e quem está inclinado com a cabeça fora
+  // da quina não pode ser obrigado a agachar pelo que há do lado de lá.
+  return !collides(player.colliders, player.bodyX, player.bodyZ, feetY, height);
 }
 
 /**

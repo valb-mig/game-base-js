@@ -46,7 +46,6 @@ function moveTowards(vec, target, maxStep) {
 
 export function moveHorizontal(player, delta) {
   const { stats, velocity, wish, target, right } = player;
-  const position = player.object.position;
 
   const forward = axis(FORWARD_KEYS, BACK_KEYS);
   const strafe = axis(RIGHT_KEYS, LEFT_KEYS);
@@ -102,8 +101,11 @@ export function moveHorizontal(player, delta) {
     moveTowards(velocity, target, stats.AIR_DRAG * delta);
   }
 
-  const prevX = position.x;
-  const prevZ = position.z;
+  // O CORPO, não o olho: inclinar desloca a câmera até 26 cm pro lado, e
+  // partir daí faria a inclinação virar um passo — e um passo que o jogador
+  // nunca desfaz, porque no quadro seguinte ele já é a posição de partida.
+  const prevX = player.bodyX;
+  const prevZ = player.bodyZ;
   let nextX = prevX + velocity.x * delta;
   let nextZ = prevZ + velocity.z * delta;
   const feetY = player.feetY;
@@ -129,15 +131,18 @@ export function moveHorizontal(player, delta) {
   }
 
   const limit = WORLD.SIZE / 2 - 1;
-  position.x = THREE.MathUtils.clamp(nextX, -limit, limit);
-  position.z = THREE.MathUtils.clamp(nextZ, -limit, limit);
-  if (position.x !== nextX) velocity.x = 0;
-  if (position.z !== nextZ) velocity.z = 0;
+  player.bodyX = THREE.MathUtils.clamp(nextX, -limit, limit);
+  player.bodyZ = THREE.MathUtils.clamp(nextZ, -limit, limit);
+  if (player.bodyX !== nextX) velocity.x = 0;
+  if (player.bodyZ !== nextZ) velocity.z = 0;
 }
 
 export function moveVertical(player, delta) {
   const { stats } = player;
-  const position = player.object.position;
+  // Piso e teto são do CORPO: quem espia por cima de um vão não fica de pé no
+  // ar do outro lado dele, nem bate a cabeça na laje que a cabeça contornou.
+  const corpoX = player.bodyX;
+  const corpoZ = player.bodyZ;
   let jumpedNow = false;
 
   player.coyote = player.onGround
@@ -187,7 +192,7 @@ export function moveVertical(player, delta) {
   // pra dentro dele — e, ao cair, pra cima dele.
   if (player.eyeY > headBefore) {
     const teto = ceilingAbove(
-      player.colliders, position.x, position.z,
+      player.colliders, corpoX, corpoZ,
       player.feetY, headBefore, player.eyeY
     );
     if (teto < Infinity) {
@@ -198,8 +203,8 @@ export function moveVertical(player, delta) {
   }
 
   const floorY = groundHeightAt(
-    player.colliders, position.x, position.z, player.feetY,
-    terrainUnder(player, position.x, position.z), floorSource
+    player.colliders, corpoX, corpoZ, player.feetY,
+    terrainUnder(player, corpoX, corpoZ), floorSource
   );
   const landingEyeY = floorY + player.height;
   const reach = slopeReach(player, delta);

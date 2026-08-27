@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VIEW } from '../config.js';
 import { STAND, CROUCH, PRONE } from './constants.js';
 import { horizontalRight } from './heading.js';
+import { rolagemDaInclinacao } from './inclinacao.js';
 
 /**
  * Acabamento de câmera. Puro visual — com uma exceição declarada, o coice —,
@@ -42,7 +43,13 @@ export function updateView(player, delta) {
     rollDoPasso = Math.sin(player.bobPhase * 0.5) * VIEW.STEP_ROLL * grausPra * ratio;
   }
 
-  player.object.position.y = player.eyeY + player.viewOffset + bob;
+  // `inclinaOffset.y` é a QUEDA de quem espia: a cabeça gira em volta do
+  // quadril, então sair 26 cm pro lado baixa o olho 4,5 cm. Ela entra aqui e
+  // não em `eyeY` porque é a mesma regra de sempre — a física manda em `eyeY`,
+  // e o que a vista soma por cima não é verdade de física. O X e o Z do mesmo
+  // offset já foram escritos por `updateInclinacao`, que é quem os desfaz.
+  player.object.position.y = player.eyeY + player.viewOffset + bob
+    + player.inclinaOffset.y;
 
   updateOrientation(player, delta, rollDoPasso);
 }
@@ -91,7 +98,8 @@ function updateOrientation(player, delta, rollDoPasso) {
   player.shakePhase += delta * VIEW.SHAKE_FREQ;
   const tremor = Math.sin(player.shakePhase) * VIEW.SHAKE_ROLL * grausPra * player.shake;
 
-  const roll = player.lean + rollDoPasso + player.rollImpulse + tremor;
+  const roll = player.lean + rollDoPasso + player.rollImpulse + tremor
+    + rolagemDaInclinacao(player);
 
   // Escreve a orientação inteira de uma vez, em vez de guardar "quanto eu já
   // tinha somado" — que é o estado que sai de sincronia no primeiro caminho

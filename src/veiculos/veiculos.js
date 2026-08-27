@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PLAYER } from '../config.js';
 import { PICK_KEYS } from '../player/constants.js';
 import { consumePress } from '../core/input.js';
+import { travarE, zerarInclinacao } from '../player/inclinacao.js';
 import { JIPE } from './jipe.js';
 import { criarVeiculo } from './veiculo.js';
 import { criarVista, aprumarVista } from './vista.js';
@@ -98,6 +99,10 @@ export function criarVeiculos(scene, world, camera, player, {
   function embarcar(veiculo) {
     const lugar = veiculo.assentos.sentar(player.asTarget ?? player);
     if (!lugar) return false;
+
+    // Sentado, `player.update` não roda: a inclinação ficaria pendurada no
+    // `position` da câmera e `bodyX` responderia errado ao descer.
+    zerarInclinacao(player);
 
     player.vehicle = { veiculo, lugar };
     player.velocity.set(0, 0, 0);
@@ -197,6 +202,10 @@ export function criarVeiculos(scene, world, camera, player, {
       const podeUsar = player.isLocked && !player.spectating && (dentro || perto);
       let usou = false;
       if (podeUsar && consumePress(...PICK_KEYS)) {
+        // O terceiro pretendente do E é inclinar o corpo, que lê a tecla
+        // SEGURADA. Quem consome o toque avisa, senão embarcar deixava o
+        // jogador espiando pro lado por um quarto de segundo.
+        travarE(player);
         usou = dentro ? desembarcar() : embarcar(perto);
       }
 

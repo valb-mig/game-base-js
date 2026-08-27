@@ -523,6 +523,39 @@ export const VIEW = {
   SPRINT_FOV_SPEED: 4
 };
 
+/**
+ * Inclinar o corpo pra fora da cobertura, no Q e no E.
+ *
+ * Isto NÃO é acabamento de câmera, e por isso não mora em `VIEW`: o olho ANDA
+ * de verdade, a boca do cano vai com ele e a hitbox acompanha. Rolar a imagem
+ * sem mover a cabeça daria vantagem falsa nos dois sentidos — espiar não
+ * revelaria nada de novo, e o jogador levaria tiro onde a tela diz que ele não
+ * está.
+ *
+ * Tudo sai de UM tombo do tronco em cima do quadril: o deslocamento do olho, a
+ * queda do olho, a rolagem da vista e o quanto cada caixa da hitbox anda. São
+ * quatro consumidores da mesma rotação, e é isso que impede a imagem de
+ * discordar da mecânica. Declarar o deslocamento em metros seria a armadilha
+ * óbvia: agachado o braço encurta, e um deslocamento fixo pediria um ângulo de
+ * 45° que a hitbox não teria como acompanhar.
+ */
+export const INCLINACAO = {
+  // Graus de tombo do tronco. 20° é o que um corpo faz de pé sem sair do
+  // lugar; medido com o pivô abaixo, dá 25,6 cm de olho em pé e 14,3 agachado.
+  ANGULO: 20,
+  // Onde o corpo dobra, em fração da altura do olho: o quadril. 0,56 de 1,7 m
+  // são 95 cm, que é altura de quadril de gente. É ele que faz a perna NÃO
+  // andar junto — quem espia continua com os pés atrás da quina.
+  PIVO: 0.56,
+  // Quanto do tombo a cabeça leva junto. Ela não vai inteira: pescoço apruma
+  // sozinho, e 20° de rolagem na tela cansam a vista. 0,6 dá 12° na imagem.
+  ROLAGEM: 0.6,
+  // Segundos de 0 até a inclinação cheia, e de volta. Voltar é mais rápido de
+  // propósito: sair da cobertura é a decisão, recolher-se é o reflexo.
+  TEMPO_ENTRA: 0.18,
+  TEMPO_VOLTA: 0.12
+};
+
 export const CAMERA = {
   FOV: 70,
   ADS_FOV: 56,   // mirar aproxima; sem isso a mira de ferro só atrapalha a visão

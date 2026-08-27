@@ -10,6 +10,7 @@ import { updateStance } from './stance.js';
 import { updateStamina } from './stamina.js';
 import { moveHorizontal, moveVertical } from './locomotion.js';
 import { updateView, describeState } from './view.js';
+import { updateInclinacao, zerarInclinacao } from './inclinacao.js';
 import { lookPitch } from './heading.js';
 import { updateWaterState, swim } from './swim.js';
 import { spectate } from './spectator.js';
@@ -65,6 +66,18 @@ export class Player {
     // que ainda vai subir e o que já subiu e está voltando.
     this.recoil = { pendente: 0, aplicado: 0 };
     this.lean = 0;          // inclinação de andar de lado, em radianos
+
+    /**
+     * Inclinar o corpo pra fora da cobertura (Q e E). Quem mexe é
+     * `player/inclinacao.js`.
+     *
+     * `inclina` é -1..1 e é o ESTADO da manobra; `inclinaOffset` é o
+     * deslocamento que ele já pôs no `position` da câmera, e é o único
+     * separando o olho do corpo no plano — ver `bodyX`.
+     */
+    this.inclina = 0;
+    this.inclinaOffset = new THREE.Vector3();
+    this.inclinaTravaE = false;
     this.rollImpulse = 0;   // solavanco de aterrissagem
     this.shake = 0;         // 0..1, tremor de quem levou tiro
     this.shakePhase = 0;
@@ -139,8 +152,24 @@ export class Player {
    * tinha decorado onde ela estava.
    */
   carriedOf(classDef) {
-    return SLOT_ORDER.map((slot) =>
-      classDef.loadout.find((item) => item.slot === slot && hasModel(item)) ?? null);
+    /**
+     * O item vem do módulo, e a munição junto — de propósito.
+     *
+     * Clonar por jogador seria mais limpo (o `ammo` de `items/classes.js` é
+     * compartilhado, e isso já causou bug de suíte), mas o item na mão é
+     * comparado por IDENTIDADE em vinte e três asserções: `equipped` tem que
+     * ser o mesmo objeto que `PISTOL`. Trocar isso é uma mudança de contrato,
+     * não um detalhe de munição.
+     *
+     * O que a reserva ganha aqui é o TETO: `reserveMax` grava quanto é
+     * "cheio", e sem ele reabastecer não teria onde parar.
+     */
+    return SLOT_ORDER.map((slot) => {
+      const item = classDef.loadout.find(
+        (i) => i.slot === slot && hasModel(i)) ?? null;
+      if (item?.ammo) marcarReservaCheia(item.ammo);
+      return item;
+    });
   }
 
   /** Primeiro slot com item; 0 se a classe não leva nada construído. */
@@ -286,6 +315,7 @@ export class Player {
 
   /** Entra em modo espectador: fantasma, sem colisão e sem gravidade. */
   spectateFrom(x, y, z) {
+    zerarInclinacao(this);   // fantasma não tem cobertura pra espiar
     this.spectating = true;
     this.alive = false;
     this.velocity.set(0, 0, 0);
@@ -339,6 +369,8 @@ export class Player {
     this.lean = 0;
     this.rollImpulse = 0;
     this.viewOffset = 0;
+    // e a inclinação: nascer inclinado é nascer com a câmera fora do corpo
+    zerarInclinacao(this);
     // nascer de novo devolve o equipamento: o que ficou no chão fica lá
     this.carried = this.carriedOf(this.classDef);
     this.forceSlot(this.firstSlot());   // nascer não guarda arma nenhuma
@@ -357,6 +389,32 @@ export class Player {
 
   get feetY() {
     return this.eyeY - this.height;
+  }
+
+  /**
+   * A posição do CORPO no plano — o que a física manda.
+   *
+   * `camera.position.x/z` é o OLHO, e desde que inclinar existe os dois não
+   * são a mesma coisa: a cabeça sai até 26 cm pro lado sem que os pés saiam do
+   * lugar. É a mesma separação que `eyeY` tem de `camera.position.y`, e vale
+   * a mesma regra: locomoção, colisão e piso leem `bodyX`/`bodyZ`; quem quer
+   * saber onde a CABEÇA está — a boca do cano, a hitbox, o alcance de apanhar
+   * — lê `position`.
+   */
+  get bodyX() {
+    return this.object.position.x - this.inclinaOffset.x;
+  }
+
+  set bodyX(valor) {
+    this.object.position.x = valor + this.inclinaOffset.x;
+  }
+
+  get bodyZ() {
+    return this.object.position.z - this.inclinaOffset.z;
+  }
+
+  set bodyZ(valor) {
+    this.object.position.z = valor + this.inclinaOffset.z;
   }
 
   get speed() {
@@ -416,6 +474,11 @@ export class Player {
       moveVertical(this, delta);
     }
 
+    // Inclinar vem DEPOIS da locomoção e ANTES da vista: ele testa a parede
+    // contra o corpo já movido neste quadro, e a vista precisa do
+    // deslocamento pronto. Roda inclusive nadando — o alvo é zero na água, e
+    // quem desfaz a inclinação de quem entrou nela é ele mesmo.
+    updateInclinacao(this, delta);
     updateView(this, delta);
     this.state = describeState(this);
   }

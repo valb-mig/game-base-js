@@ -9,9 +9,10 @@ const fresh = new Set(); // teclas que baixaram neste frame, ainda não consumid
 const SWALLOW = new Set([
   'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'KeyZ', 'KeyG', 'KeyE', 'KeyR', 'KeyK',
+  'KeyQ',
   'Digit1', 'Digit2', 'Digit3', 'Digit4',
   'ShiftLeft', 'ShiftRight',
-  'Backquote', 'F2', 'Tab'
+  'Backquote', 'F2', 'F3', 'Tab'
 ]);
 
 export function initInput() {

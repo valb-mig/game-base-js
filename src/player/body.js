@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { criarSoldadoEmPecas, soldadoPronto } from '../bots/model.js';
 import { PLAYER_TEAM } from '../game/teams.js';
+import { PLAYER } from '../config.js';
+import { avancarFase, passoEm, embalarPara } from '../bots/passada.js';
+import { POSTURAS, posturaDe } from '../bots/posturas.js';
+import { apoioDaPostura, alturaDaPostura } from '../bots/model.js';
+import { ossoDoLado, ALTURA_BASE } from '../bots/esqueleto.js';
 
 /**
  * O corpo do próprio jogador, visto em primeira pessoa.
@@ -55,6 +60,20 @@ const SEM_ISSO = ['neck', 'shoulder_L', 'shoulder_R'];
  */
 const RECUO = 0.10;
 
+/**
+ * O quanto o próprio peito tem que ficar ATRÁS do olho, em metros.
+ *
+ * O recuo fixo acima resolve o corpo de pé e não sobrevive a postura: com o
+ * tronco inclinado do agachamento, o peito passava 5 cm À FRENTE da lente e
+ * tapava a tela inteira — o jogador agachava e via uma parede de farda.
+ *
+ * A correção é MEDIDA todo quadro em vez de escrita: onde estiver o peito
+ * depois de posado, o corpo recua o que faltar. Assim qualquer pose futura
+ * — rastejar, escalar, um agachamento mais fundo — já nasce protegida, e
+ * ninguém precisa lembrar de reajustar uma constante.
+ */
+const PEITO_ATRAS = 0.08;
+
 export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
   if (!soldadoPronto()) return { update() {}, get visible() { return false; } };
 
@@ -77,14 +96,121 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
   // O corpo do jogador é uma instância exclusiva dele, então dá pra inclinar
   // a coxa sem que ninguém mais veja isso — a hitbox sai de outra medida.
   // Sinal NEGATIVO: a perna aponta pro -y, e girar em +x a leva pra trás.
-  for (const [nome, giro] of [['thigh_L', -0.55], ['thigh_R', -0.47], ['knee_L', 0.28], ['knee_R', 0.22]]) {
+  const VIES = { thigh_L: -0.55, thigh_R: -0.47, knee_L: 0.28, knee_R: 0.22 };
+  const pernas = {};
+  for (const [nome, giro] of Object.entries(VIES)) {
     const osso = grupo.getObjectByName(nome);
-    if (osso) osso.rotation.x = giro;
+    if (!osso) continue;
+    osso.rotation.x = giro;
+    pernas[nome] = osso;
   }
+
+  /**
+   * A passada do jogador é a MESMA dos bots, somada a esse viés.
+   *
+   * Somada e não no lugar dele: o viés existe pra que a perna escape da
+   * silhueta do próprio peito, e o ciclo puro deixaria as botas fora do
+   * campo de visão na metade do tempo. E é o mesmo módulo que anima o bot —
+   * duas curvas de passada divergiriam no primeiro ajuste, e a de baixo
+   * ninguém veria pra comparar.
+   */
+  const PERNAS = { dir: ossoDoLado(1), esq: ossoDoLado(-1) };
+  let fase = 0;
+  let embalo = 0;
+  let eraX = 0;
+  let eraZ = 0;
+
+  /**
+   * O repouso de cada osso que a postura mexe, pra a pose ser SOMADA a ele.
+   *
+   * Somada e não absoluta, pela mesma razão do gabarito da hitbox: escrita
+   * como rotação absoluta, a postura descarta o que `posar` deixou no osso e
+   * o corpo do jogador fica numa pose que nenhum soldado do mapa tem.
+   */
+  const repouso = new Map();
+  const quadril = grupo.getObjectByName('hips');
+  const repousoDoQuadril = quadril ? quadril.position.clone() : null;
+  for (const postura of Object.values(POSTURAS)) {
+    for (const nome of Object.keys(postura.ossos)) {
+      if (repouso.has(nome)) continue;
+      const osso = grupo.getObjectByName(nome);
+      if (osso) repouso.set(nome, osso.quaternion.clone());
+    }
+  }
+  const euler = new THREE.Euler();
+  const giro = new THREE.Quaternion();
+
+  /** Aplica a postura desta altura. Devolve o nome dela. */
+  function posturar() {
+    // Contra a altura do SOLDADO, que é a mesma referência que a hitbox do
+    // jogador usa em `bots.js`. Duas bases diferentes discordariam na
+    // fronteira entre duas posturas, e a fronteira é justamente onde o corpo
+    // não pode piscar entre as duas.
+    const nome = posturaDe(player.height, ALTURA_BASE);
+    const pose = POSTURAS[nome] ?? POSTURAS.pe;
+
+    for (const [osso, base] of repouso) {
+      const alvo = grupo.getObjectByName(osso);
+      if (!alvo) continue;
+      alvo.quaternion.copy(base);
+      const angulos = pose.ossos[osso];
+      if (!angulos) continue;
+      euler.set(angulos[0], angulos[1], angulos[2]);
+      alvo.quaternion.multiply(giro.setFromEuler(euler));
+    }
+
+    if (quadril && repousoDoQuadril) {
+      quadril.position.copy(repousoDoQuadril);
+      if (nome !== 'pe') {
+        // O apoio é o MESMO número que levanta a hitbox: os dois saem de
+        // `apoioDaPostura`, e é isso que impede o corpo desenhado de flutuar
+        // acima da caixa que leva o tiro.
+        quadril.position.x += pose.quadril[0];
+        quadril.position.y += pose.quadril[1] + apoioDaPostura(nome);
+        quadril.position.z += pose.quadril[2];
+      }
+    }
+    return nome;
+  }
+
+  function andar(delta, posado = false) {
+    // Do CORPO, não do olho: inclinar pra espiar desloca a câmera 26 cm pro
+    // lado sem que o pé saia do lugar, e lido do `position` isso adiantava o
+    // ciclo da passada — a perna dava um passo que ninguém deu.
+    const andou = Math.hypot(player.bodyX - eraX, player.bodyZ - eraZ);
+    eraX = player.bodyX;
+    eraZ = player.bodyZ;
+    // Do deslocamento REAL, não de `player.velocity`: quem esbarra numa
+    // parede continua com velocidade e para de andar, e a perna tem que
+    // parar junto — senão o jogador corre no lugar contra a parede.
+    const indo = delta > 0 ? andou / delta : 0;
+    fase = avancarFase(fase, andou, indo, PLAYER.RUN_SPEED);
+
+    // Fora de pé o ciclo não vale: rastejar e andar agachado são outros
+    // movimentos, e a passada em pé aplicada a um corpo dobrado vira perna
+    // pedalando no ar.
+    embalo = embalarPara(embalo, posado ? 0 : indo, delta);
+    const passo = passoEm(
+      fase, posado ? 0 : indo, PLAYER.RUN_SPEED, PERNAS, posado ? 0 : embalo
+    );
+    if (posado) return passo;
+    for (const [nome, osso] of Object.entries(pernas)) {
+      osso.rotation.x = VIES[nome] + (passo.pose[nome]?.[0] ?? 0);
+    }
+    return passo;
+  }
+
+  // A escala do ARQUIVO, guardada: o modelo tem 1,80 m e o jogo trata o
+  // soldado como 1,75, e essa razão vive nos três eixos. Escrever `scale.y`
+  // direto — que era o que havia — deixava y em 1 e x/z em 0,972, ou seja um
+  // corpo 3% mais alto que largo, e ninguém via porque o corpo é visto de
+  // cima.
+  const escalaBase = grupo.scale.clone();
 
   scene.add(grupo);
 
   const olhar = new THREE.Vector3();
+  const doPeito = new THREE.Vector3();
   let escondido = false;
 
   return {
@@ -105,7 +231,7 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
       if (!v) grupo.visible = false;
     },
 
-    update() {
+    update(delta = 0) {
       // Espectador não tem corpo: ele não está no jogo, está olhando.
       const mostrar = !escondido && !player.spectating && player.alive;
       if (grupo.visible !== mostrar) grupo.visible = mostrar;
@@ -119,15 +245,59 @@ export function initPlayerBody(scene, player, { team = PLAYER_TEAM } = {}) {
 
       // Recuar é andar CONTRA o olhar, no plano.
       const plano = Math.hypot(olhar.x, olhar.z) || 1;
-      const p = player.object.position;
+      // O corpo fica onde o CORPO está: inclinar pra espiar tira a cabeça da
+      // linha da quina e deixa os pés atrás dela, e é isso que o jogador tem
+      // que ver olhando pra baixo. Posto no olho, o corpo inteiro deslizava
+      // 26 cm de lado — o que a manobra existe justamente pra não fazer.
       grupo.position.set(
-        p.x - (olhar.x / plano) * RECUO,
+        player.bodyX - (olhar.x / plano) * RECUO,
         player.feetY,
-        p.z - (olhar.z / plano) * RECUO
+        player.bodyZ - (olhar.z / plano) * RECUO
       );
 
-      // Agachar e deitar encolhem o corpo como encolhem a hitbox: só em Y.
-      grupo.scale.y = player.height / 1.75;
+      // A postura entra ANTES da passada: ela reescreve os ossos a partir do
+      // repouso, e a passada é o desvio que vem por cima.
+      const postura = posturar();
+      // O ciclo de passada só vale DE PÉ: agachado e deitado a postura já
+      // escreveu a perna inteira, e o ciclo por cima apagaria a pose — foi o
+      // que aconteceu, o joelho voltava a esticar dentro do agachamento.
+      const passo = andar(delta, postura !== 'pe');
+
+      // A pose baixa o corpo; a escala só ACERTA a altura declarada.
+      //
+      // Encolher em Y era o que havia enquanto não havia pose, e mentia pra
+      // deitar: o corpo virava um tijolo de meio metro em vez de um homem de
+      // dois metros no chão. Hoje quem deita é a pose. Mas a pose tem a
+      // altura DELA — agachado, uns 1,05 m —, e o olho do jogador agachado
+      // está a 0,95: sem acertar a razão, o peito fica na altura da lente e
+      // tapa a tela inteira. Foi o que aconteceu.
+      //
+      // Uniforme nos três eixos, e sobre a escala do arquivo: mexer só no y
+      // deixava o corpo 3% mais alto que largo.
+      const posada = alturaDaPostura(postura);
+      const fator = posada ? player.height / posada : 1;
+      grupo.scale.copy(escalaBase).multiplyScalar(fator);
+
+      // O balanço vertical entra na POSIÇÃO do grupo, e não no quadril como
+      // no bot: aqui não há rig pra mexer em osso solto, e o pé de apoio
+      // deste corpo já vive fora do campo de visão — o que se vê subir e
+      // descer é a coxa, que é o que o balanço tem que dizer.
+      grupo.position.y += passo.subida;
+
+      // E agora que ele está posado, EMPURRA o que ficou na frente do olho.
+      grupo.updateMatrixWorld(true);
+      const peito = grupo.getObjectByName('chest') ?? grupo.getObjectByName('spine');
+      if (peito) {
+        peito.getWorldPosition(doPeito);
+        doPeito.sub(player.object.position);
+        // Quanto do peito está ATRÁS do olhar, no plano. Negativo é à frente.
+        const atras = -(doPeito.x * (olhar.x / plano) + doPeito.z * (olhar.z / plano));
+        if (atras < PEITO_ATRAS) {
+          const falta = PEITO_ATRAS - atras;
+          grupo.position.x -= (olhar.x / plano) * falta;
+          grupo.position.z -= (olhar.z / plano) * falta;
+        }
+      }
     }
   };
 }
