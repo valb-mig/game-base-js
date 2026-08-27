@@ -18,6 +18,7 @@ import { ListaDeColisores } from './colisores.js';
 import { addBase } from './base.js';
 import { addOutposts } from './outposts.js';
 import { addLogistica } from './logistica.js';
+import { agruparEstaticos } from './lote.js';
 import { TEAMS } from '../game/teams.js';
 
 /**
@@ -236,7 +237,19 @@ export function buildWorld(scene) {
   assertSpawnZones(spawnZones, colliders, terrain);
   assertFlagsClear(outposts, colliders, terrain);
 
+  /**
+   * As caixas de construção viram lote, e isto é o ÚLTIMO passo da montagem.
+   *
+   * Antes das conferências de nascimento não daria: `spawnIsClear` e
+   * `assertFlagsClear` olham `colliders`, que é outra lista e não se mexe
+   * daqui — mas quem vier depois e quiser medir uma malha pelo grafo da cena
+   * precisa saber que a partir deste ponto a parede não é mais um `Mesh` em
+   * `scene.children`. Medido: 651 chamadas de desenho viram 106.
+   */
+  const lote = agruparEstaticos(scene, { settling });
+
   return {
+    lote,
     colliders,
     terrain,
     deform,
@@ -284,6 +297,7 @@ export function buildWorld(scene) {
     spawn: new THREE.Vector3(north.x, northGround, north.z + 12),
     stats: {
       ...counts, arbustos: bushes.count,
+      lotes: lote.lotes.length, instanciadas: lote.instanciadas,
       alvos: targets.length, postos: outposts.length, pontes: bridges.length,
       enfermarias: enfermarias.length,
       colliders: colliders.length

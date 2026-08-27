@@ -46,6 +46,8 @@ export function addMoinho(scene, colliders, { x, z, terrain, settling = null }) 
   // pá de cima virava um mastro de dez metros saindo do telhado e o moinho
   // lia como torre de rádio. Vela de moinho tem mais ou menos a altura da
   // torre — é essa proporção que faz a silhueta ser reconhecida.
+  // A cruz gira todo quadro: ela e os braços dela ficam fora do lote.
+  cruz.userData.movel = true;
   cruz.position.set(tx, y + ALTURA - 0.6, tz - RAIO * 1.1);
   scene.add(cruz);
   for (let i = 0; i < 4; i++) {

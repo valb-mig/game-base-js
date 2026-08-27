@@ -1,0 +1,68 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: lote de props</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { agruparEstaticos } from '../src/world/lote.js';
+import { BOX, material } from '../src/world/props.js';
+
+/**
+ * Quem ESCAPOU do lote, e quanto o lote custa no boot.
+ *
+ * O A/B que justificou `world/lote.js` está registrado nele: 651 chamadas de
+ * desenho e 3,16 ms por quadro contra 106 e 0,87, medidos no mesmo processo.
+ * Hoje `buildWorld` já agrupa, então o que esta página vigia é o contrário —
+ * malha estática que ficou de fora. Construção nova que não compartilhe
+ * geometria com nada aparece aqui como um grupo de UM, e é assim que se
+ * descobre que uma peça nova está pagando chamada de desenho própria.
+ *
+ * Roda em tempo REAL: sob --virtual-time-budget o relógio congela.
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log('BANCADA ' + t); };
+
+const scene = new THREE.Scene();
+const t0 = performance.now();
+const world = buildWorld(scene);
+diz(`buildWorld                     ${(performance.now() - t0).toFixed(0)} ms`);
+diz(`lotes                          ${world.lote.lotes.length}`);
+diz(`malhas dobradas                ${world.lote.instanciadas} de ${world.lote.candidatas} candidatas`);
+
+// O que sobrou solto na cena, por (geometria, material). Um grupo de dois ou
+// mais aqui é uma economia que ficou na mesa: ou alguém marcou `movel` sem
+// precisar, ou a peça nasceu depois do agrupamento.
+const soltas = new Map();
+scene.traverse((o) => {
+  if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh) return;
+  const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+  const chave = `${o.name || o.geometry.type}|${mat?.transparent ? 'transparente' : 'opaco'}`;
+  soltas.set(chave, (soltas.get(chave) ?? 0) + 1);
+});
+let total = 0;
+for (const n of soltas.values()) total += n;
+diz('');
+diz(`malhas estáticas soltas        ${total}`);
+for (const [chave, n] of [...soltas].sort((a, b) => b[1] - a[1])) {
+  diz(`  ${chave.padEnd(30)} ${n}`);
+}
+
+// O preço do passo, na escala em que ele roda: 1500 caixas com geometria e
+// material compartilhados é o que o mapa de Sainte-Mère tem.
+const sintetica = new THREE.Scene();
+for (let i = 0; i < 1500; i++) {
+  const malha = new THREE.Mesh(BOX, material(0x808080 + (i % 40)));
+  malha.position.set((i % 50) * 12, 1, Math.floor(i / 50) * 12);
+  sintetica.add(malha);
+}
+const t1 = performance.now();
+const feito = agruparEstaticos(sintetica);
+diz('');
+diz(`agrupar 1500 caixas            ${(performance.now() - t1).toFixed(1)} ms`
+  + `  -> ${feito.lotes.length} lotes`);
+diz('FIM');
+</script></body></html>

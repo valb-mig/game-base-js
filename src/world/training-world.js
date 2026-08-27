@@ -14,6 +14,7 @@ import { enemyOf } from '../game/teams.js';
 import { PLAYER_TEAM } from '../game/teams.js';
 import { addBox, sorteioFixo } from './props.js';
 import { addBushes } from './bushes.js';
+import { agruparEstaticos } from './lote.js';
 import { MP40, PISTOL, KNIFE, SHOVEL } from '../items/classes.js';
 
 /**
@@ -163,8 +164,13 @@ export function buildTrainingWorld(scene) {
     rng: sorteioFixo(20250826)
   });
 
+  // Mesmo lote do mapa de combate: o campo de treino tem obstáculos, arsenal
+  // no chão e as placas de distância, e nada disso se mexe.
+  const lote = agruparEstaticos(scene, { settling });
+
   return {
     modo: 'treino',
+    lote,
     terrain,
     colliders,
     targets,

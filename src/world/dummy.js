@@ -53,6 +53,9 @@ function createHealthBar() {
 export function createDummy(scene, colliders,
   { x, z, ground, facing = 0, name = '', settling = null }) {
   const group = new THREE.Group();
+  // O boneco recua ao levar tiro e tomba ao ser destruído — e quando tomba é
+  // o GRUPO que gira, então nenhuma peça dele pode virar instância.
+  group.userData.movel = true;
   group.position.set(x, ground, z);
   group.rotation.y = facing;
   scene.add(group);

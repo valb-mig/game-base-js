@@ -77,6 +77,8 @@ export function createOutpost(scene, colliders, {
   // O pano pendura do lado do mastro, e é de dupla face: uma bandeira só tem
   // que ser lida de qualquer direção, e não só de fora do quadrado.
   const pano = new THREE.Mesh(PANO, material(cor));
+  // Sobe e desce no mastro, e troca de cor com o dono: fora do lote.
+  pano.userData.movel = true;
   pano.position.set(x + PANO_LARGURA / 2 + 0.08, chao + TOPO, z);
   group.add(pano);
 

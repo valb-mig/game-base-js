@@ -42,6 +42,15 @@ export function createSettling(terrain, colliders = null) {
   const props = [];
   const caindo = [];
 
+  /**
+   * Malha solta -> as partes que a citam.
+   *
+   * Existe pra que `trocarParte` seja O(1): quando `world/lote.js` dobra as
+   * caixas de construção em `InstancedMesh`, ele avisa aqui malha por malha, e
+   * varrer os milhares de props por aviso seria quadrático no boot.
+   */
+  const porMalha = new Map();
+
   const matriz = new THREE.Matrix4();
   const auxiliar = new THREE.Matrix4();
   const eixo = new THREE.Vector3();
@@ -58,6 +67,12 @@ export function createSettling(terrain, colliders = null) {
    * duas copas, uma parede tem uma malha só. `collider` é o que a colisão vê.
    */
   function register({ x, z, baseY, radius, collider, parts }) {
+    for (const parte of parts) {
+      if (parte.instanced) continue;
+      const juntas = porMalha.get(parte.mesh) ?? [];
+      juntas.push(parte);
+      porMalha.set(parte.mesh, juntas);
+    }
     const prop = {
       x, z, baseY, radius, collider, parts,
       // Caixa de pé, guardada porque a de colisão é reescrita a cada quadro
@@ -249,6 +264,31 @@ export function createSettling(terrain, colliders = null) {
   return {
     props,
     register,
+
+    /**
+     * A malha solta virou instância num lote. Reaponta as partes que a citam.
+     *
+     * `world/lote.js` dobra as caixas de construção em `InstancedMesh` no fim
+     * da montagem do mapa, e sem este aviso o prop continuaria escrevendo
+     * numa malha que já saiu da cena: cavar embaixo de uma parede a deixaria
+     * de pé na tela e caída na colisão — o pior dos dois mundos, porque o
+     * colisor desce e o desenho não.
+     *
+     * A conversão pra instância já era suportada: a floresta se registra
+     * assim desde que passou a ser instanciada, e `aplicar` só olha
+     * `parte.instanced`.
+     */
+    trocarParte(malha, lote, indice) {
+      const juntas = porMalha.get(malha);
+      if (!juntas) return 0;
+      for (const parte of juntas) {
+        parte.mesh = lote;
+        parte.index = indice;
+        parte.instanced = true;
+      }
+      porMalha.delete(malha);
+      return juntas.length;
+    },
 
     /** Quantos props estão desabando agora. Usado por teste e depuração. */
     get falling() {
