@@ -12,7 +12,7 @@ import { initAttack } from './items/attack.js';
 import { initFirearm } from './items/firearm.js';
 import { initDigging } from './items/digging.js';
 import { createBallistics } from './items/ballistics.js';
-import { createSparks } from './world/sparks.js';
+import { createSparks, fagulhaDaRegiao } from './world/sparks.js';
 import { createSpoils } from './world/spoils.js';
 import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
@@ -118,7 +118,14 @@ function boot(modo = 'batalha') {
   // escuta: a balística diz onde bateu e no quê, e quem desenha é daqui.
   const sparks = createSparks(scene);
   ballistics.onHit((r) => {
-    const tipo = r.terreno ? 'terra' : (r.target && !r.target.veiculo ? 'corpo' : 'duro');
+    // Corpo tem receita POR REGIÃO: jorro na cabeça, faísca de metal no
+    // capacete, o respingo comum no resto. É o único lugar da tela em que a
+    // diferença entre matar num tiro e precisar de dois aparece no quadro do
+    // acerto, olhando pro alvo — o hit feed conta a mesma coisa, mas embaixo
+    // da mira e em texto.
+    const tipo = r.terreno
+      ? 'terra'
+      : (r.target && !r.target.veiculo ? fagulhaDaRegiao(r.regiao) : 'duro');
     sparks.burst(r.point, r.dir, tipo);
     // O som do impacto sai ONDE a bala bateu, e não de onde ela saiu: é ele
     // que diz ao jogador que o tiro passou perto, que é metade do que faz

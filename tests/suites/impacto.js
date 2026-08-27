@@ -86,7 +86,7 @@ export function run() {
   initInput();
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
   const cena = new THREE.Scene();
-  const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+  const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
   const jogador = new Player(camera, document.body,
     { colliders: [], terrain: chao, spawn: new THREE.Vector3(0, 0, 0) });

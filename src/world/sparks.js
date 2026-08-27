@@ -26,8 +26,40 @@ const TIPOS = {
   // terra: poeira baixa, escura, que fica um instante a mais no ar
   terra: { quantidade: 9, cor: [0.44, 0.34, 0.21], vida: 0.4, velocidade: 3, espalha: 0.85 },
   // gente: jorro curto, pra que acertar tenha resposta visual imediata
-  corpo: { quantidade: 8, cor: [0.6, 0.05, 0.05], vida: 0.26, velocidade: 3.8, espalha: 0.7 }
+  corpo: { quantidade: 8, cor: [0.6, 0.05, 0.05], vida: 0.26, velocidade: 3.8, espalha: 0.7 },
+
+  /**
+   * Cabeça e capacete NÃO são o mesmo acerto, e a fagulha é onde isso se vê.
+   *
+   * Os dois já valiam coisas diferentes na conta — 4,2× contra 2,1×, um tiro
+   * contra dois —, e na tela eram o mesmo respingo vermelho do tiro na
+   * canela. Quem mirou na cabeça tinha que ler a linha do hit feed pra saber
+   * o que tinha acertado, no meio de uma rajada, olhando pro alvo.
+   *
+   * `cabeca`: mais que o dobro do jorro do corpo, mais rápido e mais
+   * FECHADO — `espalha` menor aperta o cone contra o rumo da bala, e é o
+   * cone que diz que a matéria saiu por trás em vez de escorrer. Dura mais
+   * porque tem que sobreviver ao quadro em que o corpo já começou a tombar.
+   *
+   * `capacete`: aço, não carne. Faísca quente, muito rápida e ESPALHADA —
+   * ricochete se lê pelo leque, e é o contrário do jorro dirigido. Curta:
+   * centelha que dura o mesmo que sangue vira fogo de artifício.
+   */
+  cabeca: { quantidade: 18, cor: [0.55, 0.04, 0.04], vida: 0.42, velocidade: 6.2, espalha: 0.5 },
+  capacete: { quantidade: 14, cor: [1, 0.86, 0.52], vida: 0.22, velocidade: 9.5, espalha: 1.15 }
 };
+
+/**
+ * Que fagulha uma região de corpo levanta.
+ *
+ * Pelo `id` da região e nunca pelo `nome`: aquele é texto de tela. Região
+ * que não tem receita própria — tronco, braço, perna — cai no jorro comum,
+ * e é assim que uma região nova não precisa passar por aqui pra funcionar.
+ */
+export function fagulhaDaRegiao(regiao) {
+  const id = regiao?.id;
+  return id && TIPOS[id] ? id : 'corpo';
+}
 
 export function createSparks(scene) {
   const positions = new Float32Array(MAX * 3);
