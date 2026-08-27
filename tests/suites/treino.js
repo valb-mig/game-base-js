@@ -85,6 +85,22 @@ export function run() {
   eq('inteiro', um.health, vida);
   near('e no mesmo lugar', Math.hypot(um.x - marcados[0].x, um.z - marcados[0].z), 0, 0.01);
 
+  // E o embrulho que faz ele levantar sozinho REPASSA tudo.
+  //
+  // Ele recebia só o dano, e região e impacto morriam aqui: no campo de
+  // treino — que é justamente onde se atira de frente, de lado e de costas
+  // pra ver a diferença — o tiro na cabeça valia o mesmo que o na canela e
+  // todo alvo tombava pro mesmo lado, sempre. O defeito não estava no
+  // ragdoll; estava no que chegava até ele, e um teste de "leva dano e cai"
+  // continua verde com o bug inteiro no lugar.
+  const outro = marcados[1];
+  const cheio = outro.health;
+  const naCabeca = outro.damage(10, { nome: 'cabeça', multiplicador: 4 },
+    { dir: new THREE.Vector3(0, 0, 1), ponto: outro.center() });
+  eq('a região multiplica o dano do alvo', naCabeca.amount, 40);
+  eq('e volta identificada, pro kill feed', naCabeca.regiao?.nome, 'cabeça');
+  eq('e o alvo perdeu o que a região mandou', outro.health, cheio - 40);
+
   suite('todo o arsenal do jogo está lá');
 
   ok('e é tudo que tem modelo', ARSENAL.every(hasModel));
@@ -158,6 +174,60 @@ export function run() {
   passo(Math.ceil(segundos / DT) + 2);
   ok('sem treino, recarregar custa reserva', municao.reserve < reservaInicial,
     `${municao.reserve} de ${reservaInicial}`);
+
+  suite('o campo tem mato, e ele não atravessa a raia');
+
+  // O mato existe aqui pra treinar o que ele faz: quebrar, e deixar de
+  // esconder quem estava atrás. Mas a raia é medida, e arbusto entre o
+  // atirador e a placa de 90 m devolve "errei a 90" como impressão em vez de
+  // dado — o campo inteiro existe pra que isso seja um dado.
+  const mato = mundo.bushes;
+  ok('nasceu mato no campo', mato.count > 0, `${mato.count} arbustos`);
+  note('mato do campo de treino',
+    mato.formas.map((f) => `${f.nome} ${f.quantos}`).join(' · '));
+
+  const atirador = mundo.spawn;
+  const maisLonge = Math.max(...ALCANCES);
+  const naRaia = mato.arbustos.filter((a) =>
+    Math.abs(a.x - atirador.x) < 8 + a.raio
+    && a.z < atirador.z + 10
+    && a.z > atirador.z - maisLonge - 20);
+  eq('e nenhum arbusto na raia de tiro', naRaia.length, 0);
+
+  // A plataforma achatada é onde ficam o curso e o arsenal: medir salto e
+  // degrau com mato no caminho mede o mato junto.
+  const naPlataforma = mato.arbustos.filter(
+    (a) => Math.hypot(a.x, a.z - 60) < 34);
+  eq('nem dentro da plataforma do curso', naPlataforma.length, 0);
+
+  // Cavar embaixo dele derruba, aqui como no outro mapa: é o mesmo módulo, e
+  // o campo de treino é onde dá pra conferir isso num chão plano.
+  const emPe = mato.emPe();
+  const solto = mato.arbustos.find((a) => a.vivo);
+  mundo.reshape(solto.x, solto.z, -3, 4);
+  ok('e cavar embaixo de um arbusto derruba ele', mato.emPe() < emPe,
+    `${mato.emPe()} de ${emPe} em pé`);
+
+  suite('há um jipe no campo, e ele não atrapalha a raia');
+
+  /**
+   * O campo é plano, medido e sem ninguém atirando de volta — que é
+   * exatamente o que se quer pra aprender a dirigir. Mas veículo parado na
+   * frente dos alvos transformaria a raia de 140 m numa raia de 12.
+   */
+  const garagem = mundo.garagem ?? [];
+  eq('um jipe no campo de treinamento', garagem.length, 1);
+  const vaga = garagem[0];
+  ok('e ele fica FORA da raia de tiro',
+    Math.abs(vaga.x - atirador.x) > 8 + 1.7,
+    `${Math.abs(vaga.x - atirador.x).toFixed(1)} m do eixo de tiro`);
+  ok('atrás da linha, não na frente dos alvos', vaga.z > atirador.z,
+    `z ${vaga.z} contra ${atirador.z} do atirador`);
+  // A plataforma achatada é o único chão plano do mapa: fora dela o jipe
+  // nasceria numa ladeira, e a primeira coisa que ele faria era descer.
+  ok('e dentro da plataforma achatada',
+    Math.hypot(vaga.x, vaga.z - 60) < 34,
+    `${Math.hypot(vaga.x, vaga.z - 60).toFixed(1)} m do centro`);
 
   suite('o mapa de combate não tem mais campo de treino');
 

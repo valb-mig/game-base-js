@@ -115,9 +115,15 @@ export function buildTrainingWorld(scene) {
 
     // Ele levanta sozinho depois de cair: alvo que some depois do primeiro
     // acerto obriga a sair do lugar pra treinar de novo.
+    //
+    // E o embrulho repassa TUDO: região e impacto vinham do tiro e morriam
+    // aqui, então no campo de treino — que é onde se atira de frente, de
+    // lado e de costas pra ver a diferença — o tiro na cabeça valia o mesmo
+    // que o na canela e todo alvo tombava pro mesmo lado, sempre. O bug não
+    // estava no ragdoll: estava no que chegava até ele.
     const derrubar = alvo.damage;
-    alvo.damage = (quanto) => {
-      const r = derrubar(quanto);
+    alvo.damage = (quanto, regiao = null, impacto = null) => {
+      const r = derrubar(quanto, regiao, impacto);
       if (r.killed) alvo.voltaEm = REVIVE;
       return r;
     };

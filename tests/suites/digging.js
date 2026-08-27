@@ -13,7 +13,8 @@ function mundoPlano() {
   const deform = createDeform();
   const terrain = {
     heightAt: (x, z) => 0 + deform.deltaAt(x, z),
-    waterDepthAt: () => 0
+    waterDepthAt: () => 0,
+    nivelDaAguaAt: () => 0
   };
 
   let editados = 0;

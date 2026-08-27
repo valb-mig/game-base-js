@@ -21,13 +21,20 @@
  * Sem three: são caixas, números e um yaw, e dá pra provar cada promessa.
  */
 
-/** Grupos de dano. A peça diz onde pegou; o grupo diz quanto vale. */
+/**
+ * Grupos de dano. A peça diz onde pegou; o grupo diz quanto vale.
+ *
+ * `id` existe porque `nome` é TEXTO DE TELA: quem precisa ramificar por
+ * região — a fagulha, que levanta jorro na cabeça e faísca de metal no
+ * capacete — não pode comparar com a palavra acentuada que o HUD escreve.
+ * Traduzir o HUD um dia quebraria a fagulha em silêncio.
+ */
 export const GRUPOS = {
-  cabeca: { nome: 'cabeça', multiplicador: 4.2 },
-  capacete: { nome: 'capacete', multiplicador: 2.1 },
-  tronco: { nome: 'tronco', multiplicador: 1 },
-  braco: { nome: 'braço', multiplicador: 0.6 },
-  perna: { nome: 'perna', multiplicador: 0.6 }
+  cabeca: { id: 'cabeca', nome: 'cabeça', multiplicador: 4.2 },
+  capacete: { id: 'capacete', nome: 'capacete', multiplicador: 2.1 },
+  tronco: { id: 'tronco', nome: 'tronco', multiplicador: 1 },
+  braco: { id: 'braco', nome: 'braço', multiplicador: 0.6 },
+  perna: { id: 'perna', nome: 'perna', multiplicador: 0.6 }
 };
 
 /**
@@ -81,15 +88,38 @@ export function usarMedidasDoModelo(fonte) {
  * só o Y que o modelo encolhe: escalando os três eixos, braço e perna ficavam
  * FORA da hitbox de quem estava agachado.
  */
-export function corpoDe(altura = ALTURA_BASE, saida = []) {
+/**
+ * Altura total de cada postura, medida das caixas dela e guardada.
+ *
+ * A pose já põe o corpo na altura dele — agachado tem uns 1,05 m e deitado
+ * uns 0,45 —, mas quem pergunta declara a altura em que ESTÁ, e as duas não
+ * batem: o jogador agacha pra 0,95 e o soldado do modelo agacha pro que a
+ * pose der. A razão entre as duas é o que reconcilia, e ela é medida uma vez
+ * por postura em vez de escrita — tabela à mão desalinha na primeira vez que
+ * a pose mudar, que é o defeito que este arquivo inteiro existe pra evitar.
+ */
+const alturaDaPostura = new Map();
+function alturaMedida(caixas, postura) {
+  if (alturaDaPostura.has(postura)) return alturaDaPostura.get(postura);
+  let topo = 0;
+  for (const m of caixas) if (m.maxY > topo) topo = m.maxY;
+  const valor = topo > 0 ? topo : ALTURA_BASE;
+  alturaDaPostura.set(postura, valor);
+  return valor;
+}
+
+export function corpoDe(altura = ALTURA_BASE, saida = [], postura = 'pe') {
   saida.length = 0;
-  const escalaY = altura / ALTURA_BASE;
 
   // Se o modelo carregou, a hitbox sai da MALHA dele: uma caixa por peça
   // nomeada, medida em vez de escrita. A tabela abaixo é o que sobra pra
   // quando não há modelo — o teste, que roda sem arquivo nenhum.
-  const doModelo = medidasDoModelo?.();
+  const doModelo = medidasDoModelo?.(postura);
   if (doModelo) {
+    // Contra a altura DAQUELA postura, não contra a de pé: o corpo deitado
+    // já está deitado nas medidas, e dividir pela altura de pé o esmagaria
+    // uma segunda vez.
+    const escalaY = altura / alturaMedida(doModelo, postura);
     for (const m of doModelo) {
       const ordem = ORDEM.indexOf(m.grupo);
       saida.push({
@@ -102,6 +132,9 @@ export function corpoDe(altura = ALTURA_BASE, saida = []) {
     return saida;
   }
 
+  // Sem modelo só resta achatar a tabela de pé. É o que o teste exercita, e
+  // é declaradamente pior: ela não sabe deitar ninguém.
+  const escalaY = altura / ALTURA_BASE;
   PECAS.forEach((peca, ordem) => {
     const lados = peca.espelhado ? [-1, 1] : [0];
     for (const lado of lados) {

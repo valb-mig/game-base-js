@@ -15,7 +15,8 @@ import { suite, ok, note } from '../assert.js';
 /** Rampa que sobe no +X a partir da origem. */
 const rampa = (inclinacao) => ({
   heightAt: (x) => Math.max(0, x) * inclinacao,
-  waterDepthAt: () => 0
+  waterDepthAt: () => 0,
+  nivelDaAguaAt: () => 0
 });
 
 export function run() {
@@ -142,7 +143,8 @@ export function run() {
   // de beirada é o piso baixar mais do que a velocidade do quadro explica.
   const penhasco = {
     heightAt: (x) => (x < 10 ? 5 : 0),
-    waterDepthAt: () => 0
+    waterDepthAt: () => 0,
+  nivelDaAguaAt: () => 0
   };
   const cameraQueda = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
   const caindo = new Player(cameraQueda, document.body, {

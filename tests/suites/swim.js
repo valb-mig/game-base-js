@@ -13,7 +13,8 @@ const DT = 1 / 60;
  */
 const rampa = {
   heightAt: (x, z) => -z * 0.2,
-  waterDepthAt: (x, z) => Math.max(0, WORLD.WATER_LEVEL + z * 0.2)
+  waterDepthAt: (x, z) => Math.max(0, WORLD.WATER_LEVEL + z * 0.2),
+  nivelDaAguaAt: () => WORLD.WATER_LEVEL
 };
 
 export function run() {

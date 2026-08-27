@@ -10,7 +10,7 @@ import { MP40, PISTOL, KNIFE, getClass } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
 function soldado(cena, colisores, x = 0, z = 0) {
   const s = createSoldier(cena, colisores, {

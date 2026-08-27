@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { createStage } from './core/stage.js';
-import { CAMERA } from './config.js';
 import { criarAudio } from './core/audio.js';
+import {
+  CAMERA, VIEW, GRADE, SPREAD, BULLET, MELEE, STAMINA, SWAP, PLAYER, WORLD,
+  INCLINACAO
+} from './config.js';
 import { initInput, endFrame, consumePress } from './core/input.js';
 import { buildWorld } from './world/world.js';
 import { applyUnderwater } from './world/water.js';
@@ -16,12 +19,20 @@ import { createSparks, fagulhaDaRegiao } from './world/sparks.js';
 import { createSpoils } from './world/spoils.js';
 import { initFlow } from './ui/flow.js';
 import { initDebug } from './ui/debug.js';
+import { initAjustes } from './ui/ajustes.js';
 import { initDebugView } from './ui/debugview.js';
 import { initStatus } from './ui/status.js';
 import { initCompass } from './ui/compass.js';
+import { initRadar } from './ui/radar.js';
+import { initMapa } from './ui/mapa.js';
+import { MAP_KEYS } from './player/constants.js';
+import { initRangefinder } from './ui/rangefinder.js';
 import { initCrosshair } from './ui/crosshair.js';
 import { initPrompt } from './ui/prompt.js';
 import { initHitmarker } from './ui/hitmarker.js';
+import { initHitFeed } from './ui/hitfeed.js';
+import { initRumoDano } from './ui/rumodano.js';
+import { initBoneco } from './ui/boneco.js';
 import { initKillFeed } from './ui/killfeed.js';
 import { initWatchdog } from './ui/watchdog.js';
 import { initSnapshot } from './ui/snapshot.js';
@@ -42,6 +53,7 @@ import { enemyOf, postOwner } from './game/teams.js';
 import {
   SUPRIMENTO, reabastecer, postoDeSuprimento
 } from './game/suprimento.js';
+import { criarTratamento } from './game/tratamento.js';
 
 /**
  * Fiação e laço de render.
@@ -155,6 +167,18 @@ function boot(modo = 'batalha') {
   const firearm = initFirearm(player, world, ballistics, viewmodel);
   const digging = initDigging(player, world);
 
+  /**
+   * Enfermaria: a tenda de cada posto e de cada base trata quem está dentro.
+   *
+   * Uma instância, e ela é do JOGADOR: o que ela guarda é quantos segundos
+   * fazem desde que ele levou dano, e sem isso a lona viraria escudo. O bot
+   * não precisa dela — `hurtFor` já vive no corpo dele.
+   *
+   * `?? []` porque o campo de treino é outro mapa e não tem posto nenhum: quem
+   * não declara enfermaria simplesmente não cura, sem caso especial.
+   */
+  const tratamento = criarTratamento(world.enfermarias ?? []);
+
   // Modo de jogo: doze postos, quatro bandeiras cada. Quem está de que lado
   // é do jogador; de quem é cada posto é da partida.
   const capture = createCapture(world.outposts);
@@ -199,6 +223,24 @@ function boot(modo = 'batalha') {
   // farda nenhuma — quem segura o tiro por causa de companheiro é quem atira.
   const alvos = [alvoDoJogador, ...bots.soldiers];
   bots.setTargets(alvos);
+
+  /**
+   * Quem o laço de render ATUALIZA — e é uma lista à parte de propósito.
+   *
+   * `world.targets` é a lista de quem a bala pode ACERTAR, e os bots entram
+   * nela logo abaixo. Ela também vinha sendo usada como lista de update, e
+   * com isso todo bot era atualizado DUAS vezes por quadro: uma por
+   * `bots.update`, depois de o cérebro tê-lo movido, e outra aqui — quando
+   * ele já não tinha andado nada desde a primeira.
+   *
+   * Enquanto a pose do soldado era estática isso não custava nada e ninguém
+   * viu. Com a passada, a segunda chamada lê deslocamento zero, conclui que
+   * o corpo está parado e devolve a perna ao repouso — todo quadro, apagando
+   * a animação que a primeira acabara de escrever. O sintoma era um exército
+   * inteiro deslizando de pernas retas, com a fase do passo correndo por
+   * baixo. Duas listas, dois propósitos.
+   */
+  const paraAtualizar = [...world.targets];
   world.targets.push(...bots.soldiers, alvoDoJogador);
 
   /**
@@ -230,24 +272,6 @@ function boot(modo = 'batalha') {
   const killfeed = initKillFeed(player);
   ballistics.onHit((r) => {
     if (!r.killed) return;
-
-  /**
-   * Quem o laço de render ATUALIZA — e é uma lista à parte de propósito.
-   *
-   * `world.targets` é a lista de quem a bala pode ACERTAR, e os bots entram
-   * nela logo abaixo. Ela também vinha sendo usada como lista de update, e
-   * com isso todo bot era atualizado DUAS vezes por quadro: uma por
-   * `bots.update`, depois de o cérebro tê-lo movido, e outra aqui — quando
-   * ele já não tinha andado nada desde a primeira.
-   *
-   * Enquanto a pose do soldado era estática isso não custava nada e ninguém
-   * viu. Com a passada, a segunda chamada lê deslocamento zero, conclui que
-   * o corpo está parado e devolve a perna ao repouso — todo quadro, apagando
-   * a animação que a primeira acabara de escrever. O sintoma era um exército
-   * inteiro deslizando de pernas retas, com a fase do passo correndo por
-   * baixo. Duas listas, dois propósitos.
-   */
-  const paraAtualizar = [...world.targets];
     killfeed.register({
       matador: r.owner, vitima: r.target, regiao: r.regiao,
       arma: r.owner?.weapon?.name ?? player.equipped?.name ?? null
@@ -272,17 +296,79 @@ function boot(modo = 'batalha') {
     updateFlagPrompt: initFlagPrompt(player, capture),
 
     updateStatus: initStatus(player),
-    updateCompass: initCompass(camera),
+    // A bússola precisa de POSIÇÃO e de mundo, não só de rumo: os ícones dos
+    // objetivos deslizam por ela conforme o jogador anda e vira.
+    updateCompass: initCompass(camera, { player, world }),
+    // Radar e telêmetro leem estado que já existe: o campo de altura, os
+    // postos e a lista de alvos. Nenhum dos dois guarda mundo próprio.
+    updateRadar: initRadar(player, camera, world, bots).update,
+
+    // O mapa grande de M. Ele desenha quando abre e enquanto está aberto —
+    // o jogador continua andando atrás, e uma seta parada mentiria sobre
+    // onde ele está.
+    mapa: initMapa(world.terrain, world, player),
+    updateRangefinder: initRangefinder(player, camera, world, world.targets).update,
     updateCrosshair: initCrosshair(player, camera),
     updatePrompt: initPrompt(drops, veiculos),
     updateHitmarker: initHitmarker(alvoDoJogador, attack, ballistics),
+    // Quanto de dano a sequência já causou. Mesmas fontes da marca de
+    // acerto, e o mesmo filtro de dono: a balística é de todo mundo.
+    updateHitFeed: initHitFeed(alvoDoJogador, attack, ballistics),
+    /**
+     * Levar tiro: de ONDE veio e ONDE pegou.
+     *
+     * Mesma lista de acertos da marca de acerto e do hit feed, com o filtro
+     * INVERTIDO: ali o jogador é quem atira e o que se compara é `owner`;
+     * aqui ele é quem leva, e o que se compara é `target`. A balística é de
+     * todo mundo, e trocar isso enche a tela dele com a briga alheia.
+     *
+     * A vinheta de `#hurt` continua onde estava — ela avisa que doeu, e nunca
+     * avisou de onde nem onde.
+     */
+    updateRumoDano: initRumoDano(alvoDoJogador, camera, ballistics),
+    updateBoneco: initBoneco(alvoDoJogador, ballistics),
     killfeed,
     // Caixas de colisão e o que cada bot está pensando. Quem manda no
     // interruptor é o painel: uma tecla acende tudo junto.
     debugView,
     // O painel lê os números da trajetória, então a vista nasce antes dele.
     snapshot,
+    corpo,
+    debug: initDebug(player, () => debugView.shot, { renderer, scene }),
+
+    /**
+     * O painel de ajuste ao vivo, no F3.
+     *
+     * `aplicar` existe pelo que foi lido no BOOT: dispersão, fôlego e
+     * balística releem o número toda vez que usam e mudam sozinhos, mas a
+     * intensidade da luz, a exposição, a névoa e o FOV foram copiados pra
+     * dentro do three uma vez e ficariam surdos ao deslizador — o painel
+     * pareceria quebrado exatamente nos números que só se julgam olhando.
+     */
+    ajustes: initAjustes(
+      { GRADE, SPREAD, BULLET, MELEE, VIEW, CAMERA, STAMINA, SWAP, PLAYER, INCLINACAO },
+      {
+        soltarMouse: flow.soltarMouse,
+        aplicar: () => {
+          renderer.toneMappingExposure = GRADE.EXPOSICAO;
+          luzes.ceu.intensity = GRADE.HEMISFERICA;
+          luzes.sol.intensity = GRADE.DIRECIONAL;
+          luzes.ceu.groundColor.setHex(GRADE.BOUNCE);
+          scene.fog.near = WORLD.FOG_NEAR;
+          scene.fog.far = WORLD.FOG_FAR;
+          camera.fov = CAMERA.FOV;
+          camera.updateProjectionMatrix();
+        }
+      }
+    )
   };
+
+  // `?ajustes=1` e `?debug=1` abrem os dois painéis no desembarque. Headless
+  // não tem tecla, e sem isto a única prova de que eles desenham era abrir na
+  // mão — a mesma razão de `?deploy=N` existir.
+  const busca = new URLSearchParams(location.search);
+  if (busca.has('ajustes')) game.ajustes.alternar(true);
+  if (busca.has('debug')) game.debug.alternar(true);
 
   clock.getDelta();   // descarta o tempo que a abertura ficou na tela
   renderer.setAnimationLoop(frame);
@@ -424,16 +510,36 @@ function frame() {
 
   // Bot depois da captura do jogador: os dois mexem nas mesmas bandeiras, e
   // o último a falar no quadro não pode ser sempre o mesmo.
-  bots.update(delta);
+  // A câmera decide quem fica com modelo de arma: o LOD é do OLHO, não do
+  // mundo. Bot a cem metros com a MP40 completa é trinta e duas malhas pra
+  // desenhar uns poucos pixels.
+  bots.update(delta, camera.position);
 
   // tecla de teste enquanto nada causa dano de verdade ao jogador
+  /**
+   * M abre e fecha o mapa grande.
+   *
+   * Lido aqui e não em `flow.js` porque tecla de jogo é do laço: o fluxo
+   * conhece fases e telas, não `consumePress`. E ele é lido mesmo com a tela
+   * aberta — é assim que M fecha o que M abriu.
+   */
+  if (consumePress(...MAP_KEYS)) flow.alternarMapa();
+  if (flow.mapaAberto) game.mapa.desenhar();
+
+  // F3 é lido no laço pelo mesmo motivo que o M: tecla de jogo é do laço, e
+  // ele tem que responder com o painel já aberto pra poder fechar.
+  game.ajustes.update();
+
   if (player.isLocked && !player.spectating && consumePress('KeyK')) {
     if (player.damage(player.maxHealth)) flow.playerDied();
   }
 
   // Mirar aproxima a vista. O viewmodel tem câmera própria, então a arma na
   // mão não estica junto — é só o mundo que chega mais perto.
-  const wantedFov = THREE.MathUtils.lerp(CAMERA.FOV, CAMERA.ADS_FOV, player.gun.aim);
+  // Correr abre o campo; mirar fecha. O termo da corrida é apagado pela mira
+  // pra que os dois não briguem no quadro em que a arma sobe.
+  const wantedFov = THREE.MathUtils.lerp(CAMERA.FOV, CAMERA.ADS_FOV, player.gun.aim)
+    + VIEW.SPRINT_FOV * player.viewSprint * (1 - player.gun.aim);
   if (Math.abs(camera.fov - wantedFov) > 0.01) {
     camera.fov = wantedFov;
     camera.updateProjectionMatrix();
@@ -443,7 +549,7 @@ function frame() {
   // `bots.update` neste quadro, e atualizá-lo de novo apaga a passada.
   for (const target of paraAtualizar) target.update(delta);
 
-  corpo.update();
+  corpo.update(delta);
   /**
    * Posto dominado é paiol.
    *
@@ -460,6 +566,21 @@ function frame() {
     const paiol = postoDeSuprimento(
       world.outposts, player.team, p.x, p.z, postOwner);
     if (paiol) reabastecer(player.carried, SUPRIMENTO.POR_SEGUNDO * delta);
+
+    /**
+     * E a tenda trata quem entra nela.
+     *
+     * Dois lugares e duas contas de propósito: o paiol é um toque de três
+     * segundos a 24 m do mastro, a tenda é um abrigo de oito segundos a 3,4 m
+     * da lona. Reabastecer não pode disputar com capturar a mesma laje;
+     * curar-se TEM que custar sair da linha de tiro.
+     *
+     * Sem aviso na tela, como o suprimento: a barra de vida subindo já conta
+     * o que está acontecendo, e o HUD não inventa mensagem.
+     */
+    game.tratamento.atender(delta, {
+      x: p.x, z: p.z, teamId: player.team, alvo: player
+    });
   }
 
   world.water.update(clock.elapsedTime);
@@ -473,15 +594,24 @@ function frame() {
   game.debug.update(delta);
   game.updateStatus(delta);
   game.updateCompass();
+  game.updateRadar();
+  game.updateRangefinder();
   game.updateCrosshair();
   game.updatePrompt();
   game.updateHitmarker(delta);
+  game.updateHitFeed(delta);
+  game.updateRumoDano(delta);
+  game.updateBoneco(delta);
   killfeed.update(delta);
   game.updateObjective();
   game.updateFlagPrompt();
   watchdog.update();
 
   renderer.render(scene, camera);
+  // Entre um render e outro: `renderer.info` se zera a cada `render`, e o
+  // próximo é o do viewmodel — uma arma numa cena vazia. O que o painel do
+  // F2 mostra é o custo do MUNDO.
+  game.debug.amostrarRender();
   viewmodel.render(renderer);
 
   // Depois do render, antes do fim do quadro: `preserveDrawingBuffer` é

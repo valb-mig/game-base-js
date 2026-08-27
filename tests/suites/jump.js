@@ -75,7 +75,7 @@ export function run() {
     const sujeito = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400),
       document.body, {
         colliders: [teto],
-        terrain: { heightAt: () => 0, waterDepthAt: () => 0 },
+        terrain: { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 },
         spawn: new THREE.Vector3(0, 0, 0)
       });
     sujeito.controls.isLocked = true;

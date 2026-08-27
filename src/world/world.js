@@ -97,7 +97,6 @@ export function buildWorld(scene) {
   const river = createRiver(terrain.riverBedAt);
   scene.add(river.mesh);
 
-  const colliders = new ListaDeColisores();
   /**
    * O relevo falso que fecha o horizonte, e a saia que fecha a costura dele.
    *
@@ -108,6 +107,7 @@ export function buildWorld(scene) {
   addHorizonte(scene, terrain);
   addCostura(scene, terrain);
 
+  const colliders = new ListaDeColisores();
 
   // Quem perde o chão desaba. Registrado na construção do mapa pra que a
   // pazada só precise perguntar "o que tem por perto".

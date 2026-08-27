@@ -8,7 +8,7 @@ import { KNIFE } from '../../src/items/classes.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
 /**
  * Põe o item na mão e ESPERA a troca terminar.

@@ -24,16 +24,58 @@
 import { report } from './assert.js';
 
 // Ordem fixa pra saída ser comparável entre execuções.
-const SUITES = ['aim', 'compass', 'movement', 'camera', 'jump', 'stance', 'terrain', 'chao', 'textura', 'floresta', 'swim', 'model', 'drop', 'melee', 'firearm', 'ballistics', 'muzzle', 'slope', 'combate', 'digging', 'settling', 'indice', 'construcoes', 'impacto', 'dominacao', 'ragdoll', 'rig', 'espolio', 'bot', 'pelotao', 'suprimento', 'depuracao', 'folego', 'treino', 'dano', 'corpo', 'bracos', 'jipe', 'grade', 'flow'];
+const SUITES = ['aim', 'compass', 'movement', 'camera', 'jump', 'stance', 'terrain', 'chao', 'textura', 'floresta', 'swim', 'inclinacao', 'model', 'drop', 'melee', 'firearm', 'ballistics', 'muzzle', 'slope', 'combate', 'digging', 'settling', 'indice', 'construcoes', 'impacto', 'fagulha', 'dominacao', 'hitfeed', 'avisodano', 'ragdoll', 'rig', 'porte', 'passada', 'postura', 'espolio', 'bot', 'pelotao', 'suprimento', 'tratamento', 'mapa', 'depuracao', 'ferramentas', 'folego', 'treino', 'dano', 'corpo', 'bracos', 'telemetro', 'jipe', 'grade', 'horizonte', 'flow'];
 
 const problems = [];
-for (const name of SUITES) {
-  try {
-    const module = await import(`./suites/${name}.js`);
-    await module.run();
-  } catch (error) {
-    problems.push(`FALHA  suite "${name}" estourou: ${error.message}`);
+
+// Todos os módulos são buscados ANTES de qualquer suíte rodar.
+//
+// Importar no meio do laço intercalava rede com trabalho pesado de CPU, e sob
+// `--virtual-time-budget` isso derrubava uma importação por rodada, sempre
+// numa suíte diferente: "Failed to fetch dynamically imported module", com o
+// mesmo arquivo respondendo 200 no curl logo depois. Buscando tudo no começo,
+// a rede acontece enquanto a página ainda não tem o que fazer.
+//
+// E os ASSETS vão junto, pelo mesmo motivo e com o mesmo sintoma.
+//
+// Os `.glb` continuavam sendo buscados lá no meio, por quem precisasse deles:
+// medido, o do jipe respondia "Failed to fetch" com a suíte inteira rodando e
+// carregava sem falha nenhuma com a suíte dele sozinha. O erro caía dez
+// asserções adiante, num teste que fala de volante e mão, e não de rede.
+// Buscá-los aqui é a mesma ideia dos módulos — a rede acontece enquanto a
+// página ainda não tem o que fazer.
+//
+// As falhas são ENGOLIDAS: quem roda sem os arquivos continua rodando, e cada
+// suíte que depende de um já sabe se virar sem ele (`soldadoPronto`,
+// `jipePronto`). Quem chamar o carregador depois recebe a mesma promessa.
+const assets = [
+  ['soldado', () => import('../src/bots/model.js').then((m) => m.carregarSoldado())],
+  ['jipe', () => import('../src/veiculos/modelo.js').then((m) => m.carregarJipe())]
+];
+
+const modulos = await Promise.all([
+  ...SUITES.map(
+    (name) => import(`./suites/${name}.js`)
+      .then((module) => ({ name, module }))
+      .catch((error) => ({ name, error }))
+  ),
+  ...assets.map(([nome, carregar]) => carregar().catch((erro) => {
+    problems.push(`AVISO  asset "${nome}" não carregou: ${erro.message}`);
+    return null;
+  }))
+]).then((tudo) => tudo.slice(0, SUITES.length));
+
+for (const { name, module, error } of modulos) {
+  if (error) {
+    problems.push(`FALHA  suite "${name}" não carregou: ${error.message}`);
     console.error(error);
+    continue;
+  }
+  try {
+    await module.run();
+  } catch (erro) {
+    problems.push(`FALHA  suite "${name}" estourou: ${erro.message}`);
+    console.error(erro);
   }
 }
 

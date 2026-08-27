@@ -7,7 +7,7 @@ import { initInput, endFrame } from '../../src/core/input.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
 function jogador() {
   const p = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400), document.body,
