@@ -168,6 +168,11 @@ export function createBallistics(scene, colliders, {
     let nearest = null;
     for (const collider of candidatos) {
       if (ignore.has(collider) || collider === doAtirador) continue;
+      // Lona não para bala — e como esta é a mesma varredura que responde
+      // `blocked`, ela não para linha de visão nenhuma. A tenda da enfermaria
+      // barra o corpo e mais nada: tratar-se ali é risco, não abrigo, e sem
+      // isto o pano viraria a melhor cobertura do mapa por acidente.
+      if (collider.balaPassa) continue;
       const point = ray.intersectBox(collider.box, hitPoint);
       if (!point) continue;
       const distance = start.distanceTo(point);

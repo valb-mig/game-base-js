@@ -95,7 +95,7 @@ export function material(color) {
  */
 export function addBox(scene, colliders, {
   x, y, z, w, h, d, color, rotation = 0, standable = true, solid = true,
-  settling = null
+  settling = null, balaPassa = false
 }) {
   const mesh = new THREE.Mesh(BOX, material(color));
   mesh.scale.set(w, h, d);
@@ -105,7 +105,18 @@ export function addBox(scene, colliders, {
 
   if (solid) {
     mesh.updateMatrixWorld(true);
-    const collider = { box: new THREE.Box3().setFromObject(mesh), standable };
+    // `balaPassa` é lona: barra o CORPO e não barra a bala nem a vista.
+    //
+    // É o arbusto ao contrário, e o arbusto é o precedente: ele não entra em
+    // `colliders`, então corpo, bala e linha de visão atravessam todos, e o
+    // que ele faz é só tapar. A lona faz o oposto no corpo (pano amarrado não
+    // se atravessa, e é o que faz a porta ser porta) e o mesmo no resto —
+    // um pano que segurasse 7,92 mm leria como bug. `ballistics.blocked` é a
+    // mesma função que responde por linha de visão, então o bot também atira
+    // por ali: a tenda não protege de nada, e é isso que se quer dela.
+    //
+    // O padrão é falso: parede de pedra para bala.
+    const collider = { box: new THREE.Box3().setFromObject(mesh), standable, balaPassa };
     colliders.push(collider);
 
     // Cavar embaixo de uma parede tem que derrubar a parede, não deixá-la

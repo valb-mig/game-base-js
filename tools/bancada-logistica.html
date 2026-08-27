@@ -1,0 +1,72 @@
+<!doctype html><meta charset=utf-8><title>bancada · logística</title>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</script>
+<pre id=out>medindo…</pre>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '/src/world/world.js';
+import { addLogistica } from '/src/world/logistica.js';
+import { ListaDeColisores } from '/src/world/colisores.js';
+import { criarTratamento } from '/src/game/tratamento.js';
+
+/**
+ * Quanto a logística custa: colisores acrescentados e tempo de montagem.
+ *
+ * Roda em TEMPO REAL (sem orçamento virtual): montar a ilha faz fetch de nada,
+ * mas os imports fazem, e sob tempo virtual o relógio congela depois do
+ * primeiro deles — toda medida sairia zero sem erro nenhum.
+ */
+const linhas = [];
+const medir = (rotulo) => {
+  const t = performance.now();
+  const cena = new THREE.Scene();
+  const mundo = buildWorld(cena);
+  const custo = performance.now() - t;
+  linhas.push(`${rotulo}: ${custo.toFixed(0)} ms · ${mundo.stats.colliders} colisores`
+    + ` · ${mundo.enfermarias.length} enfermarias · ${cena.children.length} objetos`);
+  return mundo;
+};
+
+medir('boot 1 (frio)');
+const mundo = medir('boot 2');
+
+/**
+ * A logística sozinha, em contagem FIXA de voltas.
+ *
+ * Comparar dois boots pra isolar 128 colisores não dá: as duas montagens
+ * idênticas acima diferem em mais de um segundo, e nesse ruído a medida prova
+ * o que se quiser. Oito lugares num terreno plano, cem vezes, e divide.
+ */
+const chao = {
+  heightAt: () => 0, nivelDaAguaAt: () => -100, waterDepthAt: () => 0,
+  declividadeAt: () => 0, estradaAt: () => 0, corDeEstradaAt: () => null
+};
+const VOLTAS = 100;
+const t0 = performance.now();
+for (let i = 0; i < VOLTAS; i++) {
+  const cena = new THREE.Scene();
+  // Uma lista por lugar: os seis pontos ficam a centenas de metros um do
+  // outro no mapa, e amontoá-los na mesma origem faz a tenda de um cair
+  // dentro da tenda do outro — a conferência de montagem pega isso na hora,
+  // e foi o que ela fez na primeira versão desta bancada.
+  for (const id of ['praia', 'colina', 'vila', 'fazenda', 'ponte', 'moinho', 'base', 'base']) {
+    addLogistica(cena, new ListaDeColisores(),
+      { id, x: 0, z: 0, terrain: chao, onde: id });
+  }
+}
+linhas.push(`montar as 8 logísticas: ${((performance.now() - t0) / VOLTAS).toFixed(2)} ms`);
+
+/** E o que ela cobra POR QUADRO, que é o número que importa a 60 fps. */
+const enfermaria = criarTratamento(mundo.enfermarias);
+const alvo = { alive: true, health: 40, maxHealth: 100 };
+const QUADROS = 20000;
+const t1 = performance.now();
+for (let i = 0; i < QUADROS; i++) {
+  alvo.health = 40;
+  enfermaria.atender(1 / 60, { x: 0, z: 0, teamId: 'vestria', alvo });
+}
+linhas.push(`tratamento.atender (8 zonas): `
+  + `${((performance.now() - t1) / QUADROS * 1000).toFixed(2)} µs por quadro`);
+for (const l of linhas) console.log(l);
+console.log('FIM');
+document.getElementById('out').textContent = linhas.join('\n');
+</script>

@@ -17,6 +17,7 @@ import { sorteioFixo } from './props.js';
 import { ListaDeColisores } from './colisores.js';
 import { addBase } from './base.js';
 import { addOutposts } from './outposts.js';
+import { addLogistica } from './logistica.js';
 import { TEAMS } from '../game/teams.js';
 
 /**
@@ -125,6 +126,24 @@ export function buildWorld(scene) {
     facing: -1, color: TEAMS.vestria.color, settling
   });
 
+  /**
+   * A logística das duas bases: tenda de tratamento e paiol de munição.
+   *
+   * Base entra aqui e não em `addBase` porque ela é a mesma peça dos postos, e
+   * duas cópias do desenho se separariam no primeiro ajuste. Depois de
+   * `addBase`, de propósito: a tenda confere se o miolo dela está livre, e pra
+   * isso o perímetro, a torre e o bunker já têm que estar na lista.
+   */
+  const logisticaDeBase = [
+    { team: 'karnia', ...north, onde: `Base ${TEAMS.karnia.short}` },
+    { team: 'vestria', ...south, onde: `Base ${TEAMS.vestria.short}` }
+  ].map((base) => ({
+    team: base.team,
+    ...addLogistica(scene, colliders, {
+      id: 'base', x: base.x, z: base.z, terrain, settling, onde: base.onde
+    })
+  }));
+
   // Sem campo de treino aqui: ele é um mapa à parte, com regra própria.
   const targets = [];
 
@@ -177,6 +196,23 @@ export function buildWorld(scene) {
     ...outposts.map((posto) => ({
       id: posto.id, name: `${posto.numero}. ${posto.name}`, team: posto.startTeam,
       base: false, post: posto, x: posto.x, z: posto.z + 7, radius: 10
+    }))
+  ];
+
+  /**
+   * As zonas de tratamento do mapa, numa lista só.
+   *
+   * `game/tratamento.js` não conhece posto nem base: ele pergunta de quem é a
+   * zona, e quem responde é o `post` (dominado e em paz) ou o `team` fixo da
+   * base — não há captura de base, então quem manda ali não muda. A lista é de
+   * DADO: x, z e de quem é. Nada de malha atravessa essa fronteira.
+   */
+  const enfermarias = [
+    ...logisticaDeBase.map((base) => ({
+      x: base.enfermaria.x, z: base.enfermaria.z, team: base.team, post: null
+    })),
+    ...outposts.filter((posto) => posto.enfermaria).map((posto) => ({
+      x: posto.enfermaria.x, z: posto.enfermaria.z, team: null, post: posto
     }))
   ];
 
@@ -235,6 +271,7 @@ export function buildWorld(scene) {
     water,
     river,
     bridges,
+    enfermarias,
     animados,
     bushes,
     targets,
@@ -248,6 +285,7 @@ export function buildWorld(scene) {
     stats: {
       ...counts, arbustos: bushes.count,
       alvos: targets.length, postos: outposts.length, pontes: bridges.length,
+      enfermarias: enfermarias.length,
       colliders: colliders.length
     }
   };

@@ -4,6 +4,9 @@ import { postOwner, activePostFor } from '../game/teams.js';
 import {
   SUPRIMENTO, secou, abastecido, temCorpoACorpo, reabastecer
 } from '../game/suprimento.js';
+import {
+  TRATAMENTO, ferido, tratado, tratar, enfermariaMaisPerto
+} from '../game/tratamento.js';
 
 /**
  * O que um bot decide fazer.
@@ -166,6 +169,17 @@ export function createBrain(bot, mundo, rng = Math.random) {
    */
   let buscandoBala = false;
 
+  /**
+   * E no meio de uma ida à enfermaria.
+   *
+   * Mesma trava, mesmo motivo — e a armadilha aqui é a mesma do `secou`:
+   * `ferido` deixa de ser verdadeiro no primeiro ponto de vida que entra, e
+   * sem isto o bot largaria a maca com 66% pra voltar ferido no primeiro
+   * contato. Só solta quando está `tratado`, ou quando levar tiro, porque aí a
+   * decisão deixou de ser dele.
+   */
+  let buscandoCura = false;
+
   // Reaproveitado: a busca por cobertura roda em quadro de combate, e alocar
   // um array de colisores ali é alocar no laço quente.
   const emVolta = [];
@@ -184,7 +198,12 @@ export function createBrain(bot, mundo, rng = Math.random) {
       ? mundo.colliders.emVolta(bot.x, bot.z, BRAIN.COBERTURA_BUSCA, emVolta)
       : mundo.colliders;
 
-    for (const { box } of perto) {
+    for (const { box, balaPassa } of perto) {
+      // Lona não é cobertura. A tenda da enfermaria barra o corpo e deixa
+      // passar a bala: escolhê-la pra se esconder é o bot se pôr atrás de um
+      // pano acreditando estar protegido — pior que ficar no aberto, porque
+      // ele para de se mexer.
+      if (balaPassa) continue;
       if (box.max.y - box.min.y < 0.8) continue;        // baixo demais pra cobrir
       const cx = (box.min.x + box.max.x) / 2;
       const cz = (box.min.z + box.max.z) / 2;
@@ -223,6 +242,11 @@ export function createBrain(bot, mundo, rng = Math.random) {
    * — então a busca é sobre o mapa inteiro e o raio só serve pra saber que
    * chegou.
    */
+  /** A tenda do time mais perto. Pergunta de mapa, como o paiol. */
+  function tendaMaisPerto() {
+    return enfermariaMaisPerto(mundo.enfermarias, bot.team, bot.x, bot.z);
+  }
+
   function paiolMaisPerto() {
     let melhor = null;
     let menor = Infinity;
@@ -316,10 +340,18 @@ export function createBrain(bot, mundo, rng = Math.random) {
       else if (buscandoBala && abastecido(bot.weapons)) buscandoBala = false;
       const secado = buscandoBala;
 
+      if (ferido(bot)) buscandoCura = true;
+      else if (buscandoCura && tratado(bot)) buscandoCura = false;
+      const machucado = buscandoCura;
+
       if (visto && (!semMunicao || secado)) estado = 'combate';
       else if ((sobFogo || semMunicao) && alvo) estado = 'cobertura';
       else if (sobFogo || temAviso) estado = 'alerta';
       else if (secado) estado = 'reabastecendo';
+      // Munição ganha de vida na fila: ferido com bala ainda briga, sem bala
+      // ele não briga de jeito nenhum. E as duas perdem de combate — bot que
+      // vai se tratar com alguém à vista viraria alvo andando de costas.
+      else if (machucado) estado = 'tratando';
       else if (alvo) estado = 'procurando';
       else estado = 'avancando';
 
@@ -459,6 +491,36 @@ export function createBrain(bot, mundo, rng = Math.random) {
           bot.yaw = turnToward(bot.yaw,
             Math.atan2(paiol.x - bot.x, paiol.z - bot.z), AIM.GIRO * delta);
           andarPara(paiol.x, paiol.z, delta, 3.4);
+          return;
+        }
+      }
+
+      /**
+       * Ferido: ele recua até a tenda e fica lá até estar bom.
+       *
+       * A enfermaria mais PERTO, não a da linha de frente: quem está sangrando
+       * não avança. E ele fica de pé — deitado numa maca ele deixaria de ser
+       * alvo de propósito, e a tenda não protege ninguém.
+       */
+      if (estado === 'tratando') {
+        bot.crouching = false;
+
+        const tenda = tendaMaisPerto();
+        if (!tenda) {
+          // Sem posto nem base do time com tenda: não há o que buscar.
+          estado = 'avancando';
+        } else {
+          const falta = Math.hypot(tenda.x - bot.x, tenda.z - bot.z);
+          if (falta <= TRATAMENTO.RAIO) {
+            bot.speed = 0;
+            // `hurtFor` é o que impede a lona de virar escudo: quem está
+            // levando tiro dentro da tenda não é tratado.
+            tratar(bot, TRATAMENTO.POR_SEGUNDO * delta, bot.hurtFor);
+            return;
+          }
+          bot.yaw = turnToward(bot.yaw,
+            Math.atan2(tenda.x - bot.x, tenda.z - bot.z), AIM.GIRO * delta);
+          andarPara(tenda.x, tenda.z, delta, 3.4);
           return;
         }
       }

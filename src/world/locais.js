@@ -4,6 +4,7 @@ import { addMoinho } from './moinho.js';
 import { addBunker } from './bunker.js';
 import { addPostoDoRio } from './militar.js';
 import { addPraia } from './praia.js';
+import { addLogistica } from './logistica.js';
 
 /**
  * O que existe EM cada ponto de captura.
@@ -35,5 +36,18 @@ const CONSTRUTORES = {
  */
 export function construirLocal(scene, colliders, { id, x, z, terrain, settling }) {
   const construir = CONSTRUTORES[id];
-  return construir ? construir(scene, colliders, { x, z, terrain, settling }) : null;
+  const local = construir
+    ? construir(scene, colliders, { x, z, terrain, settling })
+    : null;
+
+  /**
+   * A logística entra DEPOIS do cenário, e a ordem é a regra: a tenda confere
+   * se o miolo e a porta dela estão livres, e pra isso o celeiro, a igreja e a
+   * casamata já têm que estar na lista de colisores. Antes, a conferência
+   * passaria verde e a enfermaria nasceria dentro de uma casa.
+   */
+  const logistica = addLogistica(
+    scene, colliders, { id, x, z, terrain, settling, onde: id });
+
+  return { ...local, ...logistica };
 }

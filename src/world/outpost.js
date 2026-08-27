@@ -106,6 +106,13 @@ export function createOutpost(scene, colliders, {
 
   return {
     local,
+    /**
+     * Onde se trata quem está ferido neste posto: o centro da tenda, que é o
+     * centro da zona de cura. Sai do MAPA, como a garagem do jipe — quem
+     * conhece o terreno é quem escolhe o lugar — e sobe até aqui porque a
+     * regra de tratamento pergunta pelo posto, não pela malha.
+     */
+    enfermaria: local?.enfermaria ?? null,
     id,
     name,
     // Número da ordem e o que torna este ponto difícil. Vêm da tabela do mapa
