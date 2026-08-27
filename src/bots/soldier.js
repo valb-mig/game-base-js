@@ -361,7 +361,8 @@ export function createSoldier(scene, colliders, {
   // na tela, não de tabela: comprimento de osso escrito à mão desalinha na
   // primeira vez que o modelo muda, e o corpo estica ao cair.
   const ragdoll = createRagdoll(rig ? rig.medirJuntas() : JUNTAS_PADRAO);
-  const perto = [];   // colisores em volta do corpo, refeitos por quadro
+  const perto = [];       // colisores em volta do corpo, refeitos por quadro
+  const candidatos = [];  // o que o índice espacial devolveu, antes da peneira
   const centroQueda = new THREE.Vector3();
   const giroDeitar = new THREE.Quaternion();
   const giroYaw = new THREE.Quaternion();
@@ -890,7 +891,26 @@ export function createSoldier(scene, colliders, {
         if (!ragdoll.dormindo) {
           ragdoll.posicaoDe('hips', centroQueda);
           perto.length = 0;
-          for (const outro of colliders) {
+          /**
+           * Pela VIZINHANÇA, nunca pela lista inteira.
+           *
+           * Terceira vez que este invariante cobra nesta base — depois de
+           * `acharCobertura` e de `wallHit` —, e aqui ele cobrava justamente
+           * no quadro em que alguém morre. Medido antes de mudar: cada corpo
+           * ainda caindo fazia UMA varredura dos 5643 colisores por quadro, e
+           * três corpos no chão levavam a IA de 0,71 pra 2,70 ms, com 1,77
+           * desses milissegundos sendo só a varredura. Num tiroteio de 300 com
+           * 62 corpos eram 367.846 caixas visitadas por quadro, 20 dos 26 ms.
+           *
+           * `emVolta` é um SUPERCONJUNTO do que a peneira de distância aceita
+           * (célula de 32 m contra o raio de 1,6), então o resultado é o mesmo
+           * — e quem não responde `emVolta`, que é todo dublê de teste,
+           * continua caindo no laço linear.
+           */
+          const emVolta = colliders.emVolta
+            ? colliders.emVolta(centroQueda.x, centroQueda.z, PERTO_DO_CORPO, candidatos)
+            : colliders;
+          for (const outro of emVolta) {
             if (outro === collider) continue;
             if (outro.box.distanceToPoint(centroQueda) < PERTO_DO_CORPO) perto.push(outro);
           }

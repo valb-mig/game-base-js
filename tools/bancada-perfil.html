@@ -1,0 +1,327 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: perfil do quadro</title>
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.7 ui-monospace,monospace}pre{padding:20px}</style>
+</head><body><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from '../src/world/world.js';
+import { createBallistics } from '../src/items/ballistics.js';
+import { createCapture } from '../src/game/capture.js';
+import { createBots } from '../src/bots/bots.js';
+import { carregarSoldado } from '../src/bots/model.js';
+
+/**
+ * De quem é o milissegundo DENTRO da IA e DENTRO da balística.
+ *
+ * A bancada de combate diz o total; esta reparte a conta desligando uma peça
+ * por vez e medindo a diferença. Tempo REAL e contagem fixa de voltas.
+ *
+ * DUAS armadilhas desta página, as duas medidas:
+ *
+ *  - medir `bots.update` sem `ballistics.update` faz a lista de balas CRESCER
+ *    sem parar (trezentos bots atirando, ninguém morrendo de bala), e a medida
+ *    da balística feita depois mede outra briga. Por isso a balística é medida
+ *    ANTES, e o laço de IA trunca a lista pra que a briga não mude de tamanho.
+ *  - `?bots=N` muda o tamanho do time (padrão 150 por lado), porque a conta
+ *    que interessa é a do JOGO (nove) e a do pior caso (trezentos).
+ */
+const out = document.getElementById('out');
+const linhas = [];
+const diz = (t) => { linhas.push(t); out.textContent = linhas.join('\n'); console.log('BANCADA ' + t); };
+
+const busca = new URLSearchParams(location.search);
+const POR_TIME = Number(busca.get('bots') ?? 150);
+const AQUECE = Number(busca.get('quadros') ?? 240);
+const DT = 1 / 60;
+
+await carregarSoldado();
+const scene = new THREE.Scene();
+const t0 = performance.now();
+const world = buildWorld(scene);
+const boot = performance.now() - t0;
+const ballistics = createBallistics(scene, world.colliders, {});
+const capture = createCapture(world.outposts);
+
+let semente = 4242;
+const rng = () => {
+  semente = (Math.imul(semente, 1664525) + 1013904223) >>> 0;
+  return semente / 4294967296;
+};
+const bots = createBots(scene, world, { ballistics, capture, rng });
+
+const CX = -44;
+const CZ = -173;
+for (let i = 0; i < POR_TIME * 2; i++) {
+  const karnia = i < POR_TIME;
+  const k = karnia ? i : i - POR_TIME;
+  const fila = Math.floor(k / 25);
+  const col = k % 25;
+  bots.spawn({
+    id: i + 1,
+    team: karnia ? 'karnia' : 'vestria',
+    x: CX + (col - 12) * 3.4,
+    z: CZ + (karnia ? -35 - fila * 3.4 : 35 + fila * 3.4)
+  });
+}
+const alvos = [...bots.soldiers];
+bots.setTargets(alvos);
+world.targets.push(...alvos);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(320, 180);
+const camera = new THREE.PerspectiveCamera(70, 320 / 180, 0.1, 1200);
+camera.position.set(CX, 30, CZ);
+camera.lookAt(CX, 20, CZ - 40);
+
+// Deixa a briga engrenar: o minuto zero não mede tiroteio.
+for (let q = 0; q < AQUECE; q++) {
+  bots.update(DT, camera.position);
+  ballistics.update(DT, alvos, world.terrain);
+  renderer.render(scene, camera);
+}
+
+let vivos = 0;
+for (const b of bots.soldiers) if (b.alive) vivos++;
+const BALAS = ballistics.bullets.length;
+diz(`buildWorld ${boot.toFixed(0)} ms`);
+diz(`${bots.soldiers.length} bots, ${vivos} vivos, ${BALAS} balas no ar`);
+diz('');
+
+const so = (fn, voltas = 40) => {
+  for (let q = 0; q < 6; q++) fn();
+  const t = performance.now();
+  for (let q = 0; q < voltas; q++) fn();
+  return (performance.now() - t) / voltas;
+};
+
+// ---------------------------------------------------------------- balística
+//
+// A população de balas é CONGELADA e restaurada antes de cada volta. Sem
+// isso a lista drena durante a própria medida — medido: 147 balas na
+// primeira variante e ZERO na última, ou seja as quatro linhas mediam
+// quatro brigas diferentes e a comparação entre elas não queria dizer nada.
+const balas = ballistics.bullets;
+const guarda = balas.map((b) => ({
+  b, p: b.position.clone(), v: b.velocity.clone(),
+  tr: b.travelled, sp: b.spent, fade: b.fade
+}));
+const restaurar = () => {
+  balas.length = 0;
+  for (const g of guarda) {
+    g.b.position.copy(g.p);
+    g.b.velocity.copy(g.v);
+    g.b.travelled = g.tr;
+    g.b.spent = g.sp;
+    g.b.fade = g.fade;
+    balas.push(g.b);
+  }
+};
+
+const medirBala = (rotulo, lista, terreno, voltas = 40) => {
+  for (let q = 0; q < 4; q++) { restaurar(); ballistics.update(DT, lista, terreno); }
+  let total = 0;
+  for (let q = 0; q < voltas; q++) {
+    restaurar();
+    const t = performance.now();
+    ballistics.update(DT, lista, terreno);
+    total += performance.now() - t;
+  }
+  const ms = total / voltas;
+  diz(`  ${rotulo.padEnd(30)} ${ms.toFixed(2)} ms`);
+  return ms;
+};
+
+diz(`balística, ${guarda.length} balas congeladas e ${alvos.length} alvos:`);
+const bala = medirBala('inteira', alvos, world.terrain);
+const semTerreno = medirBala('sem terreno', alvos, null);
+const semAlvos = medirBala('sem alvos', [], world.terrain);
+medirBala('só parede', [], null);
+diz(`  -> terreno ${(bala - semTerreno).toFixed(2)} ms   alvos ${(bala - semAlvos).toFixed(2)} ms`
+  + `   (${(bala / Math.max(1, guarda.length) * 1000).toFixed(1)} µs por bala)`);
+restaurar();
+
+// ---------------------------------------------------------------------- IA
+// A lista de balas é truncada pra que a briga não cresça durante a medida.
+const TETO_BALAS = Math.max(60, BALAS);
+const quadroIA = () => {
+  bots.update(DT, camera.position);
+  if (ballistics.bullets.length > TETO_BALAS) ballistics.bullets.length = TETO_BALAS;
+};
+
+diz('');
+const base = so(quadroIA);
+diz(`IA inteira                        ${base.toFixed(2)} ms`);
+
+const cerebros = bots.soldiers.map((b) => bots.brainOf(b));
+const pensa = cerebros.map((c) => c && c.update);
+cerebros.forEach((c) => { if (c) c.update = () => {}; });
+const semCerebro = so(quadroIA);
+cerebros.forEach((c, i) => { if (c) c.update = pensa[i]; });
+diz(`  sem cérebro                     ${semCerebro.toFixed(2)} ms   -> cérebro = ${(base - semCerebro).toFixed(2)} ms`);
+
+const corpos = bots.soldiers.map((b) => b.update);
+bots.soldiers.forEach((b) => { b.update = () => {}; });
+const semCorpo = so(quadroIA);
+bots.soldiers.forEach((b, i) => { b.update = corpos[i]; });
+diz(`  sem corpo                       ${semCorpo.toFixed(2)} ms   -> corpo = ${(base - semCorpo).toFixed(2)} ms`);
+
+cerebros.forEach((c) => { if (c) c.update = () => {}; });
+bots.soldiers.forEach((b) => { b.update = () => {}; });
+const soFiacao = so(quadroIA);
+cerebros.forEach((c, i) => { if (c) c.update = pensa[i]; });
+bots.soldiers.forEach((b, i) => { b.update = corpos[i]; });
+diz(`  só a fiação do gerente          ${soFiacao.toFixed(2)} ms`);
+
+const passos = bots.soldiers.map((b) => b.step);
+bots.soldiers.forEach((b) => { b.step = () => 0; });
+const semStep = so(quadroIA);
+bots.soldiers.forEach((b, i) => { b.step = passos[i]; });
+diz(`  sem step (colisão de corpo)     ${semStep.toFixed(2)} ms   -> step = ${(base - semStep).toFixed(2)} ms`);
+
+{
+  const era = ballistics.blocked;
+  ballistics.blocked = () => false;
+  const semRaio = so(quadroIA);
+  ballistics.blocked = era;
+  diz(`  sem raycast de visão            ${semRaio.toFixed(2)} ms   -> raycast = ${(base - semRaio).toFixed(2)} ms`);
+}
+
+const longe = new THREE.Vector3(camera.position.x + 5000, 20, camera.position.z);
+const s3 = so(() => {
+  bots.update(DT, longe);
+  if (ballistics.bullets.length > TETO_BALAS) ballistics.bullets.length = TETO_BALAS;
+});
+diz(`  sondagem a 3 Hz                 ${s3.toFixed(2)} ms   -> sondagem = ${(base - s3).toFixed(2)} ms`);
+
+// ------------------------------------------------------------- quem consulta
+{
+  const terreno = world.terrain;
+  const conta = { heightAt: 0, emVolta: 0, aoLongoDe: 0, declividade: 0, varredura: 0 };
+  // Quem itera a LISTA INTEIRA de colisores. É a varredura que o índice
+  // espacial existe pra evitar, e ela não aparece em nenhum outro contador:
+  // `for (const c of colliders)` não passa por `emVolta` nem por `aoLongoDe`.
+  const iterar = world.colliders[Symbol.iterator];
+  world.colliders[Symbol.iterator] = function () {
+    conta.varredura++;
+    return iterar.call(this);
+  };
+  const h = terreno.heightAt.bind(terreno);
+  const ev = world.colliders.emVolta?.bind(world.colliders);
+  const al = world.colliders.aoLongoDe?.bind(world.colliders);
+  const dc = terreno.declividadeAt?.bind(terreno);
+  terreno.heightAt = (x, z) => { conta.heightAt++; return h(x, z); };
+  if (ev) world.colliders.emVolta = (...a) => { conta.emVolta++; return ev(...a); };
+  if (al) world.colliders.aoLongoDe = (...a) => { conta.aoLongoDe++; return al(...a); };
+  if (dc) terreno.declividadeAt = (...a) => { conta.declividade++; return dc(...a); };
+
+  bots.update(DT, camera.position);
+  const ia = { ...conta };
+  for (const k in conta) conta[k] = 0;
+  ballistics.update(DT, alvos, world.terrain);
+  const bal = { ...conta };
+
+  terreno.heightAt = h;
+  if (ev) world.colliders.emVolta = ev;
+  if (al) world.colliders.aoLongoDe = al;
+  if (dc) terreno.declividadeAt = dc;
+  world.colliders[Symbol.iterator] = iterar;
+
+  diz('');
+  diz(`consultas em UM quadro (${world.colliders.length} colisores na lista)`);
+  diz('                         heightAt   emVolta  aoLongoDe  declive  varreduras');
+  diz(`  IA                   ${String(ia.heightAt).padStart(10)}${String(ia.emVolta).padStart(10)}${String(ia.aoLongoDe).padStart(11)}${String(ia.declividade).padStart(9)}${String(ia.varredura).padStart(12)}`);
+  diz(`  balística            ${String(bal.heightAt).padStart(10)}${String(bal.emVolta).padStart(10)}${String(bal.aoLongoDe).padStart(11)}${String(bal.declividade).padStart(9)}${String(bal.varredura).padStart(12)}`);
+  diz(`  -> caixas visitadas por varredura linear: ${(ia.varredura * world.colliders.length).toLocaleString('pt-br')} por quadro`);
+}
+
+// ------------------------------------------------ o preço do corpo CAINDO
+//
+// O ragdoll só custa enquanto o solver está acordado, e é aí que ele varre a
+// lista de colisores. Um tiroteio mata muita gente ao mesmo tempo: medir com
+// seis mortos (o que sobrou do aquecimento) não diz nada sobre o pior caso.
+{
+  const antes = so(quadroIA, 20);
+  let mortos = 0;
+  for (const b of bots.soldiers) {
+    if (!b.alive) continue;
+    if (mortos >= Number(busca.get('mortos') ?? 60)) break;
+    b.damage?.(1000);
+    if (!b.alive) mortos++;
+  }
+  let caidos = 0;
+  for (const b of bots.soldiers) if (!b.alive) caidos++;
+  const depois = so(quadroIA, 20);
+  diz('');
+  diz(`IA com ${caidos} corpos no chão (${mortos} mortos agora)   ${depois.toFixed(2)} ms`);
+  diz(`  antes de matar                  ${antes.toFixed(2)} ms   -> corpos caindo = ${(depois - antes).toFixed(2)} ms`);
+  diz(`  por corpo caindo                ${((depois - antes) / Math.max(1, mortos) * 1000).toFixed(0)} µs`);
+
+  // De quem é esse milissegundo: do SOLVER ou da varredura de colisores?
+  // O iterador vazio tira as caixas do solver sem tocar em mais nada — não é
+  // correto (o corpo atravessa parede), mas é a única medida que separa as
+  // duas contas sem editar o módulo.
+  const iterar = world.colliders[Symbol.iterator];
+  let voltas = 0;
+  world.colliders[Symbol.iterator] = function () { voltas++; return iterar.call(this); };
+  quadroIA();
+  const varreduras = voltas;
+  world.colliders[Symbol.iterator] = function* () {};
+  const semCaixas = so(quadroIA, 20);
+  world.colliders[Symbol.iterator] = iterar;
+  diz(`  varreduras da lista inteira     ${varreduras} por quadro`
+    + `  = ${(varreduras * world.colliders.length).toLocaleString('pt-br')} caixas visitadas`);
+  diz(`  com a varredura desligada       ${semCaixas.toFixed(2)} ms   -> varredura = ${(depois - semCaixas).toFixed(2)} ms`);
+}
+
+// ------------------------------------------------------------------- render
+diz('');
+const render = so(() => renderer.render(scene, camera), 20);
+diz(`render 320x180 (swiftshader)      ${render.toFixed(2)} ms`);
+camera.rotation.set(Math.PI / 2, 0, 0);
+const ceu = so(() => renderer.render(scene, camera), 20);
+diz(`render pro céu (só CPU)           ${ceu.toFixed(2)} ms`);
+
+let nos = 0;
+let malhas = 0;
+let skinned = 0;
+const geos = new Set();
+scene.traverse((o) => {
+  nos++;
+  if (o.isMesh || o.isInstancedMesh) { malhas++; geos.add(o.geometry); }
+  if (o.isSkinnedMesh) skinned++;
+});
+diz('');
+diz(`nós na cena ${nos}   malhas ${malhas}   skinned ${skinned}`);
+diz(`geometrias distintas ${geos.size}   na GPU ${renderer.info.memory.geometries}`);
+
+// Quanto do quadro é a MESMA caixa desenhada mil vezes: as malhas estáticas
+// agrupadas por material dizem quantas chamadas de desenho uma fusão pouparia.
+{
+  const porMaterial = new Map();
+  scene.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh) return;
+    // Só o que não se mexe: bot, arma na mão e bala andam todo quadro.
+    let raiz = o;
+    let movel = false;
+    while (raiz) {
+      if (raiz.userData?.movel || raiz.isSkinnedMesh) movel = true;
+      raiz = raiz.parent;
+    }
+    if (movel) return;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    porMaterial.set(m, (porMaterial.get(m) ?? 0) + 1);
+  });
+  let estaticas = 0;
+  const top = [...porMaterial].sort((a, b) => b[1] - a[1]);
+  for (const [, n] of top) estaticas += n;
+  diz('');
+  diz(`malhas estáticas soltas ${estaticas} em ${porMaterial.size} materiais`);
+  diz('  os cinco materiais com mais malhas:');
+  for (const [m, n] of top.slice(0, 5)) {
+    diz(`    ${String(m?.name || m?.type).padEnd(22)} ${String(n).padStart(5)} malhas  cor #${m?.color?.getHexString?.() ?? '?'}`);
+  }
+}
+diz('FIM');
+</script></body></html>

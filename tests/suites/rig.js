@@ -3,6 +3,7 @@ import { carregarSoldado, soldadoPronto, criarSoldado } from '../../src/bots/mod
 import { criarRig } from '../../src/bots/rig.js';
 import { createRagdoll } from '../../src/bots/ragdoll.js';
 import { SOLDIER, createSoldier } from '../../src/bots/soldier.js';
+import { ListaDeColisores } from '../../src/world/colisores.js';
 import { suite, ok, eq, near, note } from '../assert.js';
 
 const DT = 1 / 60;
@@ -131,6 +132,7 @@ function rodar() {
   rig.repousar();
 
   corpoCaido();
+  corpoNaoVarreOMapa();
 }
 
 /**
@@ -200,4 +202,92 @@ function corpoCaido() {
   for (let i = 0; i < 30; i++) bot.update(DT);
   const depois = cabeca.getWorldPosition(new THREE.Vector3());
   eq('nenhum osso é reescrito depois disso', depois.distanceTo(antes), 0);
+}
+
+/**
+ * O corpo caído pergunta a VIZINHANÇA, não a lista inteira.
+ *
+ * Enquanto o solver está acordado ele precisa saber que caixas podem
+ * atrapalhar a queda, e a primeira versão percorria os colisores do mapa
+ * inteiro — o mesmo defeito que `acharCobertura` e `wallHit` já pagaram, agora
+ * no quadro em que alguém morre. Medido na bancada de perfil antes de mudar:
+ * uma varredura dos 5643 colisores POR CORPO por quadro, três corpos levando a
+ * IA de 0,71 pra 2,70 ms, e 62 corpos visitando 367.846 caixas por quadro.
+ *
+ * Este teste não mede TEMPO: ele roda sob tempo virtual, onde
+ * `performance.now()` não anda e qualquer asserção de milissegundo passa verde
+ * com 0,000 ms. Ele conta VARREDURAS — e vem com a contraprova, porque
+ * "nenhuma varredura" também é o que se mede quando o corpo deixou de
+ * perguntar por caixa nenhuma.
+ */
+function corpoNaoVarreOMapa() {
+  suite('o corpo caído não varre o mapa pra saber onde bateu');
+
+  const chao = { heightAt: () => 0 };
+  const AQUI = { x: 240, z: -180 };
+
+  function derrubar(comParede) {
+    const cena = new THREE.Scene();
+    const colisores = new ListaDeColisores();
+
+    // Mapa de mentira com o tamanho do de verdade em ordem de grandeza: é a
+    // lista que a varredura linear percorreria, e ela tem que ser grande o
+    // bastante pra que passar por ela seja visível na contagem.
+    for (let i = 0; i < 400; i++) {
+      const x = -900 + (i % 20) * 90;
+      const z = -900 + Math.floor(i / 20) * 90;
+      colisores.push({ box: new THREE.Box3(
+        new THREE.Vector3(x, 0, z), new THREE.Vector3(x + 2, 3, z + 2)) });
+    }
+
+    // A parede encostada no corpo, do lado pra onde o tiro o empurra.
+    if (comParede) {
+      colisores.push({ box: new THREE.Box3(
+        new THREE.Vector3(AQUI.x - 2, 0, AQUI.z + 0.6),
+        new THREE.Vector3(AQUI.x + 2, 2.4, AQUI.z + 1.2)) });
+    }
+
+    const bot = createSoldier(cena, colisores, {
+      id: 1, team: 'karnia', x: AQUI.x, z: AQUI.z, terrain: chao,
+      weapons: [{ id: 'mp40', name: 'MP40', firearm: { damage: 24 },
+        ammo: { loaded: 32, reserve: 0 } }]
+    });
+    bot.update(DT);
+
+    // Conta quem itera a lista INTEIRA. `emVolta` e `aoLongoDe` não passam por
+    // aqui, então o contador só sobe na varredura que se quer ver morrer.
+    let varreduras = 0;
+    const iterar = colisores[Symbol.iterator];
+    colisores[Symbol.iterator] = function () {
+      varreduras++;
+      return iterar.call(this);
+    };
+
+    bot.damage(999, { nome: 'tronco', multiplicador: 1 }, {
+      dir: new THREE.Vector3(0, 0, 1), ponto: new THREE.Vector3(AQUI.x, 1.15, AQUI.z - 0.2)
+    });
+    for (let i = 0; i < 240; i++) bot.update(DT);
+    colisores[Symbol.iterator] = iterar;
+
+    return {
+      varreduras,
+      colisores: colisores.length,
+      quadril: bot.group.getObjectByName('hips').getWorldPosition(new THREE.Vector3())
+    };
+  }
+
+  const semParede = derrubar(false);
+  const comParede = derrubar(true);
+
+  eq('o corpo cai sem varrer a lista de colisores', semParede.varreduras, 0);
+  eq('e com uma parede encostada também não varre', comParede.varreduras, 0);
+  note('lista', `${semParede.colisores} colisores que a varredura percorreria por corpo por quadro`);
+
+  // A CONTRAPROVA: zero varredura também é o que se mede quando o corpo parou
+  // de consultar caixa. Se o índice está entregando a parede, a queda com ela
+  // e sem ela terminam em lugares diferentes.
+  const desvio = comParede.quadril.distanceTo(semParede.quadril);
+  ok('e a parede que o índice devolveu muda onde ele para', desvio > 0.05,
+    `quadril ${desvio.toFixed(2)} m longe do da queda sem parede`);
+  note('por que a contraprova', 'sem ela, "não consulta nada" passa pelo mesmo teste');
 }
