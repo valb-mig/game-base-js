@@ -10,7 +10,7 @@ import { BULLET } from '../../src/config.js';
 import { suite, ok, eq, near, between, note } from '../assert.js';
 
 const DT = 1 / 60;
-const chao = { heightAt: () => 0, waterDepthAt: () => 0 };
+const chao = { heightAt: () => 0, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
 
 /** Painel de depuração precisa dos elementos do HUD pra existir. */
 function palco() {
@@ -187,7 +187,7 @@ export function run() {
 
   // Chão plano bem abaixo, pra a bala voar sem bater em nada e a queda poder
   // ser conferida contra a fórmula.
-  const fundo = { heightAt: () => -50, waterDepthAt: () => 0 };
+  const fundo = { heightAt: () => -50, waterDepthAt: () => 0, nivelDaAguaAt: () => 0 };
   const cenaT = new THREE.Scene();
   const mundoT = { colliders: [], targets: [], terrain: fundo };
   const atirador = new Player(new THREE.PerspectiveCamera(70, 1, 0.1, 400),

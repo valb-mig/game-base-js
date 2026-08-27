@@ -13,12 +13,32 @@
 <div id="hurt"></div>
 <div id="crosshair"></div>
 <div id="hitmarker"></div>
+<div id="hitfeed"></div>
 <div id="debug"></div>
 <pre id="watchdog"></pre>
 
 <div id="hud-layer">
   <canvas id="compass"></canvas>
-  <div id="vitals"></div>
+  <!-- Radar e coordenadas. O radar é a MESMA ilha do mapa tático, recortada
+       em volta do jogador: mexer no relevo muda os dois juntos. -->
+  <div id="radar-block">
+    <canvas id="radar"></canvas>
+    <div id="coords"></div>
+  </div>
+  <!-- Distância do que está sob a mira. Só aparece mirando, e some quando
+       não há nada no alcance: número que aparece sempre vira enfeite. -->
+  <div id="rangefinder"></div>
+  <!-- De onde veio o tiro: arco em volta da mira, no rumo da boca de fogo.
+       O miolo fica vazio de propósito, pela mesma razão de a vinheta de dano
+       ficar nas bordas — no centro ele taparia o que se precisa ver pra
+       revidar. -->
+  <canvas id="rumodano"></canvas>
+  <div id="vitals">
+    <!-- Onde a bala pegou. O desenho SAI da hitbox de `game/hitboxes.js`, e
+         fica acima da classe e da vida porque é a mesma pergunta que a barra
+         responde pela metade: ela diz quanto, ele diz onde. -->
+    <canvas id="boneco"></canvas>
+  </div>
   <div id="equipped"></div>
   <div id="prompt"></div>
   <div id="flag-prompt"></div>
@@ -30,11 +50,74 @@
      a ilha, a floresta e as bases custam caro, e ninguém paga isso pra ver
      uma tela de título. O mundo nasce no clique em Jogar. -->
 <div id="start-screen" class="screen">
+  <!-- Quem está jogando. Não há conta nem progresso: convidado e um número,
+       e nada de nível — inventar barra de experiência seria prometer um
+       sistema que o jogo não tem. -->
+  <header class="start-top">
+    <span id="guest-name" class="start-user">Convidado</span>
+    <button type="button" id="open-options" class="start-gear">Op&ccedil;&otilde;es</button>
+  </header>
+
   <div class="screen-inner start-inner">
-    <div class="logo">BF<span>45</span></div>
-    <p class="screen-sub">Sainte-M&egrave;re &middot; Normandia &middot; 1944</p>
-    <button type="button" id="play">Jogar</button>
-    <button type="button" id="training" class="ghost">Campo de treinamento</button>
+    <div class="start-brand">
+      <div class="logo">BF<span>45</span></div>
+      <p class="screen-sub">Sainte-M&egrave;re &middot; Normandia &middot; 1944</p>
+    </div>
+
+    <!-- Só o que existe: entrar na batalha e treinar. Sem personalização,
+         sem progresso e sem loja — botão que abre tela vazia é pior que
+         botão que não está lá. -->
+    <nav class="start-menu">
+      <button type="button" id="play" class="menu-item primary">
+        <span class="menu-mark" aria-hidden="true"></span>
+        <span class="menu-text">
+          <b>Jogar</b>
+          <small>Entrar em uma batalha</small>
+        </span>
+      </button>
+      <button type="button" id="training" class="menu-item">
+        <span class="menu-mark" aria-hidden="true"></span>
+        <span class="menu-text">
+          <b>Campo de treinamento</b>
+          <small>Treine suas habilidades</small>
+        </span>
+      </button>
+    </nav>
+  </div>
+
+  <footer class="start-foot">
+    <span id="game-version"></span>
+  </footer>
+</div>
+
+<!-- Opções é maquete: os controles existem, nenhum liga em nada ainda. O
+     aviso fica em cima de propósito — tela que finge ajustar o jogo custa
+     mais confiança do que a tela vale. -->
+<div id="options-screen" class="screen hidden">
+  <div class="screen-inner options-inner">
+    <h1>Op&ccedil;&otilde;es</h1>
+    <p class="options-warn">Maquete: nenhum destes controles liga em nada ainda.</p>
+
+    <div class="options-list">
+      <label class="options-row">
+        <span>Sensibilidade do mouse</span>
+        <input type="range" min="1" max="100" value="50" disabled>
+      </label>
+      <label class="options-row">
+        <span>Campo de vis&atilde;o</span>
+        <input type="range" min="60" max="110" value="70" disabled>
+      </label>
+      <label class="options-row">
+        <span>Volume geral</span>
+        <input type="range" min="0" max="100" value="80" disabled>
+      </label>
+      <label class="options-row">
+        <span>Inverter eixo vertical</span>
+        <input type="checkbox" disabled>
+      </label>
+    </div>
+
+    <button type="button" id="close-options">Voltar</button>
   </div>
 </div>
 
@@ -42,8 +125,13 @@
   <div class="deploy-layout">
     <header class="deploy-bar">
       <div class="deploy-head">
-        <h1 id="deploy-title">Preparar</h1>
-        <span id="map-name"></span>
+        <div class="deploy-title">
+          <h1 id="deploy-title">Preparar</h1>
+          <span id="map-name"></span>
+        </div>
+        <!-- Placar de postos. Sai de `tally`, que já contava — nada de
+             cronômetro de partida: o modo não tem tempo, tem os doze postos. -->
+        <div id="deploy-score"></div>
         <div class="deploy-actions">
           <span id="zone-label" class="pending">Escolha um ponto no mapa</span>
           <button type="button" id="deploy" disabled>Desembarcar</button>
@@ -54,35 +142,51 @@
       <div id="class-detail"></div>
     </header>
 
-    <div class="deploy-map">
-      <canvas id="tactical-map"></canvas>
+    <div class="deploy-body">
+      <!-- A lista diz por extenso o que o mapa pinta em bolinha de nove
+           pixels. As duas leem o mesmo estado de captura. -->
+      <aside class="deploy-side">
+        <h2 class="side-head">Escolha um ponto de desembarque</h2>
+        <div id="deploy-points"></div>
+
+        <div class="map-legend">
+          <span class="legend-head">Legenda</span>
+          <span class="legend-row"><i data-mark="aliado"></i>Controlado pelo seu time</span>
+          <span class="legend-row"><i data-mark="inimigo"></i>Controlado pelo inimigo</span>
+          <span class="legend-row"><i data-mark="neutro"></i>Neutro</span>
+          <span class="legend-row"><i data-mark="disputa"></i>Contestado &mdash; sem desembarque</span>
+          <span class="legend-row"><i data-mark="base"></i>Base principal</span>
+        </div>
+      </aside>
+
+      <div class="deploy-map">
+        <canvas id="tactical-map"></canvas>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- O mapa grande. M abre e fecha; clicar põe ou tira uma marcação. -->
+<div id="map-screen" class="screen hidden">
+  <div class="screen-inner map-inner">
+    <header class="map-head">
+      <h1>Mapa</h1>
+      <p id="map-sub"></p>
+    </header>
+    <div class="map-holder"><canvas id="map-canvas"></canvas></div>
+    <p class="map-foot">Clique para marcar &middot; clique na marca para tirar &middot; M fecha</p>
+  </div>
+</div>
+
 <div id="pause-screen" class="screen hidden">
-  <div class="screen-inner">
-    <h1>Clique para voltar</h1>
+  <div class="screen-inner pause-inner">
+    <h1>Pausado</h1>
     <p id="pause-hint"></p>
-    <p>
-      WASD ou setas para andar &middot; Shift liga e desliga a corrida<br>
-      C agacha &middot; Z deita &middot; ambos alternam &middot; Espaço para pular<br>
-      G larga o item na mão &middot; E apanha do chão<br>
-      Botão esquerdo golpeia ou atira &middot; direito mira no ferro<br>
-      1 primária &middot; 2 secundária &middot; 3 faca &middot; R recarrega<br>
-      Mouse para olhar &middot; ` ou F2 mostra o painel &middot; ESC para sair
-    </p>
-    <p class="hint">Caído: Shift voa rápido &middot; Espaço sobe &middot; C desce</p>
-
-    <div id="hud-options">
-      <label>
-        <input type="checkbox" id="fullscreen-toggle">
-        Tela cheia
-      </label>
-      <span>Opcional: segura atalhos do navegador e tira as bordas.</span>
-    </div>
-
     <button type="button" id="open-deploy">Equipamento e desembarque</button>
+    <!-- Só as teclas que não se adivinham. WASD, mouse e Shift estão em todo
+         FPS; largar no G e içar bandeira no F não. -->
+    <p class="pause-keys">G larga &middot; E apanha &middot; F bandeira &middot; R recarrega &middot; C agacha &middot; Z deita</p>
+    <p class="pause-foot">Clique para voltar &middot; ESC sai &middot; F2 mostra o painel</p>
   </div>
 </div>
 

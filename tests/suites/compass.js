@@ -17,11 +17,20 @@ function pixelsOpacos(canvas) {
 }
 
 /** Coluna da marca desenhada mais próxima do centro. */
+/**
+ * A que distância do centro está a tinta mais próxima da RÉGUA.
+ *
+ * A varredura começa na metade de baixo de propósito: a fita passou a ter os
+ * ícones dos objetivos numa faixa acima da rosa dos ventos, e varrendo o topo
+ * o teste passaria a medir a posição de um ícone em vez da letra do rumo.
+ * Embaixo estão a rosa e os riscos, e o risco do rumo cai exatamente no meio.
+ */
 function distanciaDoCentro(canvas) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
-  const h = Math.max(1, Math.floor(canvas.height * 0.5));
-  const dados = ctx.getImageData(0, 0, w, h).data;
+  const y0 = Math.floor(canvas.height * 0.45);
+  const h = Math.max(1, canvas.height - y0);
+  const dados = ctx.getImageData(0, y0, w, h).data;
 
   let melhor = Infinity;
   for (let x = 0; x < w; x++) {

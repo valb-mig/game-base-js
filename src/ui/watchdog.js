@@ -82,7 +82,10 @@ export function initWatchdog(player, world) {
     },
 
     update() {
-      if (!player.isLocked || player.spectating) return;
+      // Dirigindo, o jogador está DENTRO da caixa do veículo de propósito, e
+      // não anda com as próprias pernas: os dois invariantes daqui acusariam
+      // "preso dentro de geometria" a cada quadro em que ele está num jipe.
+      if (!player.isLocked || player.spectating || player.vehicle) return;
 
       const p = player.object.position;
       const teclas = TECLAS.filter(([code]) => isDown(code)).map(([, nome]) => nome);

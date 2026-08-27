@@ -1,5 +1,7 @@
 import { SLOT_ORDER } from '../items/classes.js';
 import { hasModel } from '../items/models.js';
+import { iconSvg } from '../../vendor/icons/icons.js';
+import { ITEM_ICONS } from './itemicons.js';
 
 /**
  * Cartas de classe e a tira de equipamento da barra de deploy.
@@ -68,15 +70,27 @@ export function buildLoadout(classDef) {
     number.className = 'chip-key';
     number.textContent = `${key}`;
 
-    const name = document.createElement('span');
-    name.className = 'chip-name';
-    name.textContent = item.name;
+    // Mesmo desenho do cinto em jogo, pela mesma tabela: é assim que o
+    // jogador reconhece no canto da tela o que escolheu aqui. Item sem
+    // ícone fica só com o nome — nada de caixa genérica de reserva.
+    const icon = document.createElement('span');
+    icon.className = 'chip-icon';
+    const iconName = ITEM_ICONS[item.id];
+    if (iconName) icon.innerHTML = iconSvg(iconName);
+
+    const corpo = document.createElement('span');
+    corpo.className = 'chip-body';
 
     const slot = document.createElement('span');
     slot.className = 'chip-slot';
     slot.textContent = item.slot;
 
-    chip.append(number, name, slot);
+    const name = document.createElement('span');
+    name.className = 'chip-name';
+    name.textContent = item.name;
+
+    corpo.append(slot, name);
+    chip.append(number, icon, corpo);
     strip.appendChild(chip);
   }
 

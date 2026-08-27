@@ -1,5 +1,12 @@
 // Todos os números que valem a pena mexer ficam aqui.
 
+// Identidade da build. Fica aqui porque é dado do jogo, não texto de tela —
+// a abertura só lê. Sem contador de servidor, sem nível: nada que o jogo não
+// tenha de verdade aparece na abertura.
+export const JOGO = {
+  VERSAO: '0.1.0'
+};
+
 export const PLAYER = {
   HEIGHT: 1.7,
   CROUCH_HEIGHT: 0.95,

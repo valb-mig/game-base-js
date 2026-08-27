@@ -1,8 +1,9 @@
-import { WORLD } from '../config.js';
+import { WORLD, JOGO } from '../config.js';
 import { CLASSES, DEFAULT_CLASS_ID, getClass } from '../items/classes.js';
-import { readPreference, writePreference, grabKeyboard, releaseKeyboard } from './session.js';
+import { readGuest, grabKeyboard, releaseKeyboard } from './session.js';
 import { spawnableFor } from '../game/teams.js';
 import { initTacticalMap } from './tacticalmap.js';
+import { initDeployList } from './deploylist.js';
 import { buildCard, buildLoadout } from './classcards.js';
 
 /**
@@ -35,11 +36,15 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   const screens = {
     start: document.getElementById('start-screen'),
     deploy: document.getElementById('deploy-screen'),
-    pause: document.getElementById('pause-screen')
+    pause: document.getElementById('pause-screen'),
+    mapa: document.getElementById('map-screen')
   };
 
   const playButton = document.getElementById('play');
   const trainingButton = document.getElementById('training');
+  const optionsScreen = document.getElementById('options-screen');
+  const optionsOpen = document.getElementById('open-options');
+  const optionsClose = document.getElementById('close-options');
   const grid = document.getElementById('class-grid');
   const detail = document.getElementById('class-detail');
   const deployButton = document.getElementById('deploy');
@@ -47,8 +52,6 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   const zoneLabel = document.getElementById('zone-label');
   const deployTitle = document.getElementById('deploy-title');
 
-  const toggle = document.getElementById('fullscreen-toggle');
-  const options = document.getElementById('hud-options');
   const resumeHint = document.getElementById('pause-hint');
   const openDeploy = document.getElementById('open-deploy');
 
@@ -61,6 +64,7 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   // Só existe depois do primeiro Jogar: é o mundo e o jogador.
   let game = null;
   let tactical = null;
+  let lista = null;
 
   const cards = new Map();
   for (const classDef of CLASSES) {
@@ -95,6 +99,7 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
     if (zone && !zonaVale(zone)) return false;
     selectedZone = zone;
     tactical?.select(zone);
+    lista?.select(zone);
     refreshDeployButton();
     return true;
   }
@@ -122,6 +127,9 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   }
 
   function show(name) {
+    // Opções é sobreposição da abertura, não fase: sair da abertura por
+    // qualquer caminho a fecha junto, senão ela sobra por cima do mapa.
+    optionsScreen.classList.add('hidden');
     for (const [key, element] of Object.entries(screens)) {
       element.classList.toggle('hidden', key !== name);
     }
@@ -140,7 +148,9 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
     } else {
       game.controls.lock();
     }
-    if (toggle.checked) grabKeyboard();
+    // Só trava as teclas reservadas se o jogador já estiver em tela cheia por
+    // conta própria (F11). O jogo não pede tela cheia: o padrão é janela.
+    grabKeyboard();
   }
 
   // ------------------------------------------------------------ transições
@@ -179,7 +189,14 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
       // O mapa tático sai do terreno, então só pode ser montado com mundo.
       tactical = initTacticalMap(game.world.terrain, game.world.spawnZones, selectZone,
         { team: game.player.team, valid: zonaVale });
-      if (selectedZone) tactical.select(selectedZone);
+      // Mesmas zonas, mesma regra de validade: a lista e o mapa não podem
+      // discordar sobre onde dá pra nascer.
+      lista = initDeployList(game.world.spawnZones, game.world.outposts, selectZone,
+        { team: game.player.team, valid: zonaVale });
+      if (selectedZone) {
+        tactical.select(selectedZone);
+        lista?.select(selectedZone);
+      }
 
       game.controls.addEventListener('lock', () => show(null));
       game.controls.addEventListener('unlock', onUnlock);
@@ -204,6 +221,11 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
       onSpectate();
     }
 
+    // O mundo andou enquanto o jogador estava no mapa: postos trocaram de dono
+    // e alguns entraram em disputa. Redesenhar na abertura é o que impede a
+    // lista de mostrar a partida de dois minutos atrás.
+    lista?.redraw();
+    tactical?.redraw();
     refreshDeployButton();
     show('deploy');
     if (game.controls.isLocked) game.controls.unlock();
@@ -228,15 +250,61 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
    */
   function backToGame() {
     if (!deployed || died) return;
+    mapaAberto = false;
     phase = PHASE.PLAYING;
     show(null);
     lockPointer();
+  }
+
+  /**
+   * O mapa grande de M.
+   *
+   * Ele solta o mouse porque marcar ponto é clicar, e quem tranca e destranca
+   * o ponteiro é este arquivo e só ele. `abrindoMapa` existe pra que o
+   * `unlock` que ele mesmo provoca não vire tela de pausa três linhas abaixo.
+   *
+   * Não é pausa: o jogo continua correndo atrás, e é isso que faz abrir o
+   * mapa no meio de um tiroteio ser uma decisão em vez de um botão grátis.
+   */
+  /**
+   * Quem solta o mouse DE PROPÓSITO se anota aqui.
+   *
+   * O mapa foi o primeiro caso e tinha dois flags só pra ele; o painel de
+   * ajustes é o segundo, e um segundo par de flags seriam dois jeitos de
+   * dizer a mesma coisa — com a chance de o terceiro esquecer um deles e
+   * abrir a pausa por baixo. Enquanto o conjunto não estiver vazio, `unlock`
+   * não é pausa, e fechar o último devolve o ponteiro pro jogo.
+   */
+  const soltos = new Set();
+
+  function soltarMouse(razao, solto) {
+    if (solto) {
+      soltos.add(razao);
+      if (game?.controls?.isLocked) game.controls.unlock();
+    } else {
+      soltos.delete(razao);
+      if (!soltos.size && phase === PHASE.PLAYING) lockPointer();
+    }
+    return solto;
+  }
+
+  let mapaAberto = false;
+
+  function alternarMapa() {
+    if (phase !== PHASE.PLAYING) return false;
+
+    mapaAberto = !mapaAberto;
+    soltarMouse('mapa', mapaAberto);
+    show(mapaAberto ? 'mapa' : null);
+    return mapaAberto;
   }
 
   function onUnlock() {
     releaseKeyboard();
     // a tela de deploy tira o mouse por conta própria; não vira pausa
     if (phase === PHASE.DEPLOY) return;
+    // nem o mapa, nem o painel de ajustes: eles soltam o mouse de propósito
+    if (soltos.size) return;
 
     resumeHint.textContent = `${selectedClass.name} · ${selectedClass.role}`;
     show('pause');
@@ -246,16 +314,14 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
 
   playButton.addEventListener('click', start);
   trainingButton?.addEventListener('click', startTraining);
+  optionsOpen?.addEventListener('click', () => optionsScreen.classList.remove('hidden'));
+  optionsClose?.addEventListener('click', () => optionsScreen.classList.add('hidden'));
   deployButton.addEventListener('click', deploy);
   backButton.addEventListener('click', backToGame);
   openDeploy.addEventListener('click', (event) => {
     event.stopPropagation();
     openDeployScreen();
   });
-
-  toggle.checked = readPreference(true);
-  toggle.addEventListener('change', () => writePreference(toggle.checked));
-  options.addEventListener('click', (event) => event.stopPropagation());
 
   // clicar na pausa volta pro que estava acontecendo antes
   screens.pause.addEventListener('click', () => lockPointer());
@@ -264,11 +330,29 @@ export function initFlow({ boot, onTraining = null, onDeploy, onSpectate }) {
   document.getElementById('map-name').textContent =
     `${WORLD.MAP_NAME} · ${WORLD.MAP_ERA}`;
 
+  // Quem joga e qual build. Os dois saem de dado que existe: o apelido de
+  // convidado da sessão e a versão em config. Nada de nível nem de contador
+  // de servidor — número inventado na abertura é a mesma mentira que um
+  // contador de munição sem munição.
+  document.getElementById('guest-name').textContent = readGuest();
+  document.getElementById('game-version').textContent = `Versão ${JOGO.VERSAO}`;
+
   selectClass(selectedClass);
   refreshDeployButton();
   show('start');
 
   return {
+    /** M abre e fecha. Devolve se ficou aberto. */
+    alternarMapa,
+    get mapaAberto() {
+      return mapaAberto;
+    },
+
+    /**
+     * Solta e devolve o ponteiro sem passar pela pausa. Quem abre uma
+     * ferramenta em jogo (o painel de ajustes) chama isto.
+     */
+    soltarMouse,
     get phase() {
       return phase;
     },

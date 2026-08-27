@@ -43,10 +43,51 @@
   opacity: 0.5;
 }
 
+/* ---------------------------------------------------------------- pausa */
+
+/* Uma coluna curta: título, quem você é, o botão, e as teclas que não se
+   adivinham. A lista inteira de controles saiu — ela ocupava a tela toda pra
+   repetir WASD, e o que se procura aqui é voltar pro jogo. */
+.pause-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(420px, 100%);
+}
+
+.pause-inner h1 {
+  margin-bottom: 0.25rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 #pause-hint {
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  opacity: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9fe08a;
+  opacity: 0.9;
+}
+
+.pause-keys,
+.pause-foot {
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+.pause-keys {
+  margin-top: 1.75rem;
+  opacity: 0.5;
+}
+
+.pause-foot {
+  margin-top: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.3;
 }
 
 #class-grid {
@@ -59,8 +100,8 @@
   --class-color: #9fe08a;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 1.1rem 0.9rem;
+  gap: 0.2rem;
+  padding: 0.6rem 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
@@ -94,7 +135,7 @@
 }
 
 .class-name {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
 }
 
@@ -183,54 +224,28 @@
   background: transparent;
 }
 
-.hint {
-  margin-top: 1rem;
-  font-size: 0.85rem;
-  opacity: 0.55;
-}
-
-#hud-options {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 0.85rem;
-  line-height: 1.5;
-  cursor: default;
-}
-
-#hud-options label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-}
-
-#hud-options span {
-  display: block;
-  margin-top: 0.35rem;
-  opacity: 0.5;
-}
-
-#hud-options b {
-  color: #9fe08a;
-}
-
 /* ------------------------------------------------------------- deploy */
 
 /* Barra de equipamento em cima, mapa ocupando o resto. A tela toda, sem
    caixa centralizada: o mapa é a decisão principal aqui, e decisão principal
    não fica num quadradinho. */
+/* `minmax(0, 1fr)` e não a linha implícita: `.screen` é um grid, e linha
+   `auto` CRESCE com o conteúdo. Medido numa janela de 493 px, a linha ia a
+   1066 e o `height: 100%` do layout resolvia contra ELA — o mapa nascia com o
+   dobro da altura da tela e a legenda ficava fora do quadro. */
 #deploy-screen {
   padding: 0;
   place-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .deploy-layout {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 1rem;
+  gap: 0.85rem;
   height: 100%;
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: 1rem 1.25rem 1.25rem;
   text-align: left;
 }
 
@@ -244,6 +259,12 @@
   display: flex;
   align-items: center;
   gap: 1.25rem;
+}
+
+.deploy-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
 .deploy-layout h1 {
@@ -312,15 +333,237 @@
   opacity: 0.8;
 }
 
+.chip-body {
+  display: flex;
+  flex-direction: column;
+}
+
 .chip-name {
   font-size: 0.9rem;
   font-weight: 600;
 }
 
+/* O slot vem ANTES do nome e menor: o que se procura na tira é a função —
+   qual é a primária, qual é o corpo a corpo — e só depois qual arma é. */
 .chip-slot {
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  opacity: 0.45;
+}
+
+/* Mesmo desenho do cinto em jogo. Item sem ícone não deixa buraco: a caixa
+   não reserva largura quando está vazia. */
+.chip-icon:not(:empty) {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  opacity: 0.75;
+}
+
+.chip-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Lista à esquerda, mapa no resto. A lista tem largura fixa porque ela é
+   texto: esticar com a janela deixaria a linha longa demais pra varrer com o
+   olho, e é ela que se lê linha por linha. */
+.deploy-body {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+/* Cabeçalho fixo, lista rolando, legenda ancorada embaixo. Com a coluna
+   inteira rolando, `margin-top: auto` na legenda não ancora nada e ela saía
+   do quadro junto com a lista. */
+.deploy-side {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.side-head {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+#deploy-points {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.point-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.point-row:hover:not(:disabled) {
+  border-color: rgba(226, 218, 194, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.point-row.selected {
+  border-color: #e2dac2;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* Ponto em que não dá pra nascer some do alcance mas não some da lista: ele
+   continua sendo informação da partida, e é onde a briga está. */
+.point-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+/* Losango com o número da ordem — a ordem dos postos É a regra do modo, e
+   até aqui ela não aparecia em tela nenhuma. */
+.point-badge {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 0.1rem;
+  border: 1px solid var(--point-color, rgba(226, 218, 194, 0.4));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--point-color, transparent) 22%, transparent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+.point-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.point-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.point-state {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.point-state[data-tom="aliado"] { color: #6f9fe0; }
+.point-state[data-tom="inimigo"] { color: #d94f4f; }
+.point-state[data-tom="disputa"] { color: #e0b34f; }
+.point-state[data-tom="neutro"] { color: rgba(226, 218, 194, 0.5); }
+
+.point-note {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  opacity: 0.45;
+}
+
+/* Onde a frente está agora. É o único ponto em que este time pode mexer, e
+   antes disso a regra só existia dentro de `activePostFor`. */
+.point-row.front .point-name::after {
+  content: "Linha de frente";
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9fe08a;
+}
+
+/* --------------------------------------------------------------- legenda */
+
+/* O mapa pinta dono, disputa e base em bolinha de nove pixels. Sem legenda,
+   isso é código de cor que ninguém combinou com o jogador. */
+.map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.legend-head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.legend-row i {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.legend-row i[data-mark="aliado"] { color: #3f7ad9; background: #3f7ad9; }
+.legend-row i[data-mark="inimigo"] { color: #d94f4f; background: #d94f4f; }
+.legend-row i[data-mark="neutro"] { color: rgba(226, 218, 194, 0.55); }
+/* Contestado é um ARCO de progresso, não um tracejado — a mesma leitura que
+   `ui/simbolos.js` desenha no mapa. Legenda que mostra outro símbolo é pior
+   que legenda nenhuma: ela ensina a procurar a coisa errada. */
+.legend-row i[data-mark="disputa"] {
+  color: #e0b34f;
+  border-color: rgba(226, 218, 194, 0.25);
+  background: conic-gradient(#e0b34f 0 38%, transparent 38% 100%);
+}
+.legend-row i[data-mark="base"] {
+  color: #e2dac2;
+  background: radial-gradient(circle, #e2dac2 0 2px, transparent 2px);
+}
+
+/* ------------------------------------------------------------ placar */
+
+#deploy-score {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.score-side {
+  padding: 0.2rem 0.55rem;
+  border-left: 3px solid var(--point-color);
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 700;
+}
+
+.score-open {
   opacity: 0.45;
 }
 
@@ -329,13 +572,16 @@
 .deploy-map {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   min-height: 0;
+  overflow: hidden;
 }
 
 #tactical-map {
   height: 100%;
   width: auto;
   max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 1;
   border: 1px solid rgba(255, 255, 255, 0.16);
   image-rendering: pixelated;
@@ -381,70 +627,335 @@
   display: none;
 }
 
-#open-deploy {
-  margin-top: 1.25rem;
-}
+
 
 /* -------------------------------------------------------------- abertura */
 
+/* Paleta da abertura. Os mesmos tokens do HUD, redeclarados aqui porque eles
+   vivem dentro de `#hud-layer` — usar `var(--ink)` fora de lá resolvia em
+   nada e o botão de treino herdava a cor do pai. */
+.screen {
+  --ink: #e2dac2;
+  --ink-dim: rgba(226, 218, 194, 0.5);
+  --rule: rgba(226, 218, 194, 0.18);
+  --verde: #9fe08a;
+}
+
+/* Três faixas: quem joga em cima, a marca e o menu no meio, a versão
+   embaixo. O bloco do meio fica À ESQUERDA e não no centro — é onde a arte de
+   fundo vai entrar, e o menu não pode nascer em cima dela.
+
+   O `:not(.hidden)` não é enfeite: `display` escrito num ID ganha de
+   `.screen.hidden` por especificidade, e a abertura continuava desenhada por
+   cima do campo de treino depois de sair dela. Medido: com a classe posta, a
+   tela computava `grid` em vez de `none`. */
+#start-screen:not(.hidden) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  place-items: stretch;
+  padding: 1.1rem 1.5rem;
+  text-align: left;
+}
+
+.start-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+/* Convidado e um número, sem nível e sem barra de progresso: o jogo não tem
+   conta nem progressão, e anunciar uma seria prometer o que não existe. */
+.start-user {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.start-gear {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.start-gear:hover {
+  border-color: var(--ink);
+  background: rgba(226, 218, 194, 0.08);
+}
+
+.start-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  width: min(420px, 100%);
+}
+
+.start-brand {
+  margin-bottom: 2rem;
+}
+
 .logo {
-  font-size: clamp(4rem, 16vw, 9rem);
+  font-size: clamp(3.4rem, 11vw, 6.4rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.03em;
+  color: #fff;
 }
 
 .logo span {
-  color: #9fe08a;
+  color: var(--verde);
 }
 
-#play {
-  margin-top: 1.5rem;
-  padding: 0.8rem 3rem;
+/* Régua entre a marca e o subtítulo: separa o nome do jogo do lugar onde ele
+   se passa, que são duas informações diferentes. */
+.screen-sub {
+  margin: 0.85rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.start-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Uma linha por destino: rótulo em cima, o que ele faz embaixo. São só dois
+   porque só dois existem — personalização e progresso não têm tela atrás. */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1.1rem;
   border: 0;
-  border-radius: 8px;
-  background: #9fe08a;
-  color: #10200c;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  background: rgba(20, 24, 20, 0.62);
+  color: var(--ink);
   font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+
+.menu-item:hover {
+  border-left-color: var(--verde);
+  background: rgba(40, 47, 38, 0.82);
+  transform: translateX(2px);
+}
+
+.menu-item b {
+  display: block;
   font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.menu-item small {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+/* Triângulo desenhado com borda, não ícone: a biblioteca de ícones é do HUD e
+   trocar um exige atualizar o crédito. Seta é forma, não desenho. */
+.menu-mark {
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid currentColor;
+  opacity: 0.7;
+}
+
+/* Jogar é o destino padrão, e a cor diz isso sozinha: o resto da tela é
+   escuro, então o único bloco cheio é o que se procura primeiro. */
+.menu-item.primary {
+  background: var(--verde);
+  border-left-color: var(--verde);
+  color: #10200c;
+}
+
+.menu-item.primary:hover {
+  background: #b6eca3;
+}
+
+.menu-item.primary small {
+  opacity: 0.7;
+}
+
+.start-foot {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* --------------------------------------------------------------- opções */
+
+/* Maquete declarada. Os controles vêm desabilitados de propósito: deslizador
+   que anda e não muda nada mente sobre o que o jogo faz. */
+#options-screen {
+  z-index: 12;
+}
+
+.options-inner {
+  width: min(420px, 100%);
+  padding: 1.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: rgba(20, 24, 20, 0.9);
+  text-align: left;
+}
+
+.options-warn {
+  margin-bottom: 1.25rem;
+  font-size: 0.8rem;
+  color: var(--verde);
+  opacity: 0.8;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+.options-row input {
+  flex: 0 0 160px;
+  cursor: not-allowed;
+}
+
+.options-row input[type="checkbox"] {
+  flex: 0 0 auto;
+}
+
+#close-options {
+  padding: 0.55rem 1.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
   cursor: pointer;
+}
+
+#close-options:hover {
+  border-color: var(--verde);
 }
 
 /* Caído não há vida nem item: o HUD encolhe pro que ainda faz sentido. */
 body.spectating #vitals,
 body.spectating #equipped,
 body.spectating #prompt,
-body.spectating #hitmarker {
+body.spectating #hitmarker,
+body.spectating #hitfeed {
   display: none;
 }
 
-/* Os dois botões empilhados, e centrados: o treino fica ABAIXO do Jogar, que
-   é onde se procura uma segunda opção. */
-.start-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+
+
+/* ------------------------------------------------------------------ mapa
+   O mapa grande de M. A linha da grade é `minmax(0, 1fr)` e não `auto` pelo
+   mesmo motivo do deploy: linha `auto` CRESCE com o conteúdo, e um canvas
+   dentro dela resolvia `height: 100%` contra a linha em vez da janela — o
+   mapa nascia com o dobro da altura da tela e o rodapé saía do quadro. */
+.map-inner {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  width: min(94vw, 1100px);
+  height: min(92vh, 1000px);
 }
 
-/* Botão secundário: mesma caixa do Jogar, sem o peso dele. O treino é uma
-   opção de igual valor, não um link escondido. */
-#training {
-  margin-top: 12px;
-  padding: 0.72rem 2.4rem;
-  border: 1px solid rgba(226, 218, 194, 0.42);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
+.map-head h1 {
+  margin: 0;
+  font-size: 26px;
   letter-spacing: 0.06em;
-  cursor: pointer;
 }
 
-#training:hover {
-  border-color: var(--ink);
-  background: rgba(226, 218, 194, 0.08);
+.map-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  opacity: 0.62;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* O canvas é quadrado (a ilha é quadrada) e cabe na menor dimensão da
+   moldura: esticar deformaria a escala, e escala errada num mapa é pior que
+   mapa nenhum. */
+.map-holder {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+/* `width: 100%` e não só `max-width`: o canvas tem 260 px nativos (é a
+   resolução da amostragem da ilha), e `max-width` sozinho nunca o faz
+   CRESCER — ele ficava do tamanho de um selo no meio da tela.
+
+   Mas quem manda é a ALTURA, não a largura: a linha da grade é
+   `minmax(0, 1fr)`, então `height: 100%` resolve contra a janela e o
+   `aspect-ratio` dá a largura. Pela largura ele estourava a linha pra baixo e
+   o rodapé ia parar em cima do mapa — o mesmo tropeço que a tela de deploy
+   já tinha tido, do outro lado. */
+#map-canvas {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  border: 1px solid rgba(220, 235, 225, 0.16);
+  cursor: crosshair;
+  image-rendering: pixelated;
+}
+
+/* Um véu por trás: o mapa é HUD, não pausa — o jogo continua correndo atrás
+   dele —, mas sem escurecer o fundo os losangos amarelos disputam a leitura
+   com a mata. */
+#map-screen .screen-inner {
+  background: rgba(10, 14, 12, 0.82);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+.map-foot {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.5;
+  letter-spacing: 0.06em;
 }

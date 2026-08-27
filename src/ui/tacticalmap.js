@@ -1,5 +1,6 @@
 import { teamOf, postOwner, postContested } from '../game/teams.js';
-import { renderIsland, worldToMap } from '../world/minimap.js';
+import { desenharPosto as desenharPostoNoMapa } from './simbolos.js';
+import { islandFor, worldToMap } from '../world/minimap.js';
 
 /**
  * Mapa tático da tela de deploy: a ilha vista de cima, com as zonas de
@@ -15,7 +16,7 @@ const SELECTED = 13;
 export function initTacticalMap(terrain, zones, onSelect, partida = {}) {
   const canvas = document.getElementById('tactical-map');
   const ctx = canvas.getContext('2d');
-  const island = renderIsland(terrain);
+  const island = islandFor(terrain);
 
   canvas.width = island.width;
   canvas.height = island.height;
@@ -29,6 +30,9 @@ export function initTacticalMap(terrain, zones, onSelect, partida = {}) {
   });
 
   function draw() {
+    // Uma leitura do relógio por quadro: seis postos pedindo a hora dariam
+    // seis valores diferentes e os anéis de disputa piscariam desencontrados.
+    const agora = typeof performance !== 'undefined' ? performance.now() : 0;
     ctx.drawImage(island, 0, 0);
 
     for (const point of points) {
@@ -42,22 +46,18 @@ export function initTacticalMap(terrain, zones, onSelect, partida = {}) {
       const emDisputa = point.zone.post ? postContested(point.zone.post) : false;
       const disponivel = partida.valid ? partida.valid(point.zone) : true;
 
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = dono
-        ? (disponivel ? teamOf(dono).css : 'rgba(20, 24, 18, 0.75)')
-        : 'rgba(20, 24, 18, 0.6)';
-      ctx.fill();
-
-      // Anel tracejado no que está sendo tomado: é a leitura de "aqui não
-      // dá pra nascer" sem precisar de legenda.
-      ctx.lineWidth = 2;
-      ctx.setLineDash(emDisputa ? [3, 3] : []);
-      ctx.strokeStyle = isSelected || isHovered
-        ? '#e2dac2'
-        : (dono ? teamOf(dono).css : 'rgba(226, 218, 194, 0.55)');
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // O MESMO símbolo do mapa grande e do radar. `esmaecido` é a leitura de
+      // "aqui não dá pra nascer" — o posto continua aparecendo com o dono
+      // certo, só apagado, porque sumir com ele esconderia a partida.
+      desenharPostoNoMapa(ctx, point.x, point.y, point.zone.post, {
+        raio: size,
+        dono: dono ?? null,
+        rotulo: point.zone.base ? '' : undefined,
+        esmaecido: !disponivel,
+        destacado: isSelected || isHovered,
+        tempo: agora
+      });
+      void emDisputa;
 
       // Base principal leva um pino no meio: ela é sempre sua, e é a única
       // que não some quando a partida vira.

@@ -1023,6 +1023,45 @@ travessia e recorte SEM desenhar um triângulo. Foi medindo o todo que
 apareceram as armas no coldre, e é medindo o todo que se sabe de quem é a
 conta agora.
 
+**O radar é a MESMA ilha do mapa tático, recortada.** `islandFor` memoiza o
+desenho por terreno porque agora há dois consumidores, e montá-lo é uma
+amostragem de 260 × 260 do campo de altura — sem isso o boot pagaria duas
+vezes pelo mesmo desenho, no lugar exato onde o gargalo deste projeto está.
+Norte pra cima e quem gira é a seta: radar que roda com a cabeça obriga a
+reorientar a leitura a cada passo, e o rumo já é trabalho da bússola.
+
+**Radar não mostra inimigo.** Mostra terreno, postos e companheiros. Dizer
+quem está atrás do morro apaga o flanqueamento, a cobertura e a emboscada —
+apaga o jogo. É a mesma família da mira do bot: o que o jogador tem que
+descobrir olhando não pode aparecer de graça no canto da tela.
+
+**Janela de radar de 500 m não mostrava objetivo nenhum.** Medido do
+desembarque de Vestria: o posto mais perto está a 711 m e os outros passam de
+mil, então o radar era capim e uma seta. Alargar até caber tudo faz da ilha um
+selo de 158 px; a saída é a janela seguir apertada e o que está fora encostar
+na BORDA, na direção certa. Direção cabe em 158 px, distância de um
+quilômetro não.
+
+**O telêmetro mede do OLHO, e isso não contradiz a trajetória.** O arco da
+depuração sai do CANO porque a pergunta é "por onde a bala vai passar"; o
+telêmetro sai do olho porque a pergunta é "o que é aquilo ali", e "aquilo ali"
+é o que está debaixo da mira — o centro da câmera. Medir do cano daria a
+distância de um ponto que o jogador não está olhando. E ele SOME sem alvo no
+alcance, em vez de escrever zero ou infinito.
+
+**Repetir em JS uma regra que o CSS já aplica cria duas verdades.** O
+telêmetro checava `player.isLocked` pra não aparecer com uma tela aberta —
+mas quem esconde o HUD nesse caso é `body.screen-open` no CSS, desde sempre.
+A condição duplicada não protegia nada e era a única coisa que impedia a
+página de captura de fotografar o número, porque lá `player.controls` é o
+PointerLockControls de verdade e nunca trava em headless.
+
+**Suíte que só confere "apareceu algo" não testa medida.** O telêmetro é
+provado contra geometria conferível de cabeça: olho a 10 m de chão plano lê
+10, a 45° lê 10·√2 = 14, parede a 5,5 m ganha do chão, alvo a 20 m lê 20 e
+vira `no-alvo`. Erro de escala passa batido por um teste de visibilidade e
+morre em qualquer um desses.
+
 **E software raster não é GPU.** A bancada roda em swiftshader, que rasteriza
 em CPU: numa tela grande o número vira o custo de não ter placa. Ela mede em
 320x180 e separa as duas coisas apontando a câmera pro CÉU — zero triângulo
@@ -1068,4 +1107,37 @@ e material continuam compartilhados de propósito — só o esqueleto é por bot
 `await soldadoPronto()` passa reto, o GLB nunca carrega, e `createSoldier`
 cai no soldado de reserva feito de caixas — a medida sai de um corpo que o
 jogo não usa. Quem quer esperar chama `carregarSoldado()`.
+
+**Linha `auto` de grid CRESCE, e aí `height: 100%` mente.** `.screen` é um
+grid com linha implícita; dentro dela `.deploy-layout` pedia `height: 100%` e
+resolvia contra a LINHA, não contra a janela. Medido numa janela de 493 px: a
+linha ia a 1066, o mapa nascia com o dobro da altura da tela e a legenda
+ficava fora do quadro — com `overflow: hidden` isso não vira barra de
+rolagem, vira conteúdo cortado em silêncio. A linha precisa ser
+`minmax(0, 1fr)` pra poder encolher abaixo do conteúdo.
+
+**A tela de deploy conta a partida, e só o que a partida tem.** A lista de
+pontos lê `postOwner`, `postContested` e `activePostFor` — dono, disputa e
+linha de frente, que existiam só dentro do código; o placar sai de `tally` e
+a descrição de cada ponto é a `nota` da tabela do mapa. Ficaram DE FORA, por
+não existirem: contador regressivo de início de partida (o modo não tem
+tempo, tem os doze postos), granadas, esquadrão com nomes, botão de
+personalizar e quantos soldados estão em cada ponto. É a mesma regra do HUD
+que não inventa número — na tela onde o jogador decide onde desembarcar, ela
+pesa mais, não menos.
+
+**`display` escrito num ID esconde a tecla de esconder.** `.screen.hidden`
+some com a tela por classe (0-0-2-0); a abertura ganhou layout próprio em
+`#start-screen` (0-1-0-0) e a partir daí a classe `hidden` parou de valer —
+medido, ela computava `grid` com a classe posta. Clicar em Campo de
+treinamento entrava no mapa com o menu inteiro por cima. Regra de layout de
+tela vai em `#tela:not(.hidden)`, e nunca num ID cru.
+
+**A abertura não anuncia sistema que não existe.** Não há conta, nível nem
+contador de servidor: `readGuest` sorteia `Convidado NNNN` uma vez e guarda,
+e a versão sai de `JOGO.VERSAO`. É a mesma regra do HUD que não inventa
+número, e vale igual pro menu — botão de personalização ou de progresso sem
+tela atrás promete o que o jogo não entrega. Opções existe como MAQUETE
+declarada, com os controles desabilitados e o aviso em cima: deslizador que
+anda e não muda nada mente mais do que a tela vale.
 

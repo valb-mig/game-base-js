@@ -32,8 +32,10 @@
 
 body:not(.playing) #hud-layer,
 body:not(.playing) #debug,
+body:not(.playing) #ajustes,
 body.screen-open #hud-layer,
 body.screen-open #debug,
+body.screen-open #ajustes,
 body.screen-open #crosshair {
   display: none;
 }
@@ -97,12 +99,15 @@ body.spectating #hud-layer::before {
 
 /* ---------------------------------------------------------------- bússola */
 
+/* 56 px e não 34: a fita passou a ter três faixas — ícones dos objetivos em
+   cima, rosa dos ventos no meio, riscos embaixo. Nos 34 originais o ícone
+   ficava por cima da letra do rumo e nenhum dos dois se lia. */
 #compass {
   position: absolute;
-  top: 18px;
+  top: 14px;
   left: 50%;
   width: min(680px, 56vw);
-  height: 34px;
+  height: 56px;
   transform: translateX(-50%);
 }
 
@@ -372,10 +377,78 @@ body.aiming #crosshair {
 /* Nasce escondido: F2 liga. Antes havia DUAS regras #debug, e o
    `display: none` da primeira nunca era desfeito pela classe da segunda —
    o painel existia, o F2 alternava a classe, e nada aparecia nunca. */
+/* --------------------------------------------------------------- radar */
+
+/* Canto superior direito: o radar e, embaixo dele, onde o jogador está. Os
+   dois juntos num bloco só porque respondem a mesma pergunta — onde eu
+   estou, e o que tem em volta. */
+#radar-block {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 158px;
+}
+
+#radar {
+  display: block;
+  width: 158px;
+  height: 158px;
+  border: 1px solid var(--rule);
+  background: rgba(20, 24, 18, 0.55);
+  /* Pixel cru, como o mapa tático: a ilha é amostrada em baixa resolução e
+     ampliada, e borrada ela pareceria fotografia mal feita em vez de carta. */
+  image-rendering: pixelated;
+}
+
+#coords {
+  margin-top: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--ink-dim);
+}
+
+/* ----------------------------------------------------------- telêmetro */
+
+/* Abaixo da mira, e não no canto: o número responde sobre o que está DEBAIXO
+   dela, e ler isso do outro lado da tela obrigaria a tirar o olho do alvo.
+   Fica abaixo do centro pra não tapar o que se quer acertar. */
+#rangefinder {
+  position: absolute;
+  top: calc(50% + 22px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  opacity: 0;
+  transition: opacity 110ms linear;
+}
+
+#rangefinder.visivel {
+  opacity: 1;
+}
+
+/* Soldado sob a mira lê diferente de morro sob a mira: é a diferença entre
+   medir distância e ter achado alguém. */
+#rangefinder.no-alvo {
+  color: #e0b34f;
+}
+
+/* Caído não há mira nem posição que importe. */
+body.spectating #radar-block,
+body.spectating #rangefinder {
+  display: none;
+}
+
+/* Desce pra baixo do radar em vez de o radar sair: F2 é ferramenta, e o
+   radar é o jogo. */
 #debug {
   display: none;
   position: fixed;
-  top: 12px;
+  top: 210px;
   right: 12px;
   padding: 10px 12px;
   border-radius: 8px;
@@ -598,4 +671,93 @@ body.aiming #crosshair {
 .kill-como {
   opacity: 0.66;
   font-size: 11px;
+}
+
+/* ------------------------------------------------------------- hit feed */
+
+/* Uma linha por acerto, abaixo da mira. Abaixo e não no centro: no centro
+   taparia o alvo justamente no quadro em que ele está sendo acertado. */
+#hitfeed {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  margin-top: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.hit-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f2ead2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  /* nasce com um estalo: numa rajada as linhas se sucedem depressa, e sem
+     ele a lista parece deslizar em vez de marcar cada tiro */
+  animation: hit-line-in 0.12s ease-out;
+}
+
+/* o lugar do corpo é informação secundária: menor e apagado, como a munição
+   de reserva */
+.hit-line b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* cabeça e capacete valem mais, e a linha diz isso sem texto nenhum */
+.hit-line.regiao,
+.hit-line.regiao b {
+  color: #ffd27f;
+}
+
+.hit-line.kill,
+.hit-line.kill b {
+  color: #d9553f;
+}
+
+@keyframes hit-line-in {
+  from { transform: scale(1.25); opacity: 0.4; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+
+/* ── Painel de ajuste ao vivo (F3) ────────────────────────────────────────
+   Quem desenha os controles é a lil-gui, que traz o próprio CSS. O que sobra
+   pra cá são duas coisas que ela não decide: ONDE o painel fica (a direita já
+   é do radar e do painel do F2) e o destaque do que saiu do valor de partida.
+
+   `pointer-events` é o motivo de ele ser o único painel do HUD que aceita
+   mouse — deslizador não se arrasta sem ponteiro. */
+.ajustes {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  pointer-events: auto;
+}
+
+.ajustes.visivel {
+  display: block;
+}
+
+/* A lil-gui se prende sozinha quando não tem container; dentro do nosso ela
+   tem que fluir normal, senão volta pro canto direito por cima do radar. */
+.ajustes .lil-gui.root {
+  position: static;
+  max-height: calc(100vh - 24px);
+}
+
+.ajustes .mudou .name {
+  color: #ffd479;
 }

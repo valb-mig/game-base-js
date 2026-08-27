@@ -274,7 +274,12 @@ export function initDebugView(scene, world, bots, tiro = {}) {
     for (const bot of bots.soldiers) {
       let rotulo = rotulos.get(bot);
       if (!rotulo) {
-        rotulo = criarRotulo();
+        // Mais largo que o padrão: com a passada escrita junto, o texto
+        // estourava os 256 px e o rótulo aparecia cortado no meio da
+        // palavra — justamente escondendo o número que se foi ler. Rótulo
+        // de depuração que corta é rótulo que engana.
+        rotulo = criarRotulo(512);
+        rotulo.sprite.scale.set(4.2, 0.52, 1);
         rotulos.set(bot, rotulo);
         grupo.add(rotulo.sprite);
       }
@@ -285,8 +290,20 @@ export function initDebugView(scene, world, bots, tiro = {}) {
       rotulo.sprite.position.set(bot.x, bot.feetY + bot.height + 0.55, bot.z);
       const estado = bots.stateOf(bot) ?? '?';
       const municao = bot.weapon?.ammo?.loaded;
+      // A PASSADA vai junto, e ela responde a pergunta que nenhuma foto
+      // responde: "a perna não se mexe" pode ser a fase parada (o bot está
+      // parado, e aí está certo) ou a fase andando com o corpo posado de
+      // vez em quando (aí é a taxa de pose). O `·` pisca a cada pose: onde
+      // ele congela com a fase correndo, o defeito é de pose.
+      // A fase E o ângulo da COXA. A fase sozinha não fecha o diagnóstico:
+      // ela pode correr com o osso parado, e aí o defeito está entre as
+      // duas. Com os dois no rótulo, uma foto responde de que lado ele está.
+      const coxa = bot.group.getObjectByName('thigh_L');
+      const grau = coxa ? Math.round(coxa.rotation.x * 180 / Math.PI) : '?';
+      const passada = `${bot.fase.toFixed(2)}${bot.detalhado ? '*' : ''} ${grau}°`;
       rotulo.escrever(
-        `${estado} ${Math.round(bot.health)}${municao === undefined ? '' : `/${municao}`}`,
+        `${estado} ${Math.round(bot.health)}${municao === undefined ? '' : `/${municao}`}`
+        + ` ${bot.postura === 'pe' ? '' : `${bot.postura} `}${passada}`,
         bot.reloading > 0 ? '#ffd27f' : '#dfe8d4'
       );
     }
@@ -424,7 +441,7 @@ export function initDebugView(scene, world, bots, tiro = {}) {
           const t = (k / PEDACOS) * decorrido;
           vooPontos[n] = bala.origin.x + bala.aim.x * BULLET.SPEED * t;
           vooPontos[n + 1] = bala.origin.y + bala.aim.y * BULLET.SPEED * t
-            - 0.5 * BULLET.GRAVITY * t * t;
+            - 0.5 * (bala.gravity ?? BULLET.GRAVITY) * t * t;
           vooPontos[n + 2] = bala.origin.z + bala.aim.z * BULLET.SPEED * t;
           n += 3;
         }

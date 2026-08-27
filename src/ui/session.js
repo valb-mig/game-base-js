@@ -3,7 +3,11 @@
  * lock não basta, porque Ctrl+W e Ctrl+T são reservados e ignoram
  * preventDefault. Só o Keyboard Lock os entrega — e ele exige tela cheia.
  *
- * Tela cheia é opcional: sem ela o jogo roda igual, só sem essa camada.
+ * O jogo NUNCA pede tela cheia. O padrão é janela, e quem quiser tela cheia
+ * aperta F11 — é atalho do navegador, e tomar essa decisão pelo jogador
+ * significaria mudar a janela dele sem que ele tenha pedido. O que sobra
+ * aqui é aproveitar a tela cheia QUANDO ELA JÁ EXISTE: nesse caso as teclas
+ * reservadas são travadas, e quem não usa F11 joga igual, só sem essa camada.
  */
 
 // Teclas que o navegador reserva e que preventDefault não alcança. Só o
@@ -15,49 +19,46 @@ const LOCKED_KEYS = [
 // 'Escape' fica de fora de propósito: travado, ele exigiria segurar a tecla
 // pra sair. Assim ESC continua saindo na hora.
 
-const STORAGE_KEY = 'walker.fullscreen';
+const GUEST_KEY = 'walker.convidado';
 
-// localStorage explode em aba anônima e em file:// — a preferência é um
-// conforto, não pode derrubar o jogo.
-function readPreference(fallback) {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved === null ? fallback : saved === '1';
-  } catch {
-    return fallback;
-  }
-}
-
-function writePreference(value) {
-  try {
-    localStorage.setItem(STORAGE_KEY, value ? '1' : '0');
-  } catch { /* sem persistência, só nesta sessão */ }
-}
-
-// true só se fomos nós que pedimos tela cheia — se o jogador já estava em F11,
-// não é nosso papel tirar ele de lá.
-let claimedFullscreen = false;
-
+/**
+ * Trava as teclas reservadas, mas SÓ se o jogador já está em tela cheia.
+ *
+ * Fora dela não há o que fazer: o Keyboard Lock exige tela cheia, e pedi-la
+ * aqui seria decidir pelo jogador. Em janela o jogo roda igual — Ctrl+W
+ * continua fechando a aba, e isso é escolha dele.
+ */
 function grabKeyboard() {
-  if (document.fullscreenElement) {
-    navigator.keyboard?.lock?.(LOCKED_KEYS)?.catch?.(() => {});
-    return;
-  }
-
-  Promise.resolve(document.documentElement.requestFullscreen?.())
-    .then(() => {
-      claimedFullscreen = true;
-      return navigator.keyboard?.lock?.(LOCKED_KEYS);
-    })
-    .catch(() => {}); // recusou tela cheia ou não suporta: joga sem essa camada
+  if (!document.fullscreenElement) return;
+  navigator.keyboard?.lock?.(LOCKED_KEYS)?.catch?.(() => {});
 }
 
+/**
+ * Devolve as teclas. Não mexe na tela cheia: se o jogador entrou nela pelo
+ * F11, tirá-lo de lá é desfazer uma escolha que não foi nossa.
+ */
 function releaseKeyboard() {
   navigator.keyboard?.unlock?.();
-  if (claimedFullscreen && document.fullscreenElement) {
-    document.exitFullscreen?.().catch(() => {});
-  }
-  claimedFullscreen = false;
 }
 
-export { readPreference, writePreference, grabKeyboard, releaseKeyboard };
+/**
+ * Quem está jogando. Não há conta, não há login e não há progresso: todo
+ * mundo é convidado, e o número existe só pra distinguir um do outro.
+ *
+ * Ele é sorteado uma vez e guardado, porque um apelido que muda a cada F5
+ * não distingue ninguém — é ruído. Sem localStorage vale só esta sessão.
+ */
+function readGuest() {
+  try {
+    const saved = localStorage.getItem(GUEST_KEY);
+    if (saved) return saved;
+  } catch { /* aba anônima ou file:// — sorteia e segue */ }
+
+  const nome = `Convidado ${1000 + Math.floor(Math.random() * 9000)}`;
+  try {
+    localStorage.setItem(GUEST_KEY, nome);
+  } catch { /* sem persistência, só nesta sessão */ }
+  return nome;
+}
+
+export { readGuest, grabKeyboard, releaseKeyboard };

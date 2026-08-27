@@ -12,9 +12,10 @@ import { STAMINA } from '../config.js';
  */
 
 import { iconSvg } from '../../vendor/icons/icons.js';
+import { ITEM_ICONS } from './itemicons.js';
 
 /** Item -> ícone. Sem entrada própria a linha fica sem ícone, e não inventa. */
-const ITEM_ICONS = { m1911: 'pistol-gun', kabar: 'bowie-knife', m1943: 'spade' };
+
 
 /** Uma linha do cinto: tecla, ícone, nome e munição. */
 function buildSlot(item, index) {

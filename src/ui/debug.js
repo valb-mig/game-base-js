@@ -1,5 +1,6 @@
 import { isDown, consumePress } from '../core/input.js';
 import { spreadFactor } from '../items/firearm.js';
+import { criarMedidor } from './medidor.js';
 
 const KEYS = [
   { label: 'W', codes: ['KeyW', 'ArrowUp'] },
@@ -25,8 +26,11 @@ const KEYS = [
  *
  * Nasce desligado. Painel de depuração aceso por padrão vira parte do HUD
  * sem ninguém decidir isso.
+ *
+ * `renderer` e `scene` são o medidor do quadro: quem quiser só o painel de
+ * estado não passa nada e continua funcionando.
  */
-export function initDebug(player, tiro = () => null) {
+export function initDebug(player, tiro = () => null, { renderer = null, scene = null } = {}) {
   const panel = document.getElementById('debug');
   const keyRow = KEYS.map(() => document.createElement('span'));
 
@@ -46,9 +50,10 @@ export function initDebug(player, tiro = () => null) {
   panel.append(body, keys, ghost);
 
   let visible = false;
-  let accumulator = 0;
-  let frames = 0;
-  let fps = 0;
+  const medidor = criarMedidor({ renderer, scene });
+  // O gráfico entra DENTRO do painel do F2: uma tecla acende tudo, e um
+  // gráfico solto no canto seria a segunda coisa a lembrar de desligar.
+  if (medidor.grafico) panel.appendChild(medidor.grafico);
 
   /** O que a bala do próximo tiro vai fazer, se houver arma na mão. */
   function linhaDoTiro() {
@@ -60,19 +65,19 @@ export function initDebug(player, tiro = () => null) {
       (t.bateu ? '' : ' · <b>sem bater</b>');
   }
 
-  function updateDebug(delta) {
-    if (consumePress('Backquote', 'F2')) {
-      visible = !visible;
-      panel.classList.toggle('visivel', visible);
-    }
+  function alternar(estado = !visible) {
+    visible = estado;
+    panel.classList.toggle('visivel', visible);
+    return visible;
+  }
 
-    frames++;
-    accumulator += delta;
-    if (accumulator >= 0.25) {
-      fps = Math.round(frames / accumulator);
-      accumulator = 0;
-      frames = 0;
-    }
+  function updateDebug(delta) {
+    if (consumePress('Backquote', 'F2')) alternar();
+
+    // O medidor amostra TODO quadro, inclusive com o painel fechado: ligar o
+    // F2 no meio de um engasgo tem que mostrar o engasgo, não começar a
+    // contar dali. A conta é uma escrita num Float32Array.
+    medidor.quadro(delta);
     if (!visible) return;
 
     const pos = player.object.position;
@@ -98,8 +103,9 @@ export function initDebug(player, tiro = () => null) {
       `mira <b>${player.gun.aim.toFixed(2)}</b>` +
         ` · dispersão <b>${abertura.toFixed(2)}°</b> (×${spreadFactor(player)})`,
       `xz <b>${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}</b>` +
-        ` · pés <b>${player.feetY.toFixed(2)}</b> · ${fps} fps`,
-      linhaDoTiro()
+        ` · pés <b>${player.feetY.toFixed(2)}</b>`,
+      linhaDoTiro(),
+      ...medidor.linhas()
     ].filter(Boolean).map((line) => `<div>${line}</div>`).join('');
 
     KEYS.forEach((key, i) => {
@@ -115,9 +121,15 @@ export function initDebug(player, tiro = () => null) {
 
   return {
     update: updateDebug,
+    /** Liga por código. Headless não tem tecla — ver `?debug=1` em main.js. */
+    alternar,
+    /** Chamado entre o render do mundo e o do viewmodel. Ver `medidor.js`. */
+    amostrarRender: medidor.amostrarRender,
     /** Quem desenha caixa de colisão e rótulo de bot lê isto. */
     get on() {
       return visible;
-    }
+    },
+    /** A medida crua, pra bancada e pro instantâneo do P. */
+    medida: medidor.medida
   };
 }

@@ -14,19 +14,29 @@ function mountScreens() {
     <div id="hud-layer"><canvas id="compass"></canvas>
       <div id="vitals"></div><div id="equipped"></div><div id="prompt"></div></div>
 
-    <div id="start-screen" class="screen"><button id="play"></button></div>
+    <div id="start-screen" class="screen">
+      <span id="guest-name"></span><button id="open-options"></button>
+      <button id="play"></button><button id="training"></button>
+      <span id="game-version"></span>
+    </div>
+
+    <div id="options-screen" class="screen hidden"><button id="close-options"></button></div>
 
     <div id="deploy-screen" class="screen hidden">
       <h1 id="deploy-title"></h1><span id="map-name"></span>
+      <div id="deploy-score"></div>
       <div id="class-grid"></div><div id="class-detail"></div>
+      <div id="deploy-points"></div>
       <canvas id="tactical-map"></canvas>
       <div id="zone-label"></div>
       <button id="deploy"></button><button id="deploy-back" class="hidden"></button>
     </div>
 
+    <div id="map-screen" class="screen hidden">
+      <canvas id="map-canvas"></canvas>
+    </div>
     <div id="pause-screen" class="screen hidden">
       <p id="pause-hint"></p>
-      <div id="hud-options"><input type="checkbox" id="fullscreen-toggle"></div>
       <button id="open-deploy"></button>
     </div>`;
   document.body.appendChild(holder);
@@ -44,7 +54,13 @@ function mountScreens() {
 const terreno = {
   heightAt: () => 4,
   waterDepthAt: () => 0,
-  declividadeAt: () => 0
+  nivelDaAguaAt: () => 0,
+  declividadeAt: () => 0,
+  // A rede viária entrou pelo mesmo caminho da declividade: o mapa tático
+  // pinta a estrada com o `colorAt` da malha, e sem estes dois ele voltava a
+  // estourar na montagem. Mesmo tropeço, dois anos-luz de distância da causa.
+  estradaAt: () => 0,
+  corDeEstradaAt: () => null
 };
 
 export function run() {
@@ -92,7 +108,6 @@ export function run() {
       player.spectateFrom(p.x, terreno.heightAt() + 28, p.z);
     }
   });
-  document.getElementById('fullscreen-toggle').checked = false;
 
   const updateStatus = initStatus(player);
   const visivel = (id) => !document.getElementById(id).classList.contains('hidden');

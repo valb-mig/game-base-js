@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Bancada: painel de ajustes</title>
+<link rel="stylesheet" href="../styles/hud.css">
+<style>body{margin:0;background:#12181a;color:#dfe6e2;font:13px/1.6 ui-monospace,monospace}
+#out{position:fixed;right:0;top:0;width:52%;padding:16px;white-space:pre-wrap}</style>
+</head><body class="playing"><pre id="out">medindo…</pre>
+<script type="importmap">
+{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}
+</script>
+<script type="module">
+import { initAjustes } from '../src/ui/ajustes.js';
+import { GRADE, SPREAD, BULLET, MELEE, VIEW, CAMERA, STAMINA, SWAP, PLAYER } from '../src/config.js';
+
+// O painel montado com o config DE VERDADE, fora do jogo: o que se procura é
+// geometria de layout, e um mapa inteiro atrás só atrapalha a leitura.
+const linhas = [];
+const diz = (s) => { linhas.push(s); document.getElementById('out').textContent = linhas.join('\n'); console.log(s); };
+
+const ajustes = initAjustes(
+  { GRADE, SPREAD, BULLET, MELEE, VIEW, CAMERA, STAMINA, SWAP, PLAYER },
+  { soltarMouse: () => {} }
+);
+ajustes.alternar(true);
+
+diz(`controles montados             ${ajustes.controles.length}`);
+
+const caixa = document.getElementById('ajustes');
+const r = caixa.getBoundingClientRect();
+diz(`#ajustes                       ${r.width.toFixed(0)} x ${r.height.toFixed(0)} em (${r.left.toFixed(0)}, ${r.top.toFixed(0)})`);
+diz(`janela                         ${innerWidth} x ${innerHeight}`);
+
+// Quem passa da janela é quem está estourando o layout — e a cor de fundo
+// computada diz QUEM pintou, que é a pergunta que a foto deixou em aberto.
+diz('');
+diz('elementos grandes dentro do painel');
+for (const el of caixa.querySelectorAll('*')) {
+  const b = el.getBoundingClientRect();
+  if (b.height < 150 && b.width < 300) continue;
+  const s = getComputedStyle(el);
+  diz(`  ${el.className || el.tagName}`.padEnd(34) +
+    `${b.width.toFixed(0)}x${b.height.toFixed(0)} · fundo ${s.backgroundColor} · overflow ${s.overflowY}`);
+}
+
+diz('');
+diz(`o painel cabe na janela?       ${r.bottom <= innerHeight ? 'sim' : `NÃO, passa ${(r.bottom - innerHeight).toFixed(0)} px`}`);
+diz('FIM');
+</script></body></html>
